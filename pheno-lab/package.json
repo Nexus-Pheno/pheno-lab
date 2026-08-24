@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "format:check": "prettier --check src/infrastructure src/modules tests vitest.config.mts vitest.integration.config.mts playwright.config.ts src/instrumentation.ts src/proxy.ts scripts/check-structure.ts scripts/check-schema-drift.ts scripts/check-deploy.ts scripts/encrypt-ai-keys.ts scripts/prepare-test-database.ts scripts/run-integration-tests.ts scripts/validate-runtime-config.ts scripts/verify.ts",
+    "format:check": "prettier --check src/infrastructure src/modules tests vitest.config.mts vitest.integration.config.mts playwright.config.ts src/instrumentation.ts src/proxy.ts scripts/check-structure.ts scripts/check-schema-drift.ts scripts/check-deploy.ts scripts/encrypt-ai-keys.ts scripts/migrate-uploads-to-cos.ts compose.yaml scripts/prepare-test-database.ts scripts/run-integration-tests.ts scripts/validate-runtime-config.ts scripts/verify.ts",
     "lint": "eslint",
     "structure:check": "tsx scripts/check-structure.ts",
     "deploy:check": "tsx scripts/check-deploy.ts",
@@ -19,6 +19,7 @@
     "test:db:prepare": "tsx scripts/prepare-test-database.ts",
     "test:db:drift": "tsx scripts/check-schema-drift.ts",
     "test:integration": "tsx scripts/run-integration-tests.ts",
+    "storage:migrate": "NODE_OPTIONS=--conditions=react-server tsx scripts/migrate-uploads-to-cos.ts",
     "e2e": "playwright test",
     "verify": "tsx scripts/verify.ts"
   },
@@ -33,6 +34,7 @@
     "nodemailer": "^9.0.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
     "smiles-drawer": "^2.4.1",
     "zod": "^4.4.3"
   },
