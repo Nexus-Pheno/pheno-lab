@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { OrgManage, type OrgUserRow } from "@/components/org/OrgManage";
 import { Icon } from "@/components/ui";
+import { getOrganizationAdminData } from "@/modules/organizations/query";
 
 // Each organization's admin manages their own org here: settings, the
 // people in it, their roles, and who is responsible for materials,
@@ -14,21 +14,11 @@ export default async function OrganizationPage() {
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
 
-  const [org, users, pending] = await Promise.all([
-    db.organization.findUniqueOrThrow({ where: { id: session.org } }),
-    db.user.findMany({
-      where: { organizationId: session.org },
-      orderBy: [{ role: "asc" }, { userNumber: "asc" }],
-      select: {
-        id: true, name: true, email: true, role: true, active: true, createdAt: true,
-        materialAdmin: true, equipmentAdmin: true, facilityAdmin: true, recipeAccess: true,
-      },
-    }),
-    db.otpCode.findMany({
-      where: { organizationId: session.org, usedAt: null, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  const {
+    organization: org,
+    users,
+    pending,
+  } = await getOrganizationAdminData(session);
 
   const rows: OrgUserRow[] = users.map((u) => ({
     ...u,

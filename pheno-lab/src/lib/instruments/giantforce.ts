@@ -11,7 +11,13 @@
 
 import { cell, isNumeric, num } from "./csv";
 import { wallClockToDate } from "./time";
-import type { CurvePoint, JvScan, ParsedJvFile, ScanDirection, TestCondition } from "./types";
+import type {
+  CurvePoint,
+  JvScan,
+  ParsedJvFile,
+  ScanDirection,
+  TestCondition,
+} from "./types";
 import { UnsupportedInstrumentFile } from "./types";
 
 const LABELS: Record<string, string> = {
@@ -59,26 +65,36 @@ function readCondition(raw: string): TestCondition | null {
 
 /** "Date and Time:2026/08/20-14:30:40" */
 function readTimestamp(raw: string, tzOffsetMinutes: number): Date | null {
-  const m = raw.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})[-\s]+(\d{1,2}):(\d{2}):(\d{2})/);
+  const m = raw.match(
+    /(\d{4})[/-](\d{1,2})[/-](\d{1,2})[-\s]+(\d{1,2}):(\d{2}):(\d{2})/,
+  );
   if (!m) return null;
   return wallClockToDate(
-    Number(m[1]), Number(m[2]), Number(m[3]),
-    Number(m[4]), Number(m[5]), Number(m[6]),
+    Number(m[1]),
+    Number(m[2]),
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6]),
     tzOffsetMinutes,
   );
 }
 
-export function parseGiantForce(grid: string[][], tzOffsetMinutes: number): ParsedJvFile {
+export function parseGiantForce(
+  grid: string[][],
+  tzOffsetMinutes: number,
+): ParsedJvFile {
   const warnings: string[] = [];
 
   // Each scan occupies three columns (V, I, P). Locate them by the curve header.
   let headerRow = -1;
   for (let r = 0; r < grid.length && headerRow < 0; r++) {
-    if (grid[r].some((c) => c.trim().toLowerCase() === CURVE_HEADER)) headerRow = r;
+    if (grid[r].some((c) => c.trim().toLowerCase() === CURVE_HEADER))
+      headerRow = r;
   }
   if (headerRow < 0) {
     throw new UnsupportedInstrumentFile(
-      "No V/I curve in this file. Looks like a GiantForce \"Save table\" export — " +
+      'No V/I curve in this file. Looks like a GiantForce "Save table" export — ' +
         "those only repeat metrics that the auto-saved per-pixel files already carry.",
     );
   }
@@ -105,7 +121,9 @@ export function parseGiantForce(grid: string[][], tzOffsetMinutes: number): Pars
 
     const serial = (meta.serial ?? "").trim();
     if (!serial) {
-      warnings.push(`Skipped a scan at column ${c + 1}: no "Serial NO." was entered on the instrument.`);
+      warnings.push(
+        `Skipped a scan at column ${c + 1}: no "Serial NO." was entered on the instrument.`,
+      );
       continue;
     }
 
@@ -127,7 +145,12 @@ export function parseGiantForce(grid: string[][], tzOffsetMinutes: number): Pars
     }
 
     const settings: JvScan["settings"] = {};
-    for (const k of ["startVoltage", "stopVoltage", "scanSpeed", "testMode"] as const) {
+    for (const k of [
+      "startVoltage",
+      "stopVoltage",
+      "scanSpeed",
+      "testMode",
+    ] as const) {
       if (meta[k]) settings[k] = num(meta[k]) ?? meta[k];
     }
     settings.points = curve.length;
@@ -157,6 +180,9 @@ export function parseGiantForce(grid: string[][], tzOffsetMinutes: number): Pars
     });
   }
 
-  if (!scans.length) throw new UnsupportedInstrumentFile("No usable scans found in this GiantForce file.");
+  if (!scans.length)
+    throw new UnsupportedInstrumentFile(
+      "No usable scans found in this GiantForce file.",
+    );
   return { instrument: "GIANTFORCE_IV", scans, warnings };
 }

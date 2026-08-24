@@ -1,27 +1,16 @@
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { OrgAdmin } from "@/components/orgs/OrgAdmin";
+import { listOrganizations } from "@/modules/organizations/query";
 
 // Platform-operator view: every trusted organization, pending submissions,
 // and invite-link generation. Only admins of organization #1 see this.
 export default async function OrganizationsPage() {
   const session = await requireSession();
   if (session.role !== "ADMIN") notFound();
-  const own = await db.organization.findUnique({ where: { id: session.org } });
-  if (!own || own.orgNumber !== 1) notFound();
   const t = await getT();
-
-  const orgs = await db.organization.findMany({
-    orderBy: { orgNumber: "asc" },
-    include: {
-      users: {
-        orderBy: { userNumber: "asc" },
-        select: { name: true, email: true, role: true, active: true },
-      },
-    },
-  });
+  const orgs = await listOrganizations(session).catch(() => notFound());
 
   return (
     <main className="h-full overflow-y-auto bg-subtle">

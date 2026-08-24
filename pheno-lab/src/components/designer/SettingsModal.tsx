@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import type { ExperimentStatus } from "@prisma/client";
 import type { ExperimentFull } from "@/lib/types";
 import { STATUS_META } from "@/lib/library";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { assignExperiment, startLabWork } from "@/lib/actions/workflow";
 import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";
 
 export function SettingsModal({
@@ -34,11 +32,6 @@ export function SettingsModal({
   const [title, setTitle] = useState(exp.title);
   const [campaign, setCampaign] = useState(exp.campaign);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [busyWf, setBusyWf] = useState(false);
-  // Local echo so "Send to lab" enables immediately after assigning.
-  const [assigneeId, setAssigneeId] = useState<string | null>(exp.assigneeId);
-  const router = useRouter();
-
   const memberIds = new Set(exp.members.map((m) => m.userId));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createOrgInvite, approveOrganization, rejectOrganization, saveOrgDomains } from "@/lib/actions/orgs";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { Icon, FieldLabel, inputCls } from "@/components/ui";
+import { Icon, inputCls } from "@/components/ui";
 
 type OrgRow = {
   id: string;

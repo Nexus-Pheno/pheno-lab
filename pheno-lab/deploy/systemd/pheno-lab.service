@@ -1,0 +1,39 @@
+[Unit]
+Description=Pheno Lab Data Platform
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=pheno
+Group=pheno
+WorkingDirectory=/srv/pheno-lab/current/pheno-lab
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/pheno-lab/pheno-lab.env
+ExecStartPre=/usr/bin/node /srv/pheno-lab/current/pheno-lab/node_modules/tsx/dist/cli.mjs /srv/pheno-lab/current/pheno-lab/scripts/validate-runtime-config.ts
+ExecStart=/usr/bin/node /srv/pheno-lab/current/pheno-lab/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3457
+
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/pheno-lab/uploads /var/lib/pheno-lab/backups
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pheno-lab
+
+[Install]
+WantedBy=multi-user.target

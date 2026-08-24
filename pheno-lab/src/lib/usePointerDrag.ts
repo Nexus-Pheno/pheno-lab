@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 /**
@@ -22,7 +22,9 @@ export function usePointerDrag({
   scrollEls?: () => (HTMLElement | null)[];
 }) {
   const cbs = useRef({ onHover, onDrop, scrollEls });
-  cbs.current = { onHover, onDrop, scrollEls };
+  useEffect(() => {
+    cbs.current = { onHover, onDrop, scrollEls };
+  }, [onDrop, onHover, scrollEls]);
 
   const startDrag = useCallback(
     (dragged: string) => (e: ReactPointerEvent) => {
@@ -49,8 +51,18 @@ export function usePointerDrag({
       }, 16);
 
       const move = (ev: PointerEvent) => {
-        edgeX = ev.clientX > window.innerWidth - EDGE ? 1 : ev.clientX < EDGE ? -1 : 0;
-        edgeY = ev.clientY > window.innerHeight - EDGE ? 1 : ev.clientY < EDGE ? -1 : 0;
+        edgeX =
+          ev.clientX > window.innerWidth - EDGE
+            ? 1
+            : ev.clientX < EDGE
+              ? -1
+              : 0;
+        edgeY =
+          ev.clientY > window.innerHeight - EDGE
+            ? 1
+            : ev.clientY < EDGE
+              ? -1
+              : 0;
         const hit = document
           .elementFromPoint(ev.clientX, ev.clientY)
           ?.closest(`[${attr}]`);
@@ -76,7 +88,7 @@ export function usePointerDrag({
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", cancel);
     },
-    [attr]
+    [attr],
   );
 
   return startDrag;

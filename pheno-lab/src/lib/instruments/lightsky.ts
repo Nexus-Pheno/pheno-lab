@@ -13,28 +13,48 @@
 
 import { cell, isNumeric, num } from "./csv";
 import { wallClockParts, wallClockToDate } from "./time";
-import type { CurvePoint, JvMetrics, JvScan, ParsedJvFile, ScanDirection } from "./types";
+import type {
+  CurvePoint,
+  JvMetrics,
+  JvScan,
+  ParsedJvFile,
+  ScanDirection,
+} from "./types";
 import { UnsupportedInstrumentFile } from "./types";
 
 /** "Jsc (mA/cm^2)" → "jsc", "Rsh （ohm）" → "rsh" */
 function headerKey(raw: string): string {
-  return raw.split(/[(（]/)[0].replace(/[^a-z]/gi, "").toLowerCase();
+  return raw
+    .split(/[(（]/)[0]
+    .replace(/[^a-z]/gi, "")
+    .toLowerCase();
 }
 
-function splitDirection(name: string): { serial: string; direction: ScanDirection | null } {
+function splitDirection(name: string): {
+  serial: string;
+  direction: ScanDirection | null;
+} {
   const m = name.match(/^(.*)-(rev|for|fwd)$/i);
   if (!m) return { serial: name, direction: null };
   const tag = m[2].toLowerCase();
   return { serial: m[1], direction: tag === "rev" ? "REVERSE" : "FORWARD" };
 }
 
-export function parseLightSky(grid: string[][], fileDate: Date, tzOffsetMinutes: number): ParsedJvFile {
+export function parseLightSky(
+  grid: string[][],
+  fileDate: Date,
+  tzOffsetMinutes: number,
+): ParsedJvFile {
   const warnings: string[] = [];
 
-  const blockCols = grid[0]
-    ?.map((c, i) => (c.trim().toLowerCase() === "name" ? i : -1))
-    .filter((i) => i >= 0) ?? [];
-  if (!blockCols.length) throw new UnsupportedInstrumentFile("No LIGHTSKY trace blocks found in this file.");
+  const blockCols =
+    grid[0]
+      ?.map((c, i) => (c.trim().toLowerCase() === "name" ? i : -1))
+      .filter((i) => i >= 0) ?? [];
+  if (!blockCols.length)
+    throw new UnsupportedInstrumentFile(
+      "No LIGHTSKY trace blocks found in this file.",
+    );
 
   // ---- summary table: a later row whose second cell is "Name" ----
   const summary = new Map<string, Record<string, string>>();
@@ -57,7 +77,9 @@ export function parseLightSky(grid: string[][], fileDate: Date, tzOffsetMinutes:
       summary.set(name, row);
     }
   } else {
-    warnings.push("This file has no summary table, so Voc/Jsc/PCE could not be read — curves only.");
+    warnings.push(
+      "This file has no summary table, so Voc/Jsc/PCE could not be read — curves only.",
+    );
   }
 
   const { year, month, day } = wallClockParts(fileDate, tzOffsetMinutes);
@@ -88,7 +110,10 @@ export function parseLightSky(grid: string[][], fileDate: Date, tzOffsetMinutes:
     }
 
     // Normalize sign against the current nearest 0 V.
-    const atZero = raw.reduce((best, p) => (Math.abs(p.v) < Math.abs(best.v) ? p : best), raw[0]);
+    const atZero = raw.reduce(
+      (best, p) => (Math.abs(p.v) < Math.abs(best.v) ? p : best),
+      raw[0],
+    );
     const flip = atZero.i < 0;
     const curve: CurvePoint[] = raw.map(({ v, i, j }) => {
       const ii = flip ? -i : i;
@@ -112,12 +137,23 @@ export function parseLightSky(grid: string[][], fileDate: Date, tzOffsetMinutes:
           area: num(s.area),
         }
       : {};
-    if (!s) warnings.push(`"${name}" has a curve but no summary row — it was probably not ticked before saving.`);
+    if (!s)
+      warnings.push(
+        `"${name}" has a curve but no summary row — it was probably not ticked before saving.`,
+      );
 
     let measuredAt: Date | null = null;
     const t = (s?.date ?? "").match(/(\d{1,2}):(\d{2}):(\d{2})/);
     if (t) {
-      measuredAt = wallClockToDate(year, month, day, Number(t[1]), Number(t[2]), Number(t[3]), tzOffsetMinutes);
+      measuredAt = wallClockToDate(
+        year,
+        month,
+        day,
+        Number(t[1]),
+        Number(t[2]),
+        Number(t[3]),
+        tzOffsetMinutes,
+      );
     }
 
     const { serial, direction } = splitDirection(name);
@@ -141,6 +177,9 @@ export function parseLightSky(grid: string[][], fileDate: Date, tzOffsetMinutes:
     });
   }
 
-  if (!scans.length) throw new UnsupportedInstrumentFile("No usable traces found in this LIGHTSKY file.");
+  if (!scans.length)
+    throw new UnsupportedInstrumentFile(
+      "No usable traces found in this LIGHTSKY file.",
+    );
   return { instrument: "LIGHTSKY_LIV", scans, warnings };
 }

@@ -1,4 +1,4 @@
-import { normalizeSerial } from "./match";
+import { normalizeSerial } from "./normalize";
 
 /**
  * Instrument serials.
@@ -25,7 +25,11 @@ export function sampleSerial(shortCode: string, sampleCode: string): string {
  * The serial list for a sample: the app-assigned one first, then any aliases a
  * lab has added for its own naming (kept, de-duplicated, normalized).
  */
-export function serialsFor(shortCode: string, sampleCode: string, aliases: string[] = []): string[] {
+export function serialsFor(
+  shortCode: string,
+  sampleCode: string,
+  aliases: string[] = [],
+): string[] {
   const primary = sampleSerial(shortCode, sampleCode);
   const out = primary ? [primary] : [];
   for (const alias of aliases) {
@@ -36,7 +40,11 @@ export function serialsFor(shortCode: string, sampleCode: string, aliases: strin
 }
 
 /** Aliases are everything the app did not assign itself. */
-export function aliasesOf(codes: string[], shortCode: string, sampleCode: string): string[] {
+export function aliasesOf(
+  codes: string[],
+  shortCode: string,
+  sampleCode: string,
+): string[] {
   const primary = sampleSerial(shortCode, sampleCode);
   return codes.filter((c) => c !== primary);
 }

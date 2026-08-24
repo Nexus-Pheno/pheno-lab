@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rematchAllOrganizations } from "@/lib/instruments/rematch";
+import {
+  authorizeRematch,
+  rematchEveryOrganization,
+} from "@/modules/instruments/rematch-service";
 
 /**
  * Scheduled sweep: retries every measurement that could not be matched when it
@@ -11,13 +14,20 @@ import { rematchAllOrganizations } from "@/lib/instruments/rematch";
  *                       https://<host>/api/ingest/rematch -X POST
  */
 export async function POST(req: NextRequest) {
-  const secret = process.env.INGEST_CRON_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "INGEST_CRON_SECRET is not configured" }, { status: 503 });
+  const token = (req.headers.get("authorization") ?? "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+  const authorization = authorizeRematch(token);
+  if (authorization === "unconfigured") {
+    return NextResponse.json(
+      { error: "INGEST_CRON_SECRET is not configured" },
+      { status: 503 },
+    );
   }
-  const token = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  if (token !== secret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (authorization === "denied") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const results = await rematchAllOrganizations();
+  const results = await rematchEveryOrganization();
   return NextResponse.json({ ok: true, results });
 }

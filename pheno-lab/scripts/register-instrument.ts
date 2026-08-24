@@ -7,7 +7,7 @@
  *   pnpm exec tsx scripts/register-instrument.ts --rotate "小太阳"
  */
 import { PrismaClient } from "@prisma/client";
-import { generateApiKey, hashApiKey } from "../src/lib/instruments/auth";
+import { generateApiKey, hashApiKey } from "../src/lib/instruments/credentials";
 
 const prisma = new PrismaClient();
 

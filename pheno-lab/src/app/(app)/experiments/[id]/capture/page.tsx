@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { experimentInclude } from "@/lib/types";
-import { getOrCreateRun } from "@/lib/actions/runs";
 import { preferredView } from "@/lib/actions/view";
 import { getT } from "@/lib/i18n/server";
 import { CaptureView } from "@/components/capture/CaptureView";
+import {
+  getCaptureExperiment,
+  getCaptureRunData,
+} from "@/modules/experiments/query";
+import { getOrCreateRunService } from "@/modules/runs/service";
 
 export default async function CapturePage({
   params,
@@ -20,19 +22,18 @@ export default async function CapturePage({
   const session = await requireSession();
   const t = await getT();
 
-  const experiment = await db.experiment.findUnique({ where: { id }, include: experimentInclude });
-  if (!experiment || experiment.organizationId !== session.org) notFound();
-
-  const isMember = experiment.members.some((m) => m.userId === session.uid);
-  const isCreator = experiment.createdById === session.uid;
-  if (session.role !== "ADMIN" && !isMember && !isCreator) notFound();
+  const experiment = await getCaptureExperiment(session, id);
+  if (!experiment) notFound();
 
   if (experiment.status !== "IN_LAB" && experiment.status !== "COMPLETE") {
     return (
       <main className="h-full flex items-center justify-center bg-subtle p-6">
         <div className="max-w-md text-center">
           <p className="text-sm text-muted mb-4">{t("cap.notInLab")}</p>
-          <Link href={`/experiments/${experiment.id}`} className="text-[13px] font-semibold text-brand-deep hover:underline">
+          <Link
+            href={`/experiments/${experiment.id}`}
+            className="text-[13px] font-semibold text-brand-deep hover:underline"
+          >
             {experiment.code} — {experiment.title}
           </Link>
         </div>
@@ -40,25 +41,18 @@ export default async function CapturePage({
     );
   }
 
-  await getOrCreateRun(experiment.id);
-  const runs = await db.run.findMany({ where: { experimentId: experiment.id }, orderBy: { runNo: "asc" } });
-  const run = runs.find((r) => r.id === runParam) ?? runs[runs.length - 1];
-  const executions = await db.stepExecution.findMany({
-    where: { runId: run.id },
-    include: { attachments: true },
-  });
-  const results = await db.characterizationResult.findMany({
-    where: { characterization: { experimentId: experiment.id }, OR: [{ runId: run.id }, { runId: null }] },
-  });
+  await getOrCreateRunService(session, experiment.id);
+  const { runs, run, executions, results, layers } = await getCaptureRunData(
+    session,
+    experiment.id,
+    runParam,
+  );
 
   // In portal mode, Back returns to the portal home, not the desktop designer.
-  const backHref = (await preferredView()) === "portal" ? "/portal" : `/experiments/${experiment.id}`;
-  const layers = await db.deviceLayer.findMany({
-    where: { organizationId: session.org },
-    orderBy: { position: "asc" },
-    select: { code: true, name: true },
-  });
-
+  const backHref =
+    (await preferredView()) === "portal"
+      ? "/portal"
+      : `/experiments/${experiment.id}`;
   return (
     // Keyed by run so switching runs remounts with that run's data — state
     // from the previous run (executions, form drafts) must not leak over.
@@ -74,7 +68,10 @@ export default async function CapturePage({
         stepId: x.stepId,
         sampleId: x.sampleId,
         actuals: (x.actuals ?? {}) as Record<string, string>,
-        environmentConditions: (x.environmentConditions ?? {}) as Record<string, string>,
+        environmentConditions: (x.environmentConditions ?? {}) as Record<
+          string,
+          string
+        >,
         note: x.note,
         flagged: x.flagged,
         capturedAt: x.capturedAt.toISOString().replace("T", " ").slice(0, 16),

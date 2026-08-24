@@ -7,10 +7,24 @@ import { UnsupportedInstrumentFile } from "./types";
  */
 export function decodeLabText(buf: Buffer): string {
   if (buf.length >= 4) {
-    if (buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0)
-      throw new UnsupportedInstrumentFile("This is a real Excel .xls workbook, not the instrument's CSV export.");
-    if (buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04)
-      throw new UnsupportedInstrumentFile("This is a zip/xlsx file, not the instrument's CSV export.");
+    if (
+      buf[0] === 0xd0 &&
+      buf[1] === 0xcf &&
+      buf[2] === 0x11 &&
+      buf[3] === 0xe0
+    )
+      throw new UnsupportedInstrumentFile(
+        "This is a real Excel .xls workbook, not the instrument's CSV export.",
+      );
+    if (
+      buf[0] === 0x50 &&
+      buf[1] === 0x4b &&
+      buf[2] === 0x03 &&
+      buf[3] === 0x04
+    )
+      throw new UnsupportedInstrumentFile(
+        "This is a zip/xlsx file, not the instrument's CSV export.",
+      );
   }
   if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
     return new TextDecoder("utf-8").decode(buf.subarray(3));

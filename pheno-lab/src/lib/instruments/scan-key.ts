@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { JvScan } from "./types";
-import { normalizeSerial } from "./match";
+import { normalizeSerial } from "./normalize";
 
 /**
  * Identifies one physical scan, independently of which file carried it.

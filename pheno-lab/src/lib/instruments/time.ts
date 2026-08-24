@@ -14,7 +14,10 @@ export function wallClockToDate(
   second: number,
   tzOffsetMinutes: number,
 ): Date {
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, second) - tzOffsetMinutes * 60_000);
+  return new Date(
+    Date.UTC(year, month - 1, day, hour, minute, second) -
+      tzOffsetMinutes * 60_000,
+  );
 }
 
 /** Wall-clock Y/M/D at the given offset, used to date time-only records. */
@@ -28,7 +31,9 @@ export function wallClockParts(d: Date, tzOffsetMinutes: number) {
 }
 
 /** "20260820" (folder names on the GiantForce PC) → Y/M/D, or null. */
-export function parseDateFolder(name: string): { year: number; month: number; day: number } | null {
+export function parseDateFolder(
+  name: string,
+): { year: number; month: number; day: number } | null {
   const m = name.match(/(20\d{2})(\d{2})(\d{2})/);
   if (!m) return null;
   const year = Number(m[1]);
