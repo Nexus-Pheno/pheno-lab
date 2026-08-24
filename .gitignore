@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Build output
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets — never commit. See pheno-lab/.env.example for the required keys.
+.env
+.env.*
+!.env.example
+
+# Lab data: uploaded instrument files, DB dumps, and the raw research archive.
+# These stay on the lab server, not in source control.
+pheno-lab/uploads/
+pheno-lab/backups/
+pheno-data
+
+# Local tooling
+.lavish/
+coverage/
+*.log
+
+# macOS
+.DS_Store
+*.pem

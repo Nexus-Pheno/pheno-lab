@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pheno — Experiment Designer (Mockup)</title>
+<style>
+  :root{
+    --brand:#95CA00; --brand-deep:#4F6B00; --brand-soft:#EDF6D7;
+    --ink:#292C29; --charcoal:#4E534E; --muted:#687069;
+    --border:#D8DED7; --surface:#FFFFFF; --subtle:#F3F5F2;
+    --cyan:#0B7C86; --warning:#A56300; --danger:#B42318;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; letter-spacing:0;}
+  html,body{width:1440px; height:900px;}
+  body{
+    font-family:Inter,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--ink); background:var(--surface); font-size:13px;
+    display:flex; flex-direction:column;
+  }
+  .mono{font-family:SFMono-Regular,"Roboto Mono",Consolas,monospace; font-variant-numeric:tabular-nums;}
+
+  /* ---- App bar ---- */
+  .appbar{height:48px; flex:0 0 48px; display:flex; align-items:center; gap:16px;
+    padding:0 16px; border-bottom:1px solid var(--border); background:var(--surface);}
+  .appbar img.logo{height:22px; display:block;}
+  .appbar .divider{width:1px; height:22px; background:var(--border);}
+  .appbar .appname{font-weight:600; font-size:13px; color:var(--charcoal);}
+  .exp-ident{display:flex; align-items:center; gap:10px;}
+  .exp-ident .expid{font-weight:600; font-size:13px;}
+  .chip{font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; border:1px solid var(--border); color:var(--muted); background:var(--surface);}
+  .chip.draft{color:var(--warning); border-color:#E3CFA8; background:#FBF6EC;}
+  .appbar .spacer{flex:1;}
+  .btn{font-size:12px; font-weight:600; padding:6px 14px; border-radius:4px; border:1px solid var(--border);
+    background:var(--surface); color:var(--ink); display:inline-flex; align-items:center; gap:6px;}
+  .btn.primary{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .avatar{width:26px; height:26px; border-radius:50%; background:var(--subtle); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:var(--charcoal);}
+
+  /* ---- Main layout ---- */
+  .main{flex:1; display:flex; min-height:0;}
+
+  /* ---- Left rail: process library ---- */
+  .rail{flex:0 0 248px; border-right:1px solid var(--border); background:var(--surface);
+    display:flex; flex-direction:column; min-height:0;}
+  .rail h3{font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted);
+    padding:14px 14px 8px;}
+  .rail .hint{font-size:11px; color:var(--muted); padding:0 14px 10px; line-height:1.4;}
+  .lib{padding:0 10px 8px; display:flex; flex-direction:column; gap:6px;}
+  .lib-item{display:flex; align-items:center; gap:8px; padding:7px 9px; border:1px solid var(--border);
+    border-radius:4px; background:var(--surface); font-size:12px; font-weight:500; color:var(--ink); cursor:grab;}
+  .lib-item svg{flex:0 0 auto;}
+  .lib-item .grip{color:#C4CCC4; margin-left:auto;}
+  .rail .sect{border-top:1px solid var(--border); margin-top:6px;}
+
+  /* ---- Canvas ---- */
+  .canvas{flex:1; background:var(--subtle); min-width:0; display:flex; flex-direction:column; min-height:0;}
+  .canvas-scroll{flex:1; overflow:hidden; padding:16px 20px;}
+
+  /* Scientific method strip */
+  .sci{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; margin-bottom:14px;}
+  .sci .cell{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:10px 12px;}
+  .sci .cell h4{font-size:10px; font-weight:700; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+    display:flex; align-items:center; gap:6px;}
+  .sci .cell p{font-size:11px; color:var(--charcoal); line-height:1.45;}
+  .sci .cell.locked{background:var(--subtle);}
+  .sci .cell.locked p{color:#9AA29B; font-style:italic;}
+
+  .flow-head{display:flex; align-items:baseline; gap:10px; margin-bottom:10px;}
+  .flow-head h2{font-size:13px; font-weight:700;}
+  .flow-head .meta{font-size:11px; color:var(--muted);}
+
+  /* Process card grid */
+  .flow{display:grid; grid-template-columns:repeat(4, 1fr); gap:12px 12px;}
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:10px 12px;
+    position:relative; min-height:118px;}
+  .card.selected{border:2px solid var(--brand-deep); box-shadow:none;}
+  .card .stepno{position:absolute; top:10px; right:10px; font-size:10px; font-weight:700; color:var(--muted);}
+  .card h4{font-size:12px; font-weight:700; display:flex; align-items:center; gap:7px; margin-bottom:6px; padding-right:26px;}
+  .card .machine{font-size:11px; color:var(--charcoal); margin-bottom:6px;}
+  .card .machine .model{color:var(--muted);}
+  .params{display:flex; flex-wrap:wrap; gap:4px; margin-bottom:7px;}
+  .param{font-size:10px; padding:2px 6px; border-radius:3px; background:var(--subtle); border:1px solid var(--border); color:var(--charcoal);}
+  .badges{display:flex; gap:5px; flex-wrap:wrap;}
+  .badge{font-size:10px; font-weight:600; padding:2px 7px; border-radius:3px; display:inline-flex; align-items:center; gap:4px;}
+  .badge.env-gb{background:#EAF3F4; color:var(--cyan); border:1px solid #C8E0E2;}
+  .badge.env-air{background:var(--subtle); color:var(--muted); border:1px solid var(--border);}
+  .badge.mat{background:var(--brand-soft); color:var(--brand-deep); border:1px solid #D8E9AC;}
+  .badge.vary{background:#FBF6EC; color:var(--warning); border:1px solid #E3CFA8;}
+  .card .arrow{position:absolute; right:-13px; top:50%; margin-top:-6px; color:#AEB6AF; z-index:2; font-size:12px;}
+
+  .charhead{margin:16px 0 10px; display:flex; align-items:baseline; gap:10px;}
+  .charhead h2{font-size:13px; font-weight:700;}
+  .char{display:grid; grid-template-columns:repeat(4,1fr); gap:12px;}
+  .char .card{min-height:96px;}
+
+  /* ---- Inspector ---- */
+  .inspector{flex:0 0 360px; border-left:1px solid var(--border); background:var(--surface);
+    display:flex; flex-direction:column; min-height:0;}
+  .insp-head{padding:14px 16px 10px; border-bottom:1px solid var(--border);}
+  .insp-head .crumb{font-size:10px; font-weight:700; text-transform:uppercase; color:var(--muted); margin-bottom:3px;}
+  .insp-head h3{font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px;}
+  .insp-body{flex:1; overflow:hidden; padding:12px 16px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:10px; font-weight:700; text-transform:uppercase; color:var(--muted); margin-bottom:4px;}
+  .select{display:flex; align-items:center; justify-content:space-between; border:1px solid var(--border);
+    border-radius:4px; padding:7px 10px; font-size:12px; background:var(--surface);}
+  .select .caret{color:var(--muted); font-size:10px;}
+  .preset-note{font-size:10px; color:var(--brand-deep); margin-top:3px; display:flex; align-items:center; gap:4px;}
+  .prow{display:grid; grid-template-columns:1fr 90px 56px; gap:6px; align-items:center; margin-bottom:6px;}
+  .prow .pname{font-size:12px; color:var(--charcoal);}
+  .prow input{border:1px solid var(--border); border-radius:4px; padding:6px 8px; font-size:12px; width:100%;
+    font-family:SFMono-Regular,"Roboto Mono",Consolas,monospace;}
+  .prow .unit{font-size:11px; color:var(--muted);}
+  .seg{display:flex; border:1px solid var(--border); border-radius:4px; overflow:hidden;}
+  .seg div{flex:1; text-align:center; font-size:11px; font-weight:600; padding:6px 4px; color:var(--muted); background:var(--surface);}
+  .seg div.on{background:var(--brand-soft); color:var(--brand-deep);}
+  .varybox{border:1px solid #E3CFA8; background:#FBF6EC; border-radius:6px; padding:10px 12px; margin-bottom:12px;}
+  .varybox h5{font-size:11px; font-weight:700; color:var(--warning); display:flex; gap:6px; align-items:center; margin-bottom:6px;}
+  .vtable{width:100%; border-collapse:collapse; font-size:11px;}
+  .vtable th{text-align:left; color:var(--muted); font-weight:600; padding:3px 6px; border-bottom:1px solid #E3CFA8;}
+  .vtable td{padding:3px 6px; color:var(--ink); border-bottom:1px dashed #EADFC8;}
+  .linklike{font-size:11px; font-weight:600; color:var(--brand-deep);}
+  .insp-actions{display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--border);}
+  .btn.small{padding:6px 10px; font-size:11px; flex:1; justify-content:center;}
+  .btn.green{background:var(--brand); color:#243000; border-color:var(--brand);}
+
+  /* ---- Status bar ---- */
+  .status{height:28px; flex:0 0 28px; border-top:1px solid var(--border); background:var(--surface);
+    display:flex; align-items:center; gap:18px; padding:0 16px; font-size:11px; color:var(--muted);}
+  .status .dot{width:7px; height:7px; border-radius:50%; background:var(--brand); display:inline-block; margin-right:5px;}
+  .status .right{margin-left:auto;}
+  svg{stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round;}
+</style>
+</head>
+<body>
+
+  <!-- App bar -->
+  <div class="appbar">
+    <img class="logo" src="brand/pheno-logo.png" alt="Pheno">
+    <div class="divider"></div>
+    <span class="appname">Experiment Designer</span>
+    <div class="divider"></div>
+    <div class="exp-ident">
+      <span class="expid mono">EXP-2026-081</span>
+      <span style="font-size:12px;color:var(--charcoal);">Triple-cation n-i-p — anneal temperature series</span>
+      <span class="chip draft">Draft</span>
+    </div>
+    <div class="spacer"></div>
+    <span class="btn">Save template</span>
+    <span class="btn primary">Send to lab</span>
+    <div class="avatar">ML</div>
+  </div>
+
+  <div class="main">
+    <!-- Left rail: process library -->
+    <div class="rail">
+      <h3>Process library</h3>
+      <div class="hint">Drag a step onto the canvas, or click to append.</div>
+      <div class="lib">
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M8 2h8M9 2v6l-5 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V2"/></svg>Cleaning / washing<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>Surface treatment<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/></svg>Spin coating<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M3 17h18M6 17V9a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8M10 4h4v4h-4z"/></svg>Blade coating<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M4 20h16M7 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14M12 8v4"/></svg>Slot-die coating<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M3 18h18M5 18v-4h14v4M12 3v5M8 5v3M16 5v3"/></svg>Thermal anneal<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 3l7 4v10l-7 4-7-4V7z"/><path d="M12 12l7-5M12 12v9M12 12L5 7"/></svg>Sputter PVD<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 21V9M8 13l4-4 4 4M4 3h16"/></svg>Thermal evaporation<span class="grip">⠿</span></div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Characterization<span class="grip">⠿</span></div>
+      </div>
+      <div class="sect"></div>
+      <h3>Materials & recipes</h3>
+      <div class="lib">
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M10 2v7L4 20a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3L14 9V2"/><path d="M7 15h10"/></svg>Perovskite ink — TC-1.68</div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8 8l8 8"/></svg>SAM — Me-4PACz 0.5 mg/mL</div>
+        <div class="lib-item"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/></svg>C60 / BCP stack</div>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas">
+      <div class="canvas-scroll">
+
+        <div class="sci">
+          <div class="cell"><h4><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/></svg>Observation</h4>
+            <p>Batch 079 devices lost ~2 % PCE after 120 h; PL maps show ion migration near the HTL interface.</p></div>
+          <div class="cell"><h4><svg width="12" height="12" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 4"/><path d="M12 17.5v.1"/></svg>Problem</h4>
+            <p>Is the perovskite anneal window causing incomplete crystallization and the observed instability?</p></div>
+          <div class="cell"><h4><svg width="12" height="12" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>Hypothesis</h4>
+            <p>Annealing at 120 °C for 30 min (vs 100 / 140 °C) maximizes grain size without PbI₂ excess, improving stability.</p></div>
+          <div class="cell locked"><h4><svg width="12" height="12" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Conclusion</h4>
+            <p>Unlocks after characterization data is captured.</p></div>
+        </div>
+
+        <div class="flow-head">
+          <h2>Process flow</h2>
+          <span class="meta">12 steps · 8 samples · 3 variation groups (A/B/C)</span>
+        </div>
+
+        <div class="flow">
+          <div class="card">
+            <span class="stepno mono">01</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M8 2h8M9 2v6l-5 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V2"/></svg>Glass washing</h4>
+            <div class="machine">Ultrasonic bath · <span class="model mono">Elmasonic S60H</span></div>
+            <div class="params"><span class="param">DIW → acetone → IPA</span><span class="param">15 min each</span></div>
+            <div class="badges"><span class="badge env-air">Ambient</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card">
+            <span class="stepno mono">02</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>UV-Ozone treatment</h4>
+            <div class="machine">UVO cleaner · <span class="model mono">Ossila L2002A</span></div>
+            <div class="params"><span class="param">20 min</span><span class="param">O₂ flow on</span></div>
+            <div class="badges"><span class="badge env-air">Ambient</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card">
+            <span class="stepno mono">03</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M3 17h18M6 17V9a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8M10 4h4v4h-4z"/></svg>Blade coat — SAM</h4>
+            <div class="machine">Blade coater · <span class="model mono">Zehntner ZAA 2300</span></div>
+            <div class="params"><span class="param">5 mm/s</span><span class="param">gap 100 µm</span><span class="param">10 µL</span></div>
+            <div class="badges"><span class="badge env-gb">Glovebox N₂</span><span class="badge mat">Me-4PACz</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card">
+            <span class="stepno mono">04</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M3 18h18M5 18v-4h14v4M12 3v5M8 5v3M16 5v3"/></svg>Thermal anneal — SAM</h4>
+            <div class="machine">Hotplate · <span class="model mono">IKA C-MAG HS 7</span></div>
+            <div class="params"><span class="param">100 °C</span><span class="param">10 min</span></div>
+            <div class="badges"><span class="badge env-gb">Glovebox N₂</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card">
+            <span class="stepno mono">05</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M4 20h16M7 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14M12 8v4"/></svg>Slot-die — perovskite</h4>
+            <div class="machine">Slot-die coater · <span class="model mono">FOM nanoRC</span></div>
+            <div class="params"><span class="param">3 mm/s</span><span class="param">pump 80 µL/min</span><span class="param">N₂ knife</span></div>
+            <div class="badges"><span class="badge env-gb">Glovebox N₂</span><span class="badge mat">TC-1.68 ink</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card selected">
+            <span class="stepno mono">06</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M3 18h18M5 18v-4h14v4M12 3v5M8 5v3M16 5v3"/></svg>Thermal anneal — perovskite</h4>
+            <div class="machine">Hotplate · <span class="model mono">IKA C-MAG HS 7</span></div>
+            <div class="params"><span class="param">100 / 120 / 140 °C</span><span class="param">30 min</span></div>
+            <div class="badges"><span class="badge env-gb">Glovebox N₂</span><span class="badge vary">Varies A/B/C</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card">
+            <span class="stepno mono">07</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 21V9M8 13l4-4 4 4M4 3h16"/></svg>Evaporation — C60 / BCP</h4>
+            <div class="machine">Thermal evaporator · <span class="model mono">Angstrom Nexdep</span></div>
+            <div class="params"><span class="param">C60 30 nm</span><span class="param">BCP 8 nm</span><span class="param">0.2 Å/s</span></div>
+            <div class="badges"><span class="badge env-gb">Vacuum</span><span class="badge mat">C60 / BCP</span></div>
+            <span class="arrow">▶</span>
+          </div>
+          <div class="card">
+            <span class="stepno mono">08</span>
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 3l7 4v10l-7 4-7-4V7z"/><path d="M12 12l7-5M12 12v9M12 12L5 7"/></svg>Sputter — ITO electrode</h4>
+            <div class="machine">Sputter PVD · <span class="model mono">AJA Orion 5</span></div>
+            <div class="params"><span class="param">RF 60 W</span><span class="param">Ar 20 sccm</span><span class="param">100 nm</span></div>
+            <div class="badges"><span class="badge env-gb">Vacuum</span><span class="badge mat">ITO</span></div>
+          </div>
+        </div>
+
+        <div class="charhead">
+          <h2>Characterization plan</h2>
+          <span class="meta">runs after step 08 · applies to all samples unless noted</span>
+        </div>
+        <div class="char">
+          <div class="card">
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1"/></svg>J-V — solar simulation</h4>
+            <div class="machine">Solar simulator · <span class="model mono">Enlitech SS-F5-3A</span></div>
+            <div class="params"><span class="param">AM1.5G</span><span class="param">Reverse + forward</span><span class="param">50 mV/s</span></div>
+            <div class="badges"><span class="badge env-gb">Glovebox N₂</span></div>
+          </div>
+          <div class="card">
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>SEM — cross-section</h4>
+            <div class="machine">SEM · <span class="model mono">JEOL JSM-7610F</span></div>
+            <div class="params"><span class="param">5 kV</span><span class="param">×50 000</span><span class="param">1 sample / group</span></div>
+            <div class="badges"><span class="badge env-air">Vacuum chamber</span></div>
+          </div>
+          <div class="card">
+            <h4><svg width="13" height="13" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Ellipsometry — thickness</h4>
+            <div class="machine">Ellipsometer · <span class="model mono">J.A. Woollam M-2000</span></div>
+            <div class="params"><span class="param">Transport layers</span><span class="param">3 spots / sample</span></div>
+            <div class="badges"><span class="badge env-air">Ambient</span></div>
+          </div>
+          <div class="card" style="border-style:dashed; display:flex; align-items:center; justify-content:center; color:var(--muted); font-weight:600; font-size:12px; min-height:96px;">
+            + Add characterization
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Inspector -->
+    <div class="inspector">
+      <div class="insp-head">
+        <div class="crumb">Step 06 · Deposition anneal</div>
+        <h3><svg width="15" height="15" viewBox="0 0 24 24"><path d="M3 18h18M5 18v-4h14v4M12 3v5M8 5v3M16 5v3"/></svg>Thermal anneal — perovskite</h3>
+      </div>
+      <div class="insp-body">
+        <div class="field">
+          <label>Equipment preset</label>
+          <div class="select"><span>Hotplate — IKA C-MAG HS 7 · <span class="mono">HP-02</span></span><span class="caret">▾</span></div>
+          <div class="preset-note"><svg width="10" height="10" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Commonly used · 8 recent uses in this lab</div>
+        </div>
+        <div class="field">
+          <label>Process parameters</label>
+          <div class="prow"><span class="pname">Temperature</span><input value="120"><span class="unit">°C</span></div>
+          <div class="prow"><span class="pname">Duration</span><input value="30"><span class="unit">min</span></div>
+          <div class="prow"><span class="pname">Ramp rate</span><input value="5"><span class="unit">°C/min</span></div>
+          <span class="linklike">+ Add parameter</span>
+        </div>
+        <div class="field">
+          <label>Environment</label>
+          <div class="seg"><div class="on">Glovebox N₂</div><div>Dry air</div><div>Ambient</div></div>
+          <div class="prow" style="margin-top:8px;"><span class="pname">H₂O / O₂</span><input value="&lt;0.1 / &lt;0.1"><span class="unit">ppm</span></div>
+        </div>
+        <div class="varybox">
+          <h5><svg width="12" height="12" viewBox="0 0 24 24"><path d="M16 3h5v5M8 21H3v-5M21 3l-7 7M3 21l7-7"/></svg>Varies across sample groups</h5>
+          <table class="vtable">
+            <tr><th>Group</th><th>Samples</th><th>Temperature</th></tr>
+            <tr><td>A</td><td class="mono">S1–S3</td><td class="mono">100 °C</td></tr>
+            <tr><td>B</td><td class="mono">S4–S6</td><td class="mono">120 °C</td></tr>
+            <tr><td>C</td><td class="mono">S7–S8</td><td class="mono">140 °C</td></tr>
+          </table>
+        </div>
+        <div class="field">
+          <label>Material deposited</label>
+          <div class="select"><span style="color:var(--muted);">None — post-deposition treatment</span><span class="caret">▾</span></div>
+        </div>
+        <div class="field">
+          <label>Labels & metadata</label>
+          <div class="params" style="margin-top:2px;">
+            <span class="param">anneal-series</span><span class="param">stability</span><span class="param">Q3-campaign</span>
+            <span class="linklike" style="align-self:center;">+ Label</span>
+          </div>
+        </div>
+      </div>
+      <div class="insp-actions">
+        <span class="btn small">Save as preset</span>
+        <span class="btn small green">Apply to step</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status">
+    <span><span class="dot"></span>All changes saved · 17:42</span>
+    <span class="mono">8 samples</span>
+    <span class="mono">12 process steps</span>
+    <span class="mono">3 characterizations</span>
+    <span class="right">Pheno Lab Data Platform · Designer v0.1 mockup</span>
+  </div>
+
+<script>
+addEventListener('load', () => {
+  const W = 1440, H = 900;
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  document.documentElement.style.cssText = 'overflow:hidden;background:#E5E8E4;width:auto;height:auto;';
+  document.body.style.transformOrigin = 'top left';
+  document.body.style.transform = `translate(${(innerWidth - W*s)/2}px, ${(innerHeight - H*s)/2}px) scale(${s})`;
+  window.__fit = {w: Math.floor(W*s), h: Math.floor(H*s)};
+});
+</script>
+</body>
+</html>

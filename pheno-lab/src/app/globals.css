@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* Pheno design tokens — source: Pheno SZKL Design System (pheno.tokens.json) */
+@theme inline {
+  --font-sans: var(--font-inter), Inter, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-roboto-mono), "SFMono-Regular", "Roboto Mono", Consolas, monospace;
+}
+
+@theme {
+  --color-brand: #95ca00;
+  --color-brand-deep: #4f6b00;
+  --color-brand-soft: #edf6d7;
+  --color-ink: #292c29;
+  --color-charcoal: #4e534e;
+  --color-muted: #687069;
+  --color-line: #d8ded7;
+  --color-surface: #ffffff;
+  --color-subtle: #f3f5f2;
+  --color-data-cyan: #0b7c86;
+  --color-warn: #a56300;
+  --color-warn-soft: #fbf6ec;
+  --color-warn-line: #e3cfa8;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdf4f3;
+  --color-danger-line: #e7c3bf;
+
+  --radius-control: 4px;
+  --radius-panel: 6px;
+  --radius-card: 8px;
+}
+
+html, body {
+  letter-spacing: 0;
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+
+.mono {
+  font-family: var(--font-roboto-mono), "SFMono-Regular", "Roboto Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-brand-deep);
+  outline-offset: 2px;
+}
+
+input, select, textarea, button {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+/* Print: the app shell uses fixed-height scroll containers, which clip
+   printing to one page. Unclamp everything for print so content paginates. */
+@media print {
+  html,
+  body,
+  .h-dvh,
+  main,
+  .flex-1 {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+  .h-dvh {
+    display: block !important;
+  }
+}
+
+/* Hide scrollbars on horizontal touch rails (chips, dot navigation, the
+   capture card track) — swiping still works, nothing overlaps. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

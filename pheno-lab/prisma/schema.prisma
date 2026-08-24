@@ -1,0 +1,714 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN // controls the organization, sees and edits everything, grants access
+  MANAGER // creates and edits their own experiments
+  TECHNICIAN // views and completes work on experiments they are assigned to
+}
+
+enum ExperimentStatus {
+  DRAFT
+  IN_LAB
+  REVIEW // technician finished capture; awaiting manager sign-off
+  COMPLETE
+  ARCHIVED
+}
+
+enum PresetKind {
+  STEP
+  CHARACTERIZATION
+}
+
+enum ProcessKind {
+  PROCESSING
+  CHARACTERIZATION
+}
+
+// Every organization owns its own data: users, experiments, processes,
+// equipment, materials, environments, locations, presets, labels.
+model Organization {
+  id           String           @id @default(cuid())
+  name         String
+  slug         String           @unique
+  orgNumber    Int              @default(1) // organization number in experiment codes (Pheno = 001)
+  nextShortNo  Int              @default(1) // hands out Experiment.shortCode
+  emailDomains String[]         @default([]) // registration allowed only for these domains
+  status       String           @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
+  createdAt    DateTime         @default(now())
+  users        User[]
+  experiments  Experiment[]
+  processes    Process[]
+  equipment    Equipment[]
+  materials    Material[]
+  environments LabEnvironment[]
+  locations    Location[]
+  presets      Preset[]
+  labels       Label[]
+  counters     Counter[]
+  recipes      Recipe[]
+  ingestItems  IngestItem[]
+  aiProviders  AiProvider[]
+  exportRequests ExportRequest[]
+  matCategories MaterialCategoryDef[]
+  deviceLayers DeviceLayer[]
+  feedback     Feedback[]
+  otpCodes     OtpCode[]
+  instruments  Instrument[]
+  jvMeasurements JvMeasurement[]
+}
+
+model User {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  email          String             @unique
+  name           String
+  handle         String             @default("") // short display handle, e.g. @mike
+  language       String             @default("en") // "en" | "zh"
+  passwordHash   String
+  active         Boolean            @default(true) // deactivated users cannot sign in
+  userNumber     Int                @default(0) // sequential per organization, assigned at registration
+  exportRequests ExportRequest[]    @relation("ExportRequester")
+  exportDecisions ExportRequest[]   @relation("ExportDecider")
+  nextExpSeq     Int                @default(1) // this user's next experiment number — never reused, no ceiling
+  role           Role               @default(TECHNICIAN)
+  // Stewardships: who is responsible for each part of the lab's library.
+  materialAdmin  Boolean            @default(false) // materials library (purchasing/stock owner)
+  equipmentAdmin Boolean            @default(false) // equipment & machine parameters
+  facilityAdmin  Boolean            @default(false) // locations & lab environments
+  recipeAccess   Boolean            @default(false) // may view/edit recipe contents
+  createdAt      DateTime           @default(now())
+  experiments    Experiment[]
+  memberships    ExperimentMember[]
+  presets        Preset[]
+  runs           Run[]
+  feedback       Feedback[]
+  recipes        Recipe[]
+  assignedExperiments Experiment[]  @relation("ExperimentAssignee")
+  approvedExperiments Experiment[]  @relation("ExperimentApprover")
+  ingestReviews  IngestItem[]
+}
+
+// One-time passcodes for registration. Delivery is via server log and the
+// admin's Users page until SMTP is configured.
+model OtpCode {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  email          String
+  code           String // 6 digits
+  purpose        String       @default("register")
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime     @default(now())
+}
+
+// Ingestion quality gate: an agent (or a person) drops extracted facts here
+// from equipment docs, datasheets and old data files. Nothing reaches the
+// live library until a manager/admin reviews, edits and publishes it.
+model IngestItem {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  kind           String // EQUIPMENT | MATERIAL | EXPERIMENT
+  status         String       @default("PENDING") // PENDING | PUBLISHED | REJECTED
+  title          String // human label, e.g. "Hotplate — IKA C-MAG HS 7"
+  sourceFile     String       @default("") // where the facts came from
+  confidence     String       @default("") // agent's own confidence note
+  payload        Json // extracted facts, edited in review before publishing
+  reviewNote     String       @default("")
+  publishedId    String? // id of the created record after publishing
+  createdAt      DateTime     @default(now())
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewedBy     User?        @relation(fields: [reviewedById], references: [id])
+}
+
+// Invitation links the platform admin sends to organization representatives:
+// the /onboard page accepts a valid token and submits a new organization
+// (PENDING) with its designated admin, which the platform admin approves.
+model OrgInvite {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+// Bug reports and feedback, collected org-wide and exportable by the admin so
+// issues can be handed to agents with full context.
+model Feedback {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  kind           String // "bug" | "feedback"
+  message        String
+  screenshotPath String       @default("") // uploaded file name
+  errorLog       String       @default("") // recent client-side errors at submit time
+  pageUrl        String       @default("")
+  userAgent      String       @default("")
+  status         String       @default("open") // "open" | "resolved"
+  createdAt      DateTime     @default(now())
+}
+
+model Counter {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  year           Int
+  next           Int          @default(1)
+
+  @@id([organizationId, year])
+}
+
+// The overarching layer of the library: a process (e.g. Spin coating, ALD,
+// Ellipsometry). Equipment and materials belong to a process; selecting a
+// process in the designer limits equipment/material choices to it.
+model Process {
+  id                String             @id @default(cuid())
+  organizationId    String
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  name              String
+  kind              ProcessKind
+  icon              String             @default("Wrench") // lucide icon name
+  defaultLayer      String             @default("") // DeviceLayer.code this process usually builds
+  parameters        Json               @default("[]") // [{ name, unit, defaultValue }] — the process's own parameter definitions
+  position          Int                @default(0)
+  archived          Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  equipment         Equipment[]
+  materials         Material[]
+  steps             ProcessStep[]
+  characterizations Characterization[]
+  presets           Preset[]
+}
+
+// Organization locations rarely change — they are presets.
+model Location {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  archived       Boolean      @default(false)
+  equipment      Equipment[]
+}
+
+model Experiment {
+  id                String             @id @default(cuid())
+  organizationId    String
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  code              String             @unique // YYYY-ORG-USER-SEQ, e.g. 2026-001-1-4
+  // Short handle used for instrument serials, e.g. "E7" → sample S5 is "E7-S5".
+  // Short enough to type on a lab keyboard; unique within the organization.
+  // Nullable so pre-existing experiments can be backfilled one at a time.
+  shortCode         String?
+  title             String
+  campaign          String             @default("") // optional larger experiment group / campaign
+  status            ExperimentStatus   @default(DRAFT)
+  // Test runs live alongside real work but are excluded from every real view
+  // and can be cleared in one action. Chosen when the experiment is created.
+  isTest            Boolean            @default(false)
+  observation       String             @default("")
+  problem           String             @default("")
+  hypothesis        String             @default("")
+  conclusion        String             @default("")
+  metadata          Json? // includes testPlan: variables tested, control, groups
+  // Assignment + sign-off workflow
+  assigneeId        String? // technician responsible for running it
+  assignee          User?              @relation("ExperimentAssignee", fields: [assigneeId], references: [id])
+  submittedAt       DateTime? // when the assignee submitted for review
+  submitNote        String             @default("") // assignee's handover note
+  approvedAt        DateTime?
+  approvedById      String?
+  approvedBy        User?              @relation("ExperimentApprover", fields: [approvedById], references: [id])
+  reviewNote        String             @default("") // manager's closing notes / thoughts
+  createdById       String
+  createdBy         User               @relation(fields: [createdById], references: [id])
+  members           ExperimentMember[]
+  samples           Sample[]
+  steps             ProcessStep[]
+  characterizations Characterization[]
+  labels            ExperimentLabel[]
+  runs              Run[]
+  jvMeasurements    JvMeasurement[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([organizationId, shortCode])
+}
+
+// Users involved in an experiment. Managers/admins grant access by adding
+// members; technicians only see experiments they are members of.
+model ExperimentMember {
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addedAt      DateTime   @default(now())
+
+  @@id([experimentId, userId])
+}
+
+model Sample {
+  id             String                   @id @default(cuid())
+  experimentId   String
+  experiment     Experiment               @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  code           String // S1, S2, ... full ID is <experiment.code>-<code>
+  variationGroup String? // "A", "B", "C" — null = no group
+  note           String                   @default("")
+  // Serials this sample answers to on the instrument, normalized and uppercase.
+  // The first is assigned by the app (e.g. "E7-S5"); the rest are aliases a lab
+  // adds for its own naming. A scan whose serial is one of these plus a pixel
+  // suffix matches here.
+  instrumentCodes String[]                @default([])
+  executions     StepExecution[]
+  results        CharacterizationResult[]
+  jvMeasurements JvMeasurement[]
+
+  @@unique([experimentId, code])
+  @@index([instrumentCodes])
+}
+
+model ProcessStep {
+  id                    String          @id @default(cuid())
+  experimentId          String
+  experiment            Experiment      @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  position              Int
+  processId             String
+  process               Process         @relation(fields: [processId], references: [id])
+  name                  String
+  equipmentId           String?
+  equipment             Equipment?      @relation(fields: [equipmentId], references: [id])
+  environmentId         String?
+  environment           LabEnvironment? @relation(fields: [environmentId], references: [id])
+  environmentConditions Json? // { conditionName: value } for this step
+  layer                 String          @default("") // DeviceLayer.code this step builds
+  recipeId              String?
+  recipe                Recipe?         @relation(fields: [recipeId], references: [id])
+  notes                 String          @default("")
+  materials             StepMaterial[]
+  parameters            StepParameter[]
+  executions            StepExecution[]
+}
+
+// Materials deposited in a step. When several materials are mixed in one
+// process, `amount` records the share of each (e.g. mol% or wt%).
+model StepMaterial {
+  id         String      @id @default(cuid())
+  stepId     String
+  step       ProcessStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  materialId String
+  material   Material    @relation(fields: [materialId], references: [id])
+  amount     String      @default("") // e.g. "60 mol%"
+  position   Int         @default(0)
+
+  @@unique([stepId, materialId])
+}
+
+model StepParameter {
+  id         String               @id @default(cuid())
+  stepId     String
+  step       ProcessStep          @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  position   Int
+  name       String
+  unit       String               @default("")
+  value      String               @default("")
+  // Data lineage tag: where this parameter definition came from.
+  // "process" = process-level parameter, "equipment" = machine parameter,
+  // "material" = material variable from the test plan, "custom" = user-added.
+  source     String               @default("process")
+  variations ParameterVariation[]
+}
+
+model ParameterVariation {
+  id             String        @id @default(cuid())
+  parameterId    String
+  parameter      StepParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  variationGroup String // "A"
+  value          String
+
+  @@unique([parameterId, variationGroup])
+}
+
+model Characterization {
+  id                    String          @id @default(cuid())
+  experimentId          String
+  experiment            Experiment      @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  position              Int
+  processId             String
+  process               Process         @relation(fields: [processId], references: [id])
+  name                  String
+  equipmentId           String?
+  equipment             Equipment?      @relation(fields: [equipmentId], references: [id])
+  environmentId         String?
+  environment           LabEnvironment? @relation(fields: [environmentId], references: [id])
+  environmentConditions Json?
+  settings              Json? // free-form: scan direction, magnification...
+  sampleScope           String          @default("all") // "all" | "per-group"
+  notes                 String          @default("")
+  results               CharacterizationResult[]
+}
+
+// Equipment belongs to a process and owns its parameter definitions: when a
+// step selects this equipment, the step's parameters are populated from these.
+model Equipment {
+  id                String             @id @default(cuid())
+  organizationId    String
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  processId         String
+  process           Process            @relation(fields: [processId], references: [id])
+  name              String // display name, e.g. "Hotplate — IKA C-MAG HS 7"
+  make              String             @default("")
+  model             String             @default("")
+  assetTag          String             @default("")
+  locationId        String?
+  location          Location?          @relation(fields: [locationId], references: [id])
+  photoPath         String             @default("") // stored file name under uploads/
+  parameters        Json               @default("[]") // [{ name, unit, defaultValue }]
+  archived          Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  steps             ProcessStep[]
+  characterizations Characterization[]
+}
+
+// A lab environment preset: each lab defines its own environments and which
+// conditions are tracked in each, e.g. Glovebox N2 (O2 ppm, H2O ppm, temp)
+// or Clean room (particle count, humidity, temp).
+model LabEnvironment {
+  id                String             @id @default(cuid())
+  organizationId    String
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  name              String // "Glovebox N₂", "Clean room", ...
+  conditions        Json               @default("[]") // [{ name, unit, defaultValue }]
+  archived          Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  steps             ProcessStep[]
+  characterizations Characterization[]
+}
+
+// Materials are categorized under a process: under PVD you only see PVD
+// materials, not inks that belong to spin coating.
+model Material {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  processId      String?
+  process        Process?      @relation(fields: [processId], references: [id])
+  name           String
+  // Wiki card: managed by material administrators only.
+  category       String        @default("OTHER") // SAM | PRECURSOR | EVAPORATION | SPUTTER | ALD | SOLVENT | OTHER
+  composition    String        @default("") // molecular/structural formula
+  smiles         String        @default("") // SMILES — renders the 2D structure for organics
+  casNumber      String        @default("")
+  molecularWeight String       @default("") // g/mol
+  purity         String        @default("")
+  supplier       String        @default("") // vendor
+  lot            String        @default("") // batch number
+  properties     Json? // characteristics: HOMO/LUMO, band gap, bp, density, storage…
+  notes          String        @default("")
+  archived       Boolean        @default(false)
+  createdAt      DateTime      @default(now())
+  stepMaterials  StepMaterial[]
+}
+
+// Material categories are org-defined: the lab adds, renames and reorders
+// them (Additives, SAMs, precursors…). Materials reference them by code.
+model MaterialCategoryDef {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  code           String // stable key stored on Material.category
+  name           String // display name, editable
+  nameZh         String       @default("")
+  position       Int          @default(0)
+  builtIn        Boolean      @default(false) // seeded defaults, still renamable
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, code])
+}
+
+// The device stack: which layer of the cell a process/step builds. Ordered
+// bottom-to-top so the flow reads like the physical device.
+model DeviceLayer {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  code           String // stable key stored on Process.defaultLayer / ProcessStep.layer
+  name           String
+  nameZh         String       @default("")
+  position       Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, code])
+}
+
+// Proprietary perovskite recipes: everyone can pick them by name for
+// planning; contents (payload) are visible/editable only with recipeAccess.
+model Recipe {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  summary        String       @default("") // public one-liner (e.g. "1.68 eV wide-gap triple-cation")
+  payload        Json? // secret contents: components, solvents, concentration, notes
+  createdById    String?
+  createdBy      User?        @relation(fields: [createdById], references: [id])
+  archived       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  steps          ProcessStep[]
+}
+
+// LLM providers an organization can use. Keys are stored server-side and are
+// never returned to the browser — only a masked hint. Several can be
+// configured and one made active, so switching model or vendor is a toggle.
+model AiProvider {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  label          String // what a person calls it, e.g. "DeepSeek chat"
+  provider       String // deepseek | openai | anthropic | custom
+  baseUrl        String
+  model          String
+  apiKey         String // secret; never selected into client payloads
+  active         Boolean      @default(false)
+  lastCheckedAt  DateTime?
+  lastStatus     String       @default("")
+  createdAt      DateTime     @default(now())
+  createdById    String?
+
+  @@index([organizationId, active])
+}
+
+// One row per export attempt — request, decision and download in a single
+// audit trail. An admin's own export is recorded here too (auto-approved), so
+// the log answers "who took data out, what, and when" without exception.
+model ExportRequest {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  requestedById  String
+  requestedBy    User         @relation("ExportRequester", fields: [requestedById], references: [id])
+  scope          String // what was exported, e.g. "Data table"
+  detail         String       @default("") // columns / filters in force
+  rowCount       Int          @default(0)
+  reason         String       @default("") // why the requester needs it
+  status         String       @default("PENDING") // PENDING | APPROVED | DENIED
+  decidedById    String?
+  decidedBy      User?        @relation("ExportDecider", fields: [decidedById], references: [id])
+  decidedAt      DateTime?
+  decisionNote   String       @default("")
+  downloadedAt   DateTime?
+  downloadCount  Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, status])
+}
+
+model Preset {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  kind           PresetKind
+  processId      String
+  process        Process      @relation(fields: [processId], references: [id])
+  name           String
+  payload        Json // snapshot of the step/characterization configuration
+  usageCount     Int          @default(0)
+  createdById    String?
+  createdBy      User?        @relation(fields: [createdById], references: [id])
+  createdAt      DateTime     @default(now())
+}
+
+model Label {
+  id             String            @id @default(cuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  name           String
+  experiments    ExperimentLabel[]
+
+  @@unique([organizationId, name])
+}
+
+model ExperimentLabel {
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  labelId      String
+  label        Label      @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([experimentId, labelId])
+}
+
+// ---- Execution (Phase 3 portal writes here; schema in place now) ----
+
+enum RunStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model Run {
+  id           String          @id @default(cuid())
+  experimentId String
+  experiment   Experiment      @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  runNo        Int
+  status       RunStatus       @default(OPEN)
+  technicianId String?
+  technician   User?           @relation(fields: [technicianId], references: [id])
+  createdAt    DateTime        @default(now())
+  executions   StepExecution[]
+  results      CharacterizationResult[]
+  jvMeasurements JvMeasurement[]
+
+  @@unique([experimentId, runNo])
+}
+
+model StepExecution {
+  id                    String       @id @default(cuid())
+  runId                 String
+  run                   Run          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepId                String
+  step                  ProcessStep  @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  sampleId              String
+  sample                Sample       @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  actuals               Json // { paramName: value, ... }
+  environmentConditions Json? // measured conditions at capture time
+  note                  String       @default("")
+  flagged               Boolean      @default(false)
+  capturedAt            DateTime     @default(now())
+  attachments           Attachment[]
+
+  @@unique([runId, stepId, sampleId])
+}
+
+model CharacterizationResult {
+  id                 String           @id @default(cuid())
+  characterizationId String
+  characterization   Characterization @relation(fields: [characterizationId], references: [id], onDelete: Cascade)
+  runId              String?
+  run                Run?             @relation(fields: [runId], references: [id], onDelete: SetNull)
+  sampleId           String?
+  sample             Sample?          @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  metrics            Json // { pce: 21.2, voc: 1.14, ... }
+  note               String           @default("")
+  capturedAt         DateTime         @default(now())
+  attachments        Attachment[]
+  // MANUAL = typed in the capture portal, INSTRUMENT = auto-filled from a
+  // JvMeasurement. Auto-fill never overwrites a MANUAL row.
+  source             String           @default("MANUAL")
+  sourceMeasurementId String?
+}
+
+model Attachment {
+  id                       String                  @id @default(cuid())
+  fileName                 String
+  storedPath               String
+  mime                     String
+  size                     Int
+  stepExecutionId          String?
+  stepExecution            StepExecution?          @relation(fields: [stepExecutionId], references: [id], onDelete: Cascade)
+  characterizationResultId String?
+  characterizationResult   CharacterizationResult? @relation(fields: [characterizationResultId], references: [id], onDelete: Cascade)
+  createdAt                DateTime                @default(now())
+}
+
+// ─── Instrument ingestion ────────────────────────────────────────────────────
+// A registered measurement rig running the pheno-bridge agent. The agent
+// authenticates with a bearer token; only its SHA-256 is stored.
+
+enum InstrumentKind {
+  GIANTFORCE_IV // 小太阳 — GiantForce "IV Measurement System", single cells
+  LIGHTSKY_LIV // 大太阳 — LIGHTSKY Liv-2020 / LSS-200, large-area modules
+}
+
+model Instrument {
+  id             String             @id @default(cuid())
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  kind           InstrumentKind
+  apiKeyHash     String             @unique
+  apiKeyHint     String             @default("") // last 4 characters, to tell keys apart in the UI
+  active         Boolean            @default(true)
+  // Reported by the agent's heartbeat
+  hostname       String             @default("")
+  agentVersion   String             @default("")
+  watchDirs      String[]           @default([])
+  lastSeenAt     DateTime?
+  lastError      String             @default("")
+  createdAt      DateTime           @default(now())
+  uploads        InstrumentUpload[]
+  measurements   JvMeasurement[]
+
+  @@unique([organizationId, name])
+}
+
+// Every file the agent sends, kept verbatim so a parser fix can be replayed
+// without going back to the lab PC.
+model InstrumentUpload {
+  id           String          @id @default(cuid())
+  instrumentId String
+  instrument   Instrument      @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  fileName     String
+  sourcePath   String          @default("")
+  storedPath   String
+  sha256       String
+  size         Int
+  mime         String          @default("")
+  modifiedAt   DateTime?
+  status       String // PARSED | ATTACHMENT | REJECTED
+  message      String          @default("")
+  receivedAt   DateTime        @default(now())
+  measurements JvMeasurement[]
+
+  @@unique([instrumentId, sha256])
+  @@index([instrumentId, receivedAt])
+}
+
+// One J-V scan. Several of these can point at the same Sample (different
+// pixels, forward/reverse); the sample-level result is derived from the best.
+model JvMeasurement {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  instrumentId   String
+  instrument     Instrument       @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  uploadId       String
+  upload         InstrumentUpload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  serial         String // exactly as typed on the instrument
+  serialKey      String // normalized for matching
+  scanKey        String // identifies the physical scan regardless of the file that carried it
+  direction      String? // FORWARD | REVERSE
+  condition      String? // LIGHT | DARK
+  measuredAt     DateTime?
+  operator       String           @default("")
+  material       String           @default("")
+  metrics        Json // { voc, isc, jsc, pmax, vmax, imax, pce, ff, rs, rsh, area }
+  curve          Json // [{ v, i, j, p }, ...]
+  settings       Json?
+  imagePath      String? // the .jpg the instrument saved next to the CSV
+  // Resolved against the experiment/sample library
+  experimentId   String?
+  experiment     Experiment?      @relation(fields: [experimentId], references: [id], onDelete: SetNull)
+  sampleId       String?
+  sample         Sample?          @relation(fields: [sampleId], references: [id], onDelete: SetNull)
+  runId          String?
+  run            Run?             @relation(fields: [runId], references: [id], onDelete: SetNull)
+  status         String // MATCHED | UNMATCHED | IGNORED
+  matchNote      String           @default("")
+  createdAt      DateTime         @default(now())
+
+  @@unique([instrumentId, scanKey])
+  @@index([organizationId, status])
+  @@index([sampleId])
+  @@index([serialKey])
+}
