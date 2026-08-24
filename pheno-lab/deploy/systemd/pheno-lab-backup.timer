@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Pheno Lab PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=10m
+Unit=pheno-lab-backup.service
+
+[Install]
+WantedBy=timers.target

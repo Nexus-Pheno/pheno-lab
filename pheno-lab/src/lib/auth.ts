@@ -1,9 +1,14 @@
+import "server-only";
+
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { redirect } from "next/navigation";
+import { serverConfig } from "@/infrastructure/config/server";
+import { assertAdmin, assertStaff } from "@/modules/authorization/policy";
+import { db } from "@/infrastructure/db/client";
 
 const COOKIE = "pheno_session";
-const secret = () => new TextEncoder().encode(process.env.SESSION_SECRET!);
+const secret = () => new TextEncoder().encode(serverConfig().SESSION_SECRET);
 
 export type Session = {
   uid: string;
@@ -19,6 +24,7 @@ export async function createSession(session: Session) {
     .sign(secret());
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
+    secure: serverConfig().SESSION_COOKIE_SECURE,
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
@@ -31,11 +37,22 @@ export async function getSession(): Promise<Session | null> {
   try {
     const { payload } = await jwtVerify(token, secret());
     if (!payload.uid || !payload.org) return null;
+    const user = await db.user.findUnique({
+      where: { id: payload.uid as string },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        organizationId: true,
+        active: true,
+      },
+    });
+    if (!user?.active) return null;
     return {
-      uid: payload.uid as string,
-      name: payload.name as string,
-      role: payload.role as Session["role"],
-      org: payload.org as string,
+      uid: user.id,
+      name: user.name,
+      role: user.role,
+      org: user.organizationId,
     };
   } catch {
     return null;
@@ -55,12 +72,12 @@ export async function requireSession(): Promise<Session> {
 /** Admins and managers can create and edit; technicians cannot. */
 export async function requireStaff(): Promise<Session> {
   const s = await requireSession();
-  if (s.role === "TECHNICIAN") throw new Error("Technicians have read-only access.");
+  assertStaff(s);
   return s;
 }
 
 export async function requireAdmin(): Promise<Session> {
   const s = await requireSession();
-  if (s.role !== "ADMIN") throw new Error("Only the organization admin can do this.");
+  assertAdmin(s);
   return s;
 }

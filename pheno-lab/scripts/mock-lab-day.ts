@@ -13,8 +13,8 @@
 import { readdirSync, readFileSync } from "fs";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
-import { generateApiKey, hashApiKey } from "../src/lib/instruments/auth";
-import { syncSampleSerials } from "../src/lib/instruments/assign";
+import { generateApiKey, hashApiKey } from "../src/lib/instruments/credentials";
+import { syncSampleSerials } from "../src/modules/instruments/sample-serial-engine";
 
 const prisma = new PrismaClient();
 const BASE = process.env.PHENO_URL ?? "http://127.0.0.1:3467";

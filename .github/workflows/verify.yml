@@ -1,0 +1,74 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  bridge:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: pheno-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: pheno-bridge/go.mod
+          cache-dependency-path: pheno-bridge/go.mod
+      - run: go test ./...
+
+  verify:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: pheno_test
+          POSTGRES_PASSWORD: pheno_test
+          POSTGRES_DB: pheno_lab_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pheno_test -d pheno_lab_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: pheno-lab
+
+    env:
+      CI: "true"
+      NODE_ENV: test
+      DATABASE_URL: postgresql://pheno_test:pheno_test@127.0.0.1:5432/pheno_lab_dev
+      TEST_DATABASE_URL: postgresql://pheno_test:pheno_test@127.0.0.1:5432/pheno_lab_test
+      SESSION_SECRET: ci-session-secret-with-more-than-32-characters
+      INGEST_CRON_SECRET: ci-ingest-secret-with-more-than-24-characters
+      HEALTHCHECK_TOKEN: ci-health-token-with-more-than-24-characters
+      AI_CREDENTIAL_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /tmp/pheno-lab-ci-uploads
+      BACKUP_DIR: /tmp/pheno-lab-ci-backups
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pheno-lab/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:db:prepare
+      - run: pnpm run test:db:drift
+      - run: pnpm run verify
+      - run: pnpm run test:integration
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run e2e
+      - run: ./deploy/scripts/build-release.sh /tmp/pheno-lab-ci.tar.gz
+      - run: cd /tmp && sha256sum --check pheno-lab-ci.tar.gz.sha256

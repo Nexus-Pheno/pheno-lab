@@ -4,15 +4,29 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { buildNameIndex, matchName } from "@/lib/name-match";
 import {
-  updateIngestPayload, publishIngestItem, rejectIngestItem, deleteIngestItem,
-  findDuplicates, markIngestDuplicate, publishIngestItems, resolveDuplicates, getIngestPayload,
-  type DuplicateCandidate, type DuplicateAction, type IngestKind, type PublishResolution, type BulkPublishResult,
+  updateIngestPayload,
+  publishIngestItem,
+  rejectIngestItem,
+  findDuplicates,
+  markIngestDuplicate,
+  publishIngestItems,
+  resolveDuplicates,
+  getIngestPayload,
+  type DuplicateCandidate,
+  type DuplicateAction,
+  type IngestKind,
+  type PublishResolution,
+  type BulkPublishResult,
 } from "@/lib/actions/ingest";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
 import type { TKey } from "@/lib/i18n/dict";
 
-export type FormulaComponent = { material: string; amount: string; role?: string };
+export type FormulaComponent = {
+  material: string;
+  amount: string;
+  role?: string;
+};
 
 export type ExperimentStep = {
   processName: string;
@@ -62,13 +76,17 @@ export function IngestReview({
   const [tab, setTab] = useState<"PENDING" | "DONE">("PENDING");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulkResults, setBulkResults] = useState<BulkPublishResult[] | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkPublishResult[] | null>(
+    null,
+  );
   const [confirmBulk, setConfirmBulk] = useState(false);
   const [confirmDup, setConfirmDup] = useState<DuplicateAction | null>(null);
 
   const [kind, setKind] = useState<string>("ALL");
 
-  const inTab = items.filter((i) => (tab === "PENDING" ? i.status === "PENDING" : i.status !== "PENDING"));
+  const inTab = items.filter((i) =>
+    tab === "PENDING" ? i.status === "PENDING" : i.status !== "PENDING",
+  );
   // Counts drive the kind chips, so a queue of 900 experiments and 300
   // materials can be approved one category at a time instead of hunting
   // through a single mixed list.
@@ -76,7 +94,9 @@ export function IngestReview({
     a[i.kind] = (a[i.kind] ?? 0) + 1;
     return a;
   }, {});
-  const kinds = Object.keys(kindCounts).sort((a, b) => kindCounts[b] - kindCounts[a]);
+  const kinds = Object.keys(kindCounts).sort(
+    (a, b) => kindCounts[b] - kindCounts[a],
+  );
   const shown = kind === "ALL" ? inTab : inTab.filter((i) => i.kind === kind);
   const pending = shown.filter((i) => i.status === "PENDING");
   const done = items.filter((i) => i.status !== "PENDING");
@@ -88,7 +108,8 @@ export function IngestReview({
       else next.add(id);
       return next;
     });
-  const allSelected = pending.length > 0 && pending.every((i) => selected.has(i.id));
+  const allSelected =
+    pending.length > 0 && pending.every((i) => selected.has(i.id));
   const runBulk = async () => {
     setBulkBusy(true);
     setConfirmBulk(false);
@@ -104,13 +125,17 @@ export function IngestReview({
 
   // Resolve everything the last run held back as a duplicate, in one action.
   const runResolve = async (action: DuplicateAction) => {
-    const heldIds = (bulkResults ?? []).filter((r) => r.outcome === "HELD").map((r) => r.id);
+    const heldIds = (bulkResults ?? [])
+      .filter((r) => r.outcome === "HELD")
+      .map((r) => r.id);
     if (heldIds.length === 0) return;
     setBulkBusy(true);
     setConfirmDup(null);
     try {
       const results = await resolveDuplicates(heldIds, action);
-      setBulkResults(results.some((r) => r.outcome !== "PUBLISHED") ? results : null);
+      setBulkResults(
+        results.some((r) => r.outcome !== "PUBLISHED") ? results : null,
+      );
       setSelected(new Set());
       router.refresh();
     } finally {
@@ -133,12 +158,16 @@ export function IngestReview({
             onClick={() => setTab(v)}
             className={
               "h-8 px-3 text-[12px] font-semibold rounded-[4px] border " +
-              (tab === v ? "bg-ink text-white border-ink" : "bg-surface text-charcoal border-line hover:bg-subtle")
+              (tab === v
+                ? "bg-ink text-white border-ink"
+                : "bg-surface text-charcoal border-line hover:bg-subtle")
             }
           >
             {t(v === "PENDING" ? "ing.pending" : "ing.reviewed")}
             <span className="mono ml-1.5 opacity-70">
-              {v === "PENDING" ? items.filter((i) => i.status === "PENDING").length : done.length}
+              {v === "PENDING"
+                ? items.filter((i) => i.status === "PENDING").length
+                : done.length}
             </span>
           </button>
         ))}
@@ -152,7 +181,10 @@ export function IngestReview({
             return (
               <button
                 key={k}
-                onClick={() => { setKind(k); setSelected(new Set()); }}
+                onClick={() => {
+                  setKind(k);
+                  setSelected(new Set());
+                }}
                 className={
                   "h-7 px-2.5 text-[11.5px] font-semibold rounded-[4px] border " +
                   (active
@@ -173,22 +205,41 @@ export function IngestReview({
           <div className="flex items-center justify-between gap-2">
             <span className="text-[12.5px] font-bold">
               {t("ing.bulkDone")
-                .replace("{n}", String(bulkResults.filter((r) => r.outcome === "PUBLISHED").length))
+                .replace(
+                  "{n}",
+                  String(
+                    bulkResults.filter((r) => r.outcome === "PUBLISHED").length,
+                  ),
+                )
                 .replace("{total}", String(bulkResults.length))}
             </span>
-            <button onClick={() => setBulkResults(null)} className="p-1 -m-1 text-muted hover:bg-subtle rounded-[4px]">
+            <button
+              onClick={() => setBulkResults(null)}
+              className="p-1 -m-1 text-muted hover:bg-subtle rounded-[4px]"
+            >
               <Icon name="X" size={14} />
             </button>
           </div>
           {bulkResults.filter((r) => r.outcome === "HELD").length > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
               <span className="text-[11.5px] text-muted flex-1 min-w-40">
-                {t("ing.dupWhatNext").replace("{n}", String(bulkResults.filter((r) => r.outcome === "HELD").length))}
+                {t("ing.dupWhatNext").replace(
+                  "{n}",
+                  String(
+                    bulkResults.filter((r) => r.outcome === "HELD").length,
+                  ),
+                )}
               </span>
               {confirmDup ? (
                 <span className="flex items-center gap-2 bg-warn-soft border border-warn-line rounded-[4px] px-2.5 py-1">
                   <span className="text-[11.5px] font-semibold text-warn">
-                    {t(confirmDup === "REPLACE" ? "ing.dupReplaceQ" : confirmDup === "SKIP" ? "ing.dupSkipQ" : "ing.dupDeleteQ")}
+                    {t(
+                      confirmDup === "REPLACE"
+                        ? "ing.dupReplaceQ"
+                        : confirmDup === "SKIP"
+                          ? "ing.dupSkipQ"
+                          : "ing.dupDeleteQ",
+                    )}
                   </span>
                   <button
                     disabled={bulkBusy}
@@ -197,7 +248,10 @@ export function IngestReview({
                   >
                     <Icon name="Check" size={14} />
                   </button>
-                  <button onClick={() => setConfirmDup(null)} className="p-0.5 text-muted">
+                  <button
+                    onClick={() => setConfirmDup(null)}
+                    className="p-0.5 text-muted"
+                  >
                     <Icon name="X" size={14} />
                   </button>
                 </span>
@@ -231,19 +285,30 @@ export function IngestReview({
 
           {bulkResults.filter((r) => r.outcome !== "PUBLISHED").length > 0 && (
             <div className="space-y-1">
-              <p className="text-[11px] text-warn font-semibold">{t("ing.bulkHeldTitle")}</p>
+              <p className="text-[11px] text-warn font-semibold">
+                {t("ing.bulkHeldTitle")}
+              </p>
               {bulkResults
                 .filter((r) => r.outcome !== "PUBLISHED")
                 .map((r) => (
-                  <div key={r.id} className="text-[11px] flex items-start gap-1.5">
+                  <div
+                    key={r.id}
+                    className="text-[11px] flex items-start gap-1.5"
+                  >
                     <Icon
                       name={r.outcome === "HELD" ? "Copy" : "AlertTriangle"}
                       size={11}
-                      className={"mt-0.5 shrink-0 " + (r.outcome === "HELD" ? "text-warn" : "text-danger")}
+                      className={
+                        "mt-0.5 shrink-0 " +
+                        (r.outcome === "HELD" ? "text-warn" : "text-danger")
+                      }
                     />
                     <span className="font-semibold">{r.title}</span>
                     <span className="text-muted">
-                      — {r.outcome === "HELD" ? `${t("ing.bulkHeldDup")} ${r.message}` : r.message}
+                      —{" "}
+                      {r.outcome === "HELD"
+                        ? `${t("ing.bulkHeldDup")} ${r.message}`
+                        : r.message}
                     </span>
                   </div>
                 ))}
@@ -259,11 +324,18 @@ export function IngestReview({
               type="checkbox"
               className="accent-[#4f6b00] w-3.5 h-3.5"
               checked={allSelected}
-              onChange={() => setSelected(allSelected ? new Set() : new Set(pending.map((i) => i.id)))}
+              onChange={() =>
+                setSelected(
+                  allSelected ? new Set() : new Set(pending.map((i) => i.id)),
+                )
+              }
             />
             {kind === "ALL"
               ? t("ing.selectAll")
-              : t("ing.selectAllKind").replace("{kind}", t(`ing.kind.${kind}` as TKey))}
+              : t("ing.selectAllKind").replace(
+                  "{kind}",
+                  t(`ing.kind.${kind}` as TKey),
+                )}
           </label>
           <span className="text-[11.5px] text-muted mono">
             {t("ing.nSelected").replace("{n}", String(selected.size))}
@@ -274,10 +346,17 @@ export function IngestReview({
               <span className="text-[11.5px] font-semibold text-warn">
                 {t("ing.bulkConfirm").replace("{n}", String(selected.size))}
               </span>
-              <button disabled={bulkBusy} onClick={runBulk} className="p-0.5 text-brand-deep">
+              <button
+                disabled={bulkBusy}
+                onClick={runBulk}
+                className="p-0.5 text-brand-deep"
+              >
                 <Icon name="Check" size={14} />
               </button>
-              <button onClick={() => setConfirmBulk(false)} className="p-0.5 text-muted">
+              <button
+                onClick={() => setConfirmBulk(false)}
+                className="p-0.5 text-muted"
+              >
                 <Icon name="X" size={14} />
               </button>
             </span>
@@ -301,7 +380,10 @@ export function IngestReview({
       ) : (
         <div className="bg-surface border border-line rounded-[6px] divide-y divide-line">
           {shown.map((it) => (
-            <div key={it.id} className="flex items-center gap-2.5 px-3.5 py-2.5">
+            <div
+              key={it.id}
+              className="flex items-center gap-2.5 px-3.5 py-2.5"
+            >
               {it.status === "PENDING" && (
                 <input
                   type="checkbox"
@@ -313,12 +395,21 @@ export function IngestReview({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   {kindChip(it.kind)}
-                  <span className="text-[12.5px] font-semibold truncate">{it.title}</span>
+                  <span className="text-[12.5px] font-semibold truncate">
+                    {it.title}
+                  </span>
                 </div>
                 <div className="text-[10.5px] text-muted truncate mt-0.5">
-                  {it.sourceFile && <span className="mono">{it.sourceFile}</span>}
+                  {it.sourceFile && (
+                    <span className="mono">{it.sourceFile}</span>
+                  )}
                   {it.confidence && <span> · {it.confidence}</span>}
-                  {it.reviewedBy && <span> · {t("ing.by")} {it.reviewedBy}</span>}
+                  {it.reviewedBy && (
+                    <span>
+                      {" "}
+                      · {t("ing.by")} {it.reviewedBy}
+                    </span>
+                  )}
                 </div>
               </div>
               {it.status === "PENDING" ? (
@@ -344,7 +435,7 @@ export function IngestReview({
                       ? "ing.published"
                       : it.status === "DUPLICATE"
                         ? "ing.dupStatus"
-                        : "ing.rejected"
+                        : "ing.rejected",
                   )}
                 </span>
               )}
@@ -360,7 +451,10 @@ export function IngestReview({
           categories={categories}
           materialNames={materialNames}
           onClose={() => setOpen(null)}
-          onDone={() => { setOpen(null); router.refresh(); }}
+          onDone={() => {
+            setOpen(null);
+            router.refresh();
+          }}
         />
       )}
     </div>
@@ -368,7 +462,12 @@ export function IngestReview({
 }
 
 function ReviewModal({
-  item, processNames, categories, materialNames, onClose, onDone,
+  item,
+  processNames,
+  categories,
+  materialNames,
+  onClose,
+  onDone,
 }: {
   item: IngestRow;
   processNames: string[];
@@ -379,13 +478,14 @@ function ReviewModal({
 }) {
   const t = useT();
   const [payload, setPayload] = useState<Record<string, unknown>>({});
-  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let dead = false;
     getIngestPayload(item.id).then((p) => {
-      if (!dead) { setPayload(p); setLoaded(true); }
+      if (!dead) setPayload(p);
     });
-    return () => { dead = true; };
+    return () => {
+      dead = true;
+    };
   }, [item.id]);
   const [note, setNote] = useState(item.reviewNote);
   const [busy, setBusy] = useState(false);
@@ -395,72 +495,143 @@ function ReviewModal({
   const [updateTarget, setUpdateTarget] = useState<string | null>(null);
   const [createAnyway, setCreateAnyway] = useState(false);
 
-  const set = (k: string, v: unknown) => setPayload((p) => ({ ...p, [k]: v }));
-  const str = (k: string) => (typeof payload[k] === "string" ? (payload[k] as string) : "");
+  const set = (k: string, v: unknown) => {
+    setPayload((p) => ({ ...p, [k]: v }));
+    setDups(null);
+    setUpdateTarget(null);
+    setCreateAnyway(false);
+  };
+  const str = (k: string) =>
+    typeof payload[k] === "string" ? (payload[k] as string) : "";
 
   // Re-check for duplicates whenever an identifying field changes — editing
   // the name is exactly how a reviewer resolves a false positive.
   const identity = JSON.stringify(
-    ["name", "casNumber", "composition", "assetTag", "make", "model"].map((k) => str(k))
+    ["name", "casNumber", "composition", "assetTag", "make", "model"].map((k) =>
+      str(k),
+    ),
   );
   useEffect(() => {
     let cancelled = false;
-    setDups(null);
-    setUpdateTarget(null);
-    setCreateAnyway(false);
     const timer = setTimeout(async () => {
       try {
-        const found = await findDuplicates(item.kind as IngestKind, payload, item.id);
+        const found = await findDuplicates(
+          item.kind as IngestKind,
+          payload,
+          item.id,
+        );
         if (!cancelled) setDups(found);
       } catch {
         if (!cancelled) setDups([]);
       }
     }, 250);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity, item.id, item.kind]);
 
   const libraryDups = (dups ?? []).filter((d) => d.source === "LIBRARY");
   const queueDups = (dups ?? []).filter((d) => d.source === "QUEUE");
   // Publishing is blocked until the reviewer says what to do about a match.
-  const dupUnresolved = libraryDups.length > 0 && !updateTarget && !createAnyway;
+  const dupUnresolved =
+    libraryDups.length > 0 && !updateTarget && !createAnyway;
 
   const textField = (label: string, key: string, mono = false) => (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <input className={inputCls + (mono ? " mono" : "")} value={str(key)} onChange={(e) => set(key, e.target.value)} />
+      <input
+        className={inputCls + (mono ? " mono" : "")}
+        value={str(key)}
+        onChange={(e) => set(key, e.target.value)}
+      />
     </div>
   );
 
   const textArea = (label: string, key: string, rows = 3) => (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <textarea className={inputCls + " resize-none"} rows={rows} value={str(key)} onChange={(e) => set(key, e.target.value)} />
+      <textarea
+        className={inputCls + " resize-none"}
+        rows={rows}
+        value={str(key)}
+        onChange={(e) => set(key, e.target.value)}
+      />
     </div>
   );
 
   // Free-form extras the agent extracted that have no dedicated field.
   const knownKeys =
     item.kind === "MATERIAL"
-      ? ["name", "category", "composition", "smiles", "casNumber", "molecularWeight", "purity", "supplier", "lot", "properties", "notes"]
+      ? [
+          "name",
+          "category",
+          "composition",
+          "smiles",
+          "casNumber",
+          "molecularWeight",
+          "purity",
+          "supplier",
+          "lot",
+          "properties",
+          "notes",
+        ]
       : item.kind === "EQUIPMENT"
-        ? ["name", "make", "model", "assetTag", "processName", "locationName", "parameters", "notes"]
+        ? [
+            "name",
+            "make",
+            "model",
+            "assetTag",
+            "processName",
+            "locationName",
+            "parameters",
+            "notes",
+          ]
         : item.kind === "FORMULA"
-          ? ["name", "summary", "composition", "bandGap", "components", "solvents", "concentration", "procedure", "notes"]
+          ? [
+              "name",
+              "summary",
+              "composition",
+              "bandGap",
+              "components",
+              "solvents",
+              "concentration",
+              "procedure",
+              "notes",
+            ]
           : item.kind === "ENVIRONMENT"
             ? ["name", "conditions", "notes"]
             : item.kind === "PRESET"
               ? ["name", "processName", "parameters", "notes"]
               : item.kind === "EXPERIMENT"
-                ? ["title", "operator", "scale", "batchLabel", "date", "campaign", "hypothesis",
-                   "problem", "conclusion", "observation", "steps", "characterizations",
-                   "samples", "sourceFiles"]
+                ? [
+                    "title",
+                    "operator",
+                    "scale",
+                    "batchLabel",
+                    "date",
+                    "campaign",
+                    "hypothesis",
+                    "problem",
+                    "conclusion",
+                    "observation",
+                    "steps",
+                    "characterizations",
+                    "samples",
+                    "sourceFiles",
+                  ]
                 : [];
 
-  const extras = Object.entries(payload).filter(([k]) => !knownKeys.includes(k));
+  const extras = Object.entries(payload).filter(
+    ([k]) => !knownKeys.includes(k),
+  );
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/30 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-ink/30 flex items-end sm:items-center justify-center p-0 sm:p-6"
+      onClick={onClose}
+    >
       <div
         className="w-full sm:max-w-xl bg-surface rounded-t-[10px] sm:rounded-[10px] border border-line max-h-[90dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -470,10 +641,15 @@ function ReviewModal({
             <div className="text-[13px] font-bold truncate">{item.title}</div>
             <div className="text-[10.5px] text-muted truncate">
               {t(`ing.kind.${item.kind}` as TKey)}
-              {item.sourceFile && <span className="mono"> · {item.sourceFile}</span>}
+              {item.sourceFile && (
+                <span className="mono"> · {item.sourceFile}</span>
+              )}
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 -m-1 text-muted hover:bg-subtle rounded-[4px] shrink-0">
+          <button
+            onClick={onClose}
+            className="p-1.5 -m-1 text-muted hover:bg-subtle rounded-[4px] shrink-0"
+          >
             <Icon name="X" size={16} />
           </button>
         </div>
@@ -489,21 +665,36 @@ function ReviewModal({
             <div className="border border-danger-line bg-danger-soft rounded-[6px] p-2.5 space-y-2">
               <div className="flex items-center gap-1.5">
                 <Icon name="Copy" size={13} className="text-danger" />
-                <span className="text-[12px] font-bold text-danger">{t("ing.dupTitle")}</span>
+                <span className="text-[12px] font-bold text-danger">
+                  {t("ing.dupTitle")}
+                </span>
               </div>
               <p className="text-[11px] text-charcoal">{t("ing.dupBody")}</p>
               {libraryDups.map((d) => (
-                <div key={d.id} className="bg-surface border border-line rounded-[4px] p-2 space-y-1.5">
+                <div
+                  key={d.id}
+                  className="bg-surface border border-line rounded-[4px] p-2 space-y-1.5"
+                >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-[12px] font-semibold truncate">{d.name}</div>
+                      <div className="text-[12px] font-semibold truncate">
+                        {d.name}
+                      </div>
                       <div className="text-[10px] text-muted">
                         {t("ing.dupMatchedOn")} {d.matchedOn}
-                        {d.identical && <span className="text-danger font-semibold"> · {t("ing.dupIdentical")}</span>}
+                        {d.identical && (
+                          <span className="text-danger font-semibold">
+                            {" "}
+                            · {t("ing.dupIdentical")}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <button
-                      onClick={() => { setUpdateTarget(d.id); setCreateAnyway(false); }}
+                      onClick={() => {
+                        setUpdateTarget(d.id);
+                        setCreateAnyway(false);
+                      }}
                       className={
                         "h-7 px-2.5 text-[11px] font-bold rounded-[4px] border shrink-0 " +
                         (updateTarget === d.id
@@ -511,16 +702,25 @@ function ReviewModal({
                           : "bg-surface text-charcoal border-line hover:bg-subtle")
                       }
                     >
-                      {updateTarget === d.id ? t("ing.dupWillUpdate") : t("ing.dupUpdate")}
+                      {updateTarget === d.id
+                        ? t("ing.dupWillUpdate")
+                        : t("ing.dupUpdate")}
                     </button>
                   </div>
                   {d.differences.length > 0 && (
                     <div className="border-t border-line pt-1.5 space-y-0.5">
                       {d.differences.map((f) => (
-                        <div key={f.field} className="grid grid-cols-[88px_1fr_1fr] gap-1.5 text-[10.5px] items-baseline">
+                        <div
+                          key={f.field}
+                          className="grid grid-cols-[88px_1fr_1fr] gap-1.5 text-[10.5px] items-baseline"
+                        >
                           <span className="text-muted truncate">{f.field}</span>
-                          <span className="mono line-through text-muted truncate">{f.existing || "—"}</span>
-                          <span className="mono text-brand-deep truncate">{f.incoming}</span>
+                          <span className="mono line-through text-muted truncate">
+                            {f.existing || "—"}
+                          </span>
+                          <span className="mono text-brand-deep truncate">
+                            {f.incoming}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -541,13 +741,20 @@ function ReviewModal({
                   {t("ing.dupBulkSkip")}
                 </button>
                 <button
-                  onClick={() => { setCreateAnyway(!createAnyway); setUpdateTarget(null); }}
+                  onClick={() => {
+                    setCreateAnyway(!createAnyway);
+                    setUpdateTarget(null);
+                  }}
                   className={
                     "h-8 px-3 text-[11.5px] font-semibold rounded-[4px] border " +
-                    (createAnyway ? "bg-warn-soft text-warn border-warn-line" : "bg-surface text-muted border-line")
+                    (createAnyway
+                      ? "bg-warn-soft text-warn border-warn-line"
+                      : "bg-surface text-muted border-line")
                   }
                 >
-                  {createAnyway ? t("ing.dupCreatingNew") : t("ing.dupCreateNew")}
+                  {createAnyway
+                    ? t("ing.dupCreatingNew")
+                    : t("ing.dupCreateNew")}
                 </button>
               </div>
             </div>
@@ -571,7 +778,9 @@ function ReviewModal({
                     onChange={(e) => set("category", e.target.value)}
                   >
                     {categories.map((c) => (
-                      <option key={c.code} value={c.code}>{c.name}</option>
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -612,14 +821,24 @@ function ReviewModal({
                     onChange={(e) => set("processName", e.target.value)}
                   >
                     <option value="">{t("ing.pickProcess")}</option>
-                    {processNames.map((p) => <option key={p} value={p}>{p}</option>)}
+                    {processNames.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 {textField(t("lib.location"), "locationName")}
               </div>
               <ParamListEditor
                 label={t("lib.machineParams")}
-                value={(payload.parameters as { name: string; unit: string; defaultValue: string }[]) ?? []}
+                value={
+                  (payload.parameters as {
+                    name: string;
+                    unit: string;
+                    defaultValue: string;
+                  }[]) ?? []
+                }
                 onChange={(v) => set("parameters", v)}
               />
             </>
@@ -630,8 +849,14 @@ function ReviewModal({
               {textField(t("rec.name"), "name")}
               <div>
                 <FieldLabel>{t("rec.summary")}</FieldLabel>
-                <input className={inputCls} value={str("summary")} onChange={(e) => set("summary", e.target.value)} />
-                <p className="text-[10.5px] text-muted mt-1">{t("rec.summaryHint")}</p>
+                <input
+                  className={inputCls}
+                  value={str("summary")}
+                  onChange={(e) => set("summary", e.target.value)}
+                />
+                <p className="text-[10.5px] text-muted mt-1">
+                  {t("rec.summaryHint")}
+                </p>
               </div>
               {textField(t("ing.composition"), "composition", true)}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -654,7 +879,13 @@ function ReviewModal({
               {textField(t("lib.envName"), "name")}
               <ParamListEditor
                 label={t("lib.conditions")}
-                value={(payload.conditions as { name: string; unit: string; defaultValue: string }[]) ?? []}
+                value={
+                  (payload.conditions as {
+                    name: string;
+                    unit: string;
+                    defaultValue: string;
+                  }[]) ?? []
+                }
                 onChange={(v) => set("conditions", v)}
               />
               {textArea(t("ing.formulaNotes"), "notes", 2)}
@@ -672,13 +903,23 @@ function ReviewModal({
                   onChange={(e) => set("processName", e.target.value)}
                 >
                   <option value="">{t("ing.pickProcess")}</option>
-                  {processNames.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {processNames.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
                 </select>
               </div>
               <ParamListEditor
                 label={t("lib.machineParams")}
                 valueKey="value"
-                value={(payload.parameters as { name: string; unit: string; value: string }[]) ?? []}
+                value={
+                  (payload.parameters as {
+                    name: string;
+                    unit: string;
+                    value: string;
+                  }[]) ?? []
+                }
                 onChange={(v) => set("parameters", v)}
               />
               {textArea(t("ing.formulaNotes"), "notes", 2)}
@@ -697,7 +938,10 @@ function ReviewModal({
               {textArea(t("sci.hypothesis"), "hypothesis", 2)}
               {textArea(t("sci.problem"), "problem", 2)}
               {textArea(t("sci.conclusion"), "conclusion", 2)}
-              <ExperimentSummary payload={payload} materialNames={materialNames} />
+              <ExperimentSummary
+                payload={payload}
+                materialNames={materialNames}
+              />
             </>
           )}
 
@@ -712,7 +956,12 @@ function ReviewModal({
 
           <div>
             <FieldLabel>{t("ing.reviewNote")}</FieldLabel>
-            <textarea className={inputCls + " resize-none"} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+            <textarea
+              className={inputCls + " resize-none"}
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
           </div>
           {error && <p className="text-[12px] text-danger">{error}</p>}
         </div>
@@ -720,27 +969,45 @@ function ReviewModal({
         <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t border-line">
           {confirmReject ? (
             <span className="flex items-center gap-2 bg-warn-soft border border-warn-line rounded-[4px] px-2.5 py-1.5">
-              <span className="text-[11.5px] font-semibold text-warn">{t("ing.rejectQ")}</span>
+              <span className="text-[11.5px] font-semibold text-warn">
+                {t("ing.rejectQ")}
+              </span>
               <button
                 disabled={busy}
-                onClick={async () => { setBusy(true); await rejectIngestItem(item.id, note); setBusy(false); onDone(); }}
+                onClick={async () => {
+                  setBusy(true);
+                  await rejectIngestItem(item.id, note);
+                  setBusy(false);
+                  onDone();
+                }}
                 className="p-0.5 text-danger"
               >
                 <Icon name="Check" size={13} />
               </button>
-              <button onClick={() => setConfirmReject(false)} className="p-0.5 text-muted">
+              <button
+                onClick={() => setConfirmReject(false)}
+                className="p-0.5 text-muted"
+              >
                 <Icon name="X" size={13} />
               </button>
             </span>
           ) : (
-            <button onClick={() => setConfirmReject(true)} className="text-[11.5px] font-semibold text-muted hover:text-danger px-1">
+            <button
+              onClick={() => setConfirmReject(true)}
+              className="text-[11.5px] font-semibold text-muted hover:text-danger px-1"
+            >
               {t("ing.reject")}
             </button>
           )}
           <span className="flex-1" />
           <button
             disabled={busy}
-            onClick={async () => { setBusy(true); await updateIngestPayload(item.id, payload, note); setBusy(false); onDone(); }}
+            onClick={async () => {
+              setBusy(true);
+              await updateIngestPayload(item.id, payload, note);
+              setBusy(false);
+              onDone();
+            }}
             className="h-9 px-3.5 border border-line rounded-[4px] text-[12px] font-semibold text-charcoal"
           >
             {t("ing.saveDraft")}
@@ -777,14 +1044,18 @@ function ReviewModal({
 }
 
 function KeyValueEditor({
-  label, value, onChange,
+  label,
+  value,
+  onChange,
 }: {
   label: string;
   value: Record<string, string>;
   onChange: (v: Record<string, string>) => void;
 }) {
   const t = useT();
-  const [rows, setRows] = useState<[string, string][]>(Object.entries(value ?? {}));
+  const [rows, setRows] = useState<[string, string][]>(
+    Object.entries(value ?? {}),
+  );
   const push = (next: [string, string][]) => {
     setRows(next);
     onChange(Object.fromEntries(next.filter(([k]) => k.trim())));
@@ -795,14 +1066,32 @@ function KeyValueEditor({
       <div className="space-y-1.5">
         {rows.map(([k, v], i) => (
           <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-1.5">
-            <input className={inputCls} value={k} onChange={(e) => push(rows.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))} />
-            <input className={inputCls + " mono"} value={v} onChange={(e) => push(rows.map((x, j) => (j === i ? [x[0], e.target.value] : x)))} />
-            <button onClick={() => push(rows.filter((_, j) => j !== i))} className="p-1.5 text-muted hover:text-danger">
+            <input
+              className={inputCls}
+              value={k}
+              onChange={(e) =>
+                push(rows.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))
+              }
+            />
+            <input
+              className={inputCls + " mono"}
+              value={v}
+              onChange={(e) =>
+                push(rows.map((x, j) => (j === i ? [x[0], e.target.value] : x)))
+              }
+            />
+            <button
+              onClick={() => push(rows.filter((_, j) => j !== i))}
+              className="p-1.5 text-muted hover:text-danger"
+            >
               <Icon name="X" size={13} />
             </button>
           </div>
         ))}
-        <button onClick={() => push([...rows, ["", ""]])} className="text-[11px] font-semibold text-brand-deep flex items-center gap-1">
+        <button
+          onClick={() => push([...rows, ["", ""]])}
+          className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"
+        >
           <Icon name="Plus" size={11} /> {t("mat.addProp")}
         </button>
       </div>
@@ -814,18 +1103,26 @@ function KeyValueEditor({
 // gets a readable summary of what publishing would create: the process steps
 // in order, the samples and their metrics, and how many raw files come along.
 function ExperimentSummary({
-  payload, materialNames,
+  payload,
+  materialNames,
 }: {
   payload: Record<string, unknown>;
   materialNames: string[];
 }) {
   const t = useT();
-  const index = useMemo(() => buildNameIndex(materialNames.map((name) => ({ name }))), [materialNames]);
+  const index = useMemo(
+    () => buildNameIndex(materialNames.map((name) => ({ name }))),
+    [materialNames],
+  );
   const steps = (payload.steps as ExperimentStep[]) ?? [];
-  const chars = (payload.characterizations as { processName: string; name: string }[]) ?? [];
+  const chars =
+    (payload.characterizations as { processName: string; name: string }[]) ??
+    [];
   const samples = (payload.samples as ExperimentSample[]) ?? [];
   const files = samples.reduce((n, s) => n + (s.files?.length ?? 0), 0);
-  const withMetrics = samples.filter((s) => Object.keys(s.metrics ?? {}).length > 0).length;
+  const withMetrics = samples.filter(
+    (s) => Object.keys(s.metrics ?? {}).length > 0,
+  ).length;
 
   return (
     <div className="space-y-2.5">
@@ -837,7 +1134,10 @@ function ExperimentSummary({
           [t("ing.withMetrics"), withMetrics],
           [t("ing.rawFiles"), files],
         ].map(([label, n]) => (
-          <span key={String(label)} className="text-[10.5px] bg-subtle border border-line rounded-[3px] px-1.5 py-0.5">
+          <span
+            key={String(label)}
+            className="text-[10.5px] bg-subtle border border-line rounded-[3px] px-1.5 py-0.5"
+          >
             {label} <span className="mono font-bold">{n}</span>
           </span>
         ))}
@@ -852,11 +1152,16 @@ function ExperimentSummary({
                 <div className="text-[11.5px] font-semibold">
                   <span className="mono text-muted mr-1.5">{i + 1}</span>
                   {s.name}
-                  <span className="text-muted font-normal"> · {s.processName}</span>
+                  <span className="text-muted font-normal">
+                    {" "}
+                    · {s.processName}
+                  </span>
                 </div>
                 {(s.parameters ?? []).length > 0 && (
                   <div className="text-[10px] text-muted mono truncate">
-                    {(s.parameters ?? []).map((p) => `${p.name} ${p.value}${p.unit}`).join(" · ")}
+                    {(s.parameters ?? [])
+                      .map((p) => `${p.name} ${p.value}${p.unit}`)
+                      .join(" · ")}
                   </div>
                 )}
                 {(s.materialNames ?? []).length > 0 && (
@@ -893,15 +1198,22 @@ function ExperimentSummary({
               <tbody className="divide-y divide-line">
                 {samples.slice(0, 60).map((s, i) => (
                   <tr key={i}>
-                    <td className="px-2 py-1 mono font-semibold whitespace-nowrap">{s.code}</td>
+                    <td className="px-2 py-1 mono font-semibold whitespace-nowrap">
+                      {s.code}
+                    </td>
                     <td className="px-2 py-1 mono text-muted">
                       {Object.entries(s.metrics ?? {})
                         .slice(0, 6)
-                        .map(([k, v]) => `${k} ${typeof v === "number" ? v.toFixed(2) : v}`)
+                        .map(
+                          ([k, v]) =>
+                            `${k} ${typeof v === "number" ? v.toFixed(2) : v}`,
+                        )
                         .join("  ")}
                     </td>
                     <td className="px-2 py-1 text-right text-muted whitespace-nowrap">
-                      {(s.files?.length ?? 0) > 0 ? `${s.files.length} file(s)` : ""}
+                      {(s.files?.length ?? 0) > 0
+                        ? `${s.files.length} file(s)`
+                        : ""}
                     </td>
                   </tr>
                 ))}
@@ -909,7 +1221,9 @@ function ExperimentSummary({
             </table>
           </div>
           {samples.length > 60 && (
-            <p className="text-[10px] text-muted mt-1">{t("ing.andMore").replace("{n}", String(samples.length - 60))}</p>
+            <p className="text-[10px] text-muted mt-1">
+              {t("ing.andMore").replace("{n}", String(samples.length - 60))}
+            </p>
           )}
         </div>
       )}
@@ -922,7 +1236,9 @@ function ExperimentSummary({
 // formula never creates materials — an unknown component is a flag, not an
 // error, and is staged separately as a MATERIAL item if it should exist.
 function ComponentEditor({
-  value, onChange, materialNames,
+  value,
+  onChange,
+  materialNames,
 }: {
   value: FormulaComponent[];
   onChange: (v: FormulaComponent[]) => void;
@@ -932,10 +1248,12 @@ function ComponentEditor({
   const rows = value ?? [];
   const index = useMemo(
     () => buildNameIndex(materialNames.map((name) => ({ name }))),
-    [materialNames]
+    [materialNames],
   );
   const named = rows.filter((r) => r.material?.trim());
-  const unknownCount = named.filter((r) => !matchName(r.material, index)).length;
+  const unknownCount = named.filter(
+    (r) => !matchName(r.material, index),
+  ).length;
   const patch = (i: number, next: Partial<FormulaComponent>) =>
     onChange(rows.map((x, j) => (j === i ? { ...x, ...next } : x)));
 
@@ -944,22 +1262,45 @@ function ComponentEditor({
       <FieldLabel>{t("rec.components")}</FieldLabel>
       <div className="space-y-1.5">
         <div className="grid grid-cols-[1fr_88px_96px_auto] gap-1.5 px-0.5">
-          <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted">{t("rec.component")}</span>
-          <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted">{t("rec.amount")}</span>
-          <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted">{t("ing.role")}</span>
+          <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted">
+            {t("rec.component")}
+          </span>
+          <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted">
+            {t("rec.amount")}
+          </span>
+          <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted">
+            {t("ing.role")}
+          </span>
           <span className="w-[22px]" />
         </div>
         {rows.map((r, i) => {
           const filled = !!r.material?.trim();
-          const hit = filled ? matchName(r.material, index)?.name ?? null : null;
+          const hit = filled
+            ? (matchName(r.material, index)?.name ?? null)
+            : null;
           const ok = !!hit;
           return (
             <div key={i}>
               <div className="grid grid-cols-[1fr_88px_96px_auto] gap-1.5">
-                <input className={inputCls} value={r.material ?? ""} onChange={(e) => patch(i, { material: e.target.value })} />
-                <input className={inputCls + " mono"} value={r.amount ?? ""} onChange={(e) => patch(i, { amount: e.target.value })} />
-                <input className={inputCls} value={r.role ?? ""} onChange={(e) => patch(i, { role: e.target.value })} />
-                <button onClick={() => onChange(rows.filter((_, j) => j !== i))} className="p-1.5 text-muted hover:text-danger">
+                <input
+                  className={inputCls}
+                  value={r.material ?? ""}
+                  onChange={(e) => patch(i, { material: e.target.value })}
+                />
+                <input
+                  className={inputCls + " mono"}
+                  value={r.amount ?? ""}
+                  onChange={(e) => patch(i, { amount: e.target.value })}
+                />
+                <input
+                  className={inputCls}
+                  value={r.role ?? ""}
+                  onChange={(e) => patch(i, { role: e.target.value })}
+                />
+                <button
+                  onClick={() => onChange(rows.filter((_, j) => j !== i))}
+                  className="p-1.5 text-muted hover:text-danger"
+                >
                   <Icon name="X" size={13} />
                 </button>
               </div>
@@ -984,7 +1325,9 @@ function ComponentEditor({
           );
         })}
         <button
-          onClick={() => onChange([...rows, { material: "", amount: "", role: "" }])}
+          onClick={() =>
+            onChange([...rows, { material: "", amount: "", role: "" }])
+          }
           className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"
         >
           <Icon name="Plus" size={11} /> {t("rec.addComponent")}
@@ -1004,7 +1347,10 @@ function ComponentEditor({
 // Name / unit / value rows. `valueKey` differs by target: equipment and
 // environments store "defaultValue", preset parameters store "value".
 function ParamListEditor<K extends string>({
-  label, value, onChange, valueKey = "defaultValue" as K,
+  label,
+  value,
+  onChange,
+  valueKey = "defaultValue" as K,
 }: {
   label: string;
   value: ({ name: string; unit: string } & Record<K, string>)[];
@@ -1021,14 +1367,25 @@ function ParamListEditor<K extends string>({
       <div className="space-y-1.5">
         {rows.map((r, i) => (
           <div key={i} className="grid grid-cols-[1fr_80px_100px_auto] gap-1.5">
-            <input className={inputCls} value={r.name} onChange={(e) => patch(i, { name: e.target.value })} />
-            <input className={inputCls} value={r.unit} onChange={(e) => patch(i, { unit: e.target.value })} />
+            <input
+              className={inputCls}
+              value={r.name}
+              onChange={(e) => patch(i, { name: e.target.value })}
+            />
+            <input
+              className={inputCls}
+              value={r.unit}
+              onChange={(e) => patch(i, { unit: e.target.value })}
+            />
             <input
               className={inputCls + " mono"}
               value={(r as Record<string, string>)[valueKey] ?? ""}
               onChange={(e) => patch(i, { [valueKey]: e.target.value })}
             />
-            <button onClick={() => onChange(rows.filter((_, j) => j !== i))} className="p-1.5 text-muted hover:text-danger">
+            <button
+              onClick={() => onChange(rows.filter((_, j) => j !== i))}
+              className="p-1.5 text-muted hover:text-danger"
+            >
               <Icon name="X" size={13} />
             </button>
           </div>
@@ -1037,7 +1394,10 @@ function ParamListEditor<K extends string>({
           onClick={() =>
             onChange([
               ...rows,
-              { name: "", unit: "", [valueKey]: "" } as { name: string; unit: string } & Record<K, string>,
+              { name: "", unit: "", [valueKey]: "" } as {
+                name: string;
+                unit: string;
+              } & Record<K, string>,
             ])
           }
           className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"

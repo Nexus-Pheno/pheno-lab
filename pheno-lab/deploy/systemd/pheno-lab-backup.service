@@ -1,0 +1,23 @@
+[Unit]
+Description=Pheno Lab PostgreSQL backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=pheno
+Group=pheno
+WorkingDirectory=/srv/pheno-lab/current/pheno-lab
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/pheno-lab/pheno-lab.env
+ExecStart=/bin/bash /srv/pheno-lab/current/pheno-lab/scripts/backup.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/pheno-lab/backups
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pheno-lab-backup

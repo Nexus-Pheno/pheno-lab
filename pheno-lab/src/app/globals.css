@@ -2,8 +2,12 @@
 
 /* Pheno design tokens — source: Pheno SZKL Design System (pheno.tokens.json) */
 @theme inline {
-  --font-sans: var(--font-inter), Inter, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: var(--font-roboto-mono), "SFMono-Regular", "Roboto Mono", Consolas, monospace;
+  --font-sans:
+    var(--font-inter), Inter, "Helvetica Neue", Arial, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --font-mono:
+    var(--font-roboto-mono), "SFMono-Regular", "Roboto Mono", Consolas,
+    monospace;
 }
 
 @theme {
@@ -29,14 +33,17 @@
   --radius-card: 8px;
 }
 
-html, body {
+html,
+body {
   letter-spacing: 0;
   color: var(--color-ink);
   background: var(--color-surface);
 }
 
 .mono {
-  font-family: var(--font-roboto-mono), "SFMono-Regular", "Roboto Mono", Consolas, monospace;
+  font-family:
+    var(--font-roboto-mono), "SFMono-Regular", "Roboto Mono", Consolas,
+    monospace;
   font-variant-numeric: tabular-nums;
 }
 
@@ -45,7 +52,10 @@ html, body {
   outline-offset: 2px;
 }
 
-input, select, textarea, button {
+input,
+select,
+textarea,
+button {
   font: inherit;
   letter-spacing: 0;
 }

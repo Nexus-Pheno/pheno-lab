@@ -4,8 +4,16 @@ import "./globals.css";
 
 // Self-hosted webfonts so phones and tablets render the same typography as
 // desktop (Android has neither Inter nor Helvetica Neue installed).
-const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter", display: "swap" });
-const robotoMono = Roboto_Mono({ subsets: ["latin"], variable: "--font-roboto-mono", display: "swap" });
+const inter = Inter({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-inter",
+  display: "swap",
+});
+const robotoMono = Roboto_Mono({
+  subsets: ["latin"],
+  variable: "--font-roboto-mono",
+  display: "swap",
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -26,10 +34,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${robotoMono.variable} font-sans antialiased text-ink bg-surface`}>{children}</body>
+      <body
+        className={`${inter.variable} ${robotoMono.variable} font-sans antialiased text-ink bg-surface`}
+      >
+        {children}
+      </body>
     </html>
   );
 }

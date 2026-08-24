@@ -1,9 +1,9 @@
 import { requireSession } from "@/lib/auth";
-import { canViewWhere } from "@/lib/actions/experiments";
-import { loadDataPage } from "@/lib/data-rows";
+import { loadDataPage } from "@/modules/data/query";
 import { DataTable } from "@/components/data/DataTable";
-import { getDatabaseSummary } from "@/lib/actions/insights";
 import { DatabaseSummaryBar } from "@/components/dashboard/DatabaseSummary";
+import { experimentVisibilityScope } from "@/modules/authorization/scope";
+import { getDatabaseSummary } from "@/modules/insights/query";
 
 // The data table flattens every experiment into one row per sample, with all
 // parameters resolved for that sample's variation group — tagged, cleaned,
@@ -23,8 +23,12 @@ export default async function DataPage({
   const query = (q ?? "").slice(0, 120);
 
   const [data, summary] = await Promise.all([
-    loadDataPage(await canViewWhere(session), { page, perPage: PER_PAGE, q: query }),
-    getDatabaseSummary(),
+    loadDataPage(experimentVisibilityScope(session), {
+      page,
+      perPage: PER_PAGE,
+      q: query,
+    }),
+    getDatabaseSummary(session),
   ]);
 
   // The layout gives this route a fixed-height slot, so the summary sits in

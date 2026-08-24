@@ -1,19 +1,15 @@
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { FeedbackList } from "@/components/profile/FeedbackList";
+import { listFeedback } from "@/modules/accounts/query";
 
 export default async function FeedbackAdminPage() {
   const session = await requireSession();
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
 
-  const feedback = await db.feedback.findMany({
-    where: { organizationId: session.org },
-    orderBy: { createdAt: "desc" },
-    include: { user: { select: { name: true, email: true } } },
-  });
+  const feedback = await listFeedback(session);
 
   return (
     <main className="h-full overflow-y-auto bg-subtle">

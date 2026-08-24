@@ -8,9 +8,8 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
-import { generateApiKey, hashApiKey } from "../src/lib/instruments/auth";
-import { rematchMeasurements } from "../src/lib/instruments/rematch";
-import { syncSampleSerials } from "../src/lib/instruments/assign";
+import { generateApiKey, hashApiKey } from "../src/lib/instruments/credentials";
+import { syncSampleSerials } from "../src/modules/instruments/sample-serial-engine";
 
 const prisma = new PrismaClient();
 const BASE = process.argv[2] ?? "http://127.0.0.1:3467";
@@ -39,8 +38,29 @@ async function post(file: Buffer, fileName: string, key: string, extra: Record<s
   return { code: res.status, body: (await res.json()) as { status: string; scans: number; message: string } };
 }
 
+type RematchSummary = {
+  considered: number;
+  matched: number;
+  stillUnmatched: number;
+  samplesUpdated: number;
+};
+
+async function rematchThroughApi(orgSlug: string): Promise<RematchSummary> {
+  const secret = process.env.INGEST_CRON_SECRET;
+  if (!secret) throw new Error("INGEST_CRON_SECRET is required to exercise /api/ingest/rematch");
+  const response = await fetch(`${BASE}/api/ingest/rematch`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  const body = (await response.json()) as { error?: string; results?: Record<string, RematchSummary> };
+  if (!response.ok || !body.results?.[orgSlug]) {
+    throw new Error(`Rematch endpoint failed (${response.status}): ${body.error ?? "missing organization result"}`);
+  }
+  return body.results[orgSlug];
+}
+
 async function main() {
-  const org = await prisma.organization.findFirstOrThrow({ where: { orgNumber: 1 }, select: { id: true } });
+  const org = await prisma.organization.findFirstOrThrow({ where: { orgNumber: 1 }, select: { id: true, slug: true } });
   const user = await prisma.user.findFirstOrThrow({ where: { organizationId: org.id }, select: { id: true } });
   const process_ = await prisma.process.findFirstOrThrow({
     where: { organizationId: org.id, kind: "CHARACTERIZATION", name: { contains: "J-V" } },
@@ -224,7 +244,7 @@ async function main() {
       },
       include: { samples: true },
     });
-    const sweep = await rematchMeasurements({ organizationId: org.id, serialPrefixes: [LATE] });
+    const sweep = await rematchThroughApi(org.slug);
     ok("the sweep matches it", sweep.matched === 1, JSON.stringify(sweep));
     const lateResult = await prisma.characterizationResult.findFirst({ where: { sampleId: late.samples[0].id } });
     ok("and the sample result is filled in", (lateResult?.metrics as Record<string, string>)?.["PCE (%)"] === "25.80",
@@ -276,7 +296,7 @@ async function main() {
     const stranded = await prisma.jvMeasurement.findUniqueOrThrow({ where: { id: m1.id } });
     ok("deleting samples strands the measurement (sampleId is nulled)", stranded.sampleId === null);
 
-    const healed = await rematchMeasurements({ organizationId: org.id, serialPrefixes: [before.shortCode!] });
+    const healed = await rematchThroughApi(org.slug);
     ok("the sweep re-attaches it", healed.matched === 1, JSON.stringify(healed));
     const after2 = await prisma.jvMeasurement.findUniqueOrThrow({
       where: { id: m1.id },
