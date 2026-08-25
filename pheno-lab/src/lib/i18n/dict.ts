@@ -820,6 +820,7 @@ export const en = {
   "sys.backupDone": "Backup created.",
   "sys.noBackups": "No backups yet.",
   "sys.backupHint": "Backups are pg_dump snapshots in the backups/ folder, rotated automatically (last 30 kept). A daily scheduled backup is installed on this machine.",
+  "sys.backupExternalHint": "Database backups are managed and restored on the external PostgreSQL server.",
   "sys.migrateHint": "To move storage later (NAS/cloud), point DATABASE_URL at the new PostgreSQL host and restore the latest backup — no app changes needed.",
   "sys.manage": "System & storage (admin)",
 
@@ -1681,6 +1682,7 @@ export const zh: Record<TKey, string> = {
   "sys.backupDone": "备份已创建。",
   "sys.noBackups": "暂无备份。",
   "sys.backupHint": "备份为 pg_dump 快照，保存在 backups/ 目录并自动轮换（保留最近 30 份）。本机已安装每日定时备份。",
+  "sys.backupExternalHint": "数据库备份和恢复由外部 PostgreSQL 服务器统一管理。",
   "sys.migrateHint": "将来迁移存储（NAS/云）时，只需将 DATABASE_URL 指向新的 PostgreSQL 主机并恢复最新备份——应用无需改动。",
   "sys.manage": "系统与存储（管理员）",
 

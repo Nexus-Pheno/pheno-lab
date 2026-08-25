@@ -24,6 +24,12 @@ export async function runDatabaseBackup(
       entityId: actor.org,
     });
     const config = serverConfig();
+    if (config.BACKUP_MODE === "external" || !config.BACKUP_DIR) {
+      return {
+        ok: false,
+        message: "Database backups are managed on the PostgreSQL server.",
+      };
+    }
     const { stdout } = await run("/bin/bash", [script], {
       timeout: 120_000,
       env: {

@@ -95,10 +95,17 @@ export default async function SystemPage() {
           <div className="flex items-center gap-2 mb-1">
             <Icon name="DatabaseBackup" size={15} className="text-charcoal" />
             <h2 className="text-[13px] font-bold flex-1">{t("sys.backups")}</h2>
-            <BackupButton />
+            {status.backupMode === "local" ? <BackupButton /> : null}
           </div>
-          <p className="text-[11px] text-muted mb-3">{t("sys.backupHint")}</p>
-          {status.backups.length === 0 ? (
+          <p className="text-[11px] text-muted mb-3">
+            {t(
+              status.backupMode === "external"
+                ? "sys.backupExternalHint"
+                : "sys.backupHint",
+            )}
+          </p>
+          {status.backupMode === "external" ? null : status.backups.length ===
+            0 ? (
             <p className="text-[12px] text-muted">{t("sys.noBackups")}</p>
           ) : (
             <div className="space-y-1">

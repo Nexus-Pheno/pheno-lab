@@ -54,6 +54,12 @@ for required in package.json .next node_modules prisma/migrations scripts/backup
 done
 chown -R root:pheno "$STAGING"
 chmod -R go-w "$STAGING"
+# Next.js writes optimized images and runtime cache entries below .next/cache.
+# Keep the rest of the release root-owned and immutable.
+if [[ -d "$APP/.next/cache" ]]; then
+  chown -R pheno:pheno "$APP/.next/cache"
+  chmod -R u+rwX,go-rwx "$APP/.next/cache"
+fi
 
 set -a
 # shellcheck disable=SC1090
