@@ -892,6 +892,27 @@ Browser → Next Route → session / org / resource auth → COS GetObject → s
 
 不允许边上传边删除原文件。
 
+步骤 4–7 与 10 的实现见
+[`pheno-lab/scripts/migrate-uploads-to-cos.ts`](../pheno-lab/scripts/migrate-uploads-to-cos.ts)。
+默认干跑，只有显式 `--apply` 才写入：
+
+```bash
+pnpm storage:migrate                          # 干跑：扫描、算 hash、列出目标 key
+pnpm storage:migrate -- --apply               # 实际迁移
+pnpm storage:migrate -- --apply --limit 50    # 分批
+```
+
+覆盖全部四处存储引用：`Equipment.photoPath`、`Feedback.screenshotPath`、
+`Attachment.storedPath`、`InstrumentUpload.storedPath`。
+
+迁移前的值是扁平文件名，重构后写入的 key 是嵌套路径，因此**只有不含 `/` 的值才是
+迁移候选**——这既是判定依据也是幂等保证，重复执行不会二次处理，步骤 8 的"再次扫描
+直到两轮无遗漏"直接重跑本脚本即可。目标 key 采用内容寻址（sha256 + §10.3 的前缀
+形状），中断后重跑落在同一个 key 上，内容相同的文件自动合并为一个对象。
+
+验证强于步骤 6 要求的抽样：每个对象在改库前都会完整读回并比对 sha256 与大小，
+任何一项不符就跳过该行而不改数据库。脚本从不删除源文件。
+
 ### 10.6 COS 权限
 
 - bucket 默认私有；
@@ -1204,28 +1225,17 @@ rematch、发布和人工变更仍进入事务审计。
 
 ## 13. 本地开发与测试环境
 
-推荐本地 Compose 只运行基础设施，应用进程继续在宿主机运行：
+本地 Compose 只运行基础设施，应用进程继续在宿主机运行。实际文件是
+[`pheno-lab/compose.yaml`](../pheno-lab/compose.yaml)，与 `package.json` 同级，
+用法见该目录的 README：
 
-```yaml
-services:
-  postgres:
-    image: postgres:18-alpine
-    ports:
-      - "127.0.0.1:55432:5432"
-    environment:
-      POSTGRES_DB: pheno_lab
-      POSTGRES_USER: pheno
-      POSTGRES_PASSWORD: local_only
-
-  postgres-test:
-    image: postgres:18-alpine
-    ports:
-      - "127.0.0.1:55433:5432"
-    environment:
-      POSTGRES_DB: pheno_lab_test
-      POSTGRES_USER: pheno
-      POSTGRES_PASSWORD: test_only
+```bash
+docker compose up -d    # pheno_lab @55432、pheno_lab_test @55433
 ```
+
+**PostgreSQL 大版本必须三处一致**：本地 Compose、CI
+(`.github/workflows/verify.yml`) 与生产托管实例统一在 18 线上。
+升级大版本时三处同时改，否则 CI 测不到生产的行为差异。
 
 文件开发模式使用 `/tmp` 或仓库外固定目录；COS 集成测试使用独立 test bucket / prefix，默认单元测试不触达生产 COS。
 

@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_USER: pheno_test
           POSTGRES_PASSWORD: pheno_test

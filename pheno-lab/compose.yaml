@@ -1,0 +1,59 @@
+### Local development infrastructure only.
+#
+# The Next.js process stays on the host for the fastest hot reload; only the
+# databases run in containers. Both are pinned to the PostgreSQL 18 line so
+# local, CI (`.github/workflows/verify.yml`) and the managed production
+# instance stay on the same major version.
+#
+#   docker compose up -d
+#   pnpm prisma migrate dev
+#   pnpm dev
+#
+# Ports are deliberately unusual and bound to loopback so they never collide
+# with a system PostgreSQL or listen on the network.
+
+name: pheno-lab
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pheno_lab
+      POSTGRES_USER: pheno
+      POSTGRES_PASSWORD: local_only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pheno -d pheno_lab"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # Separate instance rather than a second database on the same server: the
+  # integration suite truncates aggressively, and `_test` guards in
+  # src/infrastructure/db/test-database.ts refuse anything that looks like the
+  # development URL.
+  postgres-test:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pheno_lab_test
+      POSTGRES_USER: pheno
+      POSTGRES_PASSWORD: test_only
+    ports:
+      - "127.0.0.1:55433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pheno -d pheno_lab_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  postgres-data:

@@ -12,15 +12,27 @@ Next.js 16 (App Router, TypeScript) · Tailwind 4 (Pheno design tokens) · Postg
 
 ```bash
 pnpm install
-createdb pheno_lab                      # requires local PostgreSQL
-npx prisma migrate dev                  # apply schema
-npx prisma db seed                      # demo data + accounts
+docker compose up -d                    # PostgreSQL 18 on 55432, test DB on 55433
+pnpm prisma migrate dev                 # apply schema
+pnpm prisma db seed                     # demo data + accounts
 pnpm dev                                # or: pnpm build && pnpm start -p 3457
 ```
 
 Copy `.env.example` to `.env` and provide a test/development PostgreSQL URL plus
 independent secrets. Runtime configuration is validated before the server
 accepts traffic.
+
+`compose.yaml` runs only the databases — the Next.js process stays on the host
+for the fastest hot reload. If you already run PostgreSQL 18 locally, skip
+Compose and point `DATABASE_URL` at it instead.
+
+Integration tests need the second database and refuse to run against the
+development one:
+
+```bash
+TEST_DATABASE_URL="postgresql://pheno:test_only@127.0.0.1:55433/pheno_lab_test" \
+  pnpm test:integration
+```
 
 ## Seeded accounts (Pheno organization)
 
