@@ -79,10 +79,10 @@ new organizations can be added later without schema changes.
   deactivated accounts cannot sign in. OTP codes are never written to logs;
   until SMTP is configured, an admin can retrieve pending codes from the Users
   page.
-- Backups: `scripts/backup.sh` writes atomic gzipped `pg_dump` snapshots to
-  `BACKUP_DIR` (last 30 kept). Linux production uses the included systemd timer.
-  Admins can also trigger and inspect backups at `/system`, which shows the
-  database host, size, largest tables, uploads size, and disk usage.
+- Backups: local development can use `scripts/backup.sh` and `BACKUP_DIR`.
+  Production sets `BACKUP_MODE=external`; backup and restore jobs run on the
+  independent PostgreSQL server, while `/system` reports that external mode
+  instead of writing database dumps to the application CVM.
 - Ubuntu/systemd deployment, immutable releases, health checks, and rollback are
   documented in [`deploy/README.md`](deploy/README.md). The longer-term modular
   monolith and COS plan lives in [`../docs/architecture-refactor.md`](../docs/architecture-refactor.md).

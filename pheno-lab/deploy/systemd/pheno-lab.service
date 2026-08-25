@@ -29,7 +29,9 @@ ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
-ReadWritePaths=/var/lib/pheno-lab/uploads /var/lib/pheno-lab/backups
+# Uploaded files live in COS and PostgreSQL backups run on the database host.
+# Releases remain read-only except for Next.js' disposable runtime cache.
+ReadWritePaths=-/srv/pheno-lab/current/pheno-lab/.next/cache
 
 StandardOutput=journal
 StandardError=journal

@@ -59,13 +59,17 @@ export async function getSystemStatus(actor: Actor) {
 
   let backups: { name: string; sizeBytes: number; date: string }[] = [];
   try {
-    const files = (await readdir(config.BACKUP_DIR))
+    const backupDir = config.BACKUP_DIR;
+    if (config.BACKUP_MODE === "external" || !backupDir) {
+      throw new Error("Backups are managed externally.");
+    }
+    const files = (await readdir(backupDir))
       .filter((file) => file.endsWith(".sql.gz"))
       .sort()
       .reverse();
     backups = await Promise.all(
       files.slice(0, 10).map(async (file) => {
-        const metadata = await stat(path.join(config.BACKUP_DIR, file));
+        const metadata = await stat(path.join(backupDir, file));
         return {
           name: file,
           sizeBytes: metadata.size,
@@ -90,6 +94,7 @@ export async function getSystemStatus(actor: Actor) {
       })),
     },
     storage: { uploadsBytes, diskFreeBytes, diskTotalBytes },
+    backupMode: config.BACKUP_MODE,
     backups,
   };
 }

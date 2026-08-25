@@ -39,6 +39,7 @@ const rawServerConfigSchema = z.object({
   AI_CREDENTIAL_KEY: optionalString,
   STORAGE_DRIVER: z.enum(["local", "cos"]).default("local"),
   UPLOAD_DIR: optionalString,
+  BACKUP_MODE: z.enum(["local", "external"]).default("local"),
   BACKUP_DIR: optionalString,
   PG_DUMP_BIN: optionalString,
   COS_REGION: optionalString,
@@ -60,7 +61,7 @@ export type ServerConfig = Readonly<
     "UPLOAD_DIR" | "BACKUP_DIR" | "SESSION_COOKIE_SECURE"
   > & {
     UPLOAD_DIR?: string;
-    BACKUP_DIR: string;
+    BACKUP_DIR?: string;
     SESSION_COOKIE_SECURE: boolean;
   }
 >;
@@ -127,7 +128,10 @@ export function parseServerConfig(
   assertAllOrNone(config, ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"]);
 
   let uploadDir = config.UPLOAD_DIR;
-  const backupDir = config.BACKUP_DIR ?? path.join(cwd, "backups");
+  const backupDir =
+    config.BACKUP_MODE === "local"
+      ? (config.BACKUP_DIR ?? path.join(cwd, "backups"))
+      : config.BACKUP_DIR;
   if (config.STORAGE_DRIVER === "local") {
     uploadDir ??= path.join(cwd, "uploads");
     if (config.NODE_ENV === "production") {
@@ -152,7 +156,11 @@ export function parseServerConfig(
     }
   }
 
-  if (config.NODE_ENV === "production") {
+  if (
+    config.NODE_ENV === "production" &&
+    config.BACKUP_MODE === "local" &&
+    backupDir
+  ) {
     if (!path.isAbsolute(backupDir)) {
       throw new Error("BACKUP_DIR must be an absolute path in production");
     }

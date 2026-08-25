@@ -7,6 +7,11 @@
 
 > 实施进度（2026-08-24）：仓库内重构已完成并通过完整本地验收；腾讯云实际主机、PostgreSQL、COS 与生产数据切换尚未执行。
 
+> 部署执行决定（2026-08-25）：生产域名为 `lab.szkl.com`；采用
+> `/srv/pheno-lab/source` Git 拉取 + App CVM 本地构建 + 版本化 release + systemd / Nginx。
+> PostgreSQL 从首次发布就使用独立私网服务器，新上传从第一天直接写入私有 COS；
+> App CVM 不保存数据库备份或上传附件。详细命令以 `pheno-lab/deploy/README.md` 为准。
+
 ---
 
 ## 0. 摘要
@@ -36,7 +41,7 @@ Pheno Lab 当前已经是一套功能完整的实验数据平台，而不是空�
 | 输入验证 | TypeScript 类型为主 | **Zod 运行时校验** |
 | 测试 | 0 个自动化测试 | **Vitest + 真 PostgreSQL + Playwright 冒烟** |
 | 审计 | 无统一审计表 | **事务内追加 AuditEvent** |
-| 文件 | 应用本地 `uploads/` | **Storage Adapter；首发使用外置本地目录，随后切 COS 私有桶** |
+| 文件 | 应用本地 `uploads/` | **Storage Adapter；生产首发直接使用 COS 私有桶** |
 | 部署 | Mac / 手工运行语义 | **Ubuntu + Nginx + systemd + release 目录** |
 
 推荐生产拓扑：
@@ -54,7 +59,7 @@ Pheno Lab 当前已经是一套功能完整的实验数据平台，而不是空�
         ┌────────┴────────┐
         ▼                 ▼
  PostgreSQL          COS 对象存储
- 同 VPC 内网         私有桶（第二里程碑）
+ 独立私网服务器     私有桶（生产首发）
 
  可选未来依赖：pgvector / 独立向量索引；它不是 COS，也不是当前上线前置条件。
 ```
@@ -62,8 +67,8 @@ Pheno Lab 当前已经是一套功能完整的实验数据平台，而不是空�
 实施分成两个里程碑：
 
 1. **Web 可部署**：数据盘点 → 配置与测试基础 → 权限收敛 → 审计基础 → 按领域抽服务 →
-   外置本地文件存储 → systemd / Nginx / release 部署；
-2. **云数据切换**：腾讯云 PostgreSQL / COS 就绪 → 新写入切 COS → 存量文件与数据库迁移 → 完整恢复演练。
+   COS Storage Adapter → systemd / Nginx / release 部署；
+2. **生产数据切换**：独立 PostgreSQL / COS 就绪 → 存量文件与数据库迁移 → 完整恢复演练。
 
 不允许在零测试状态下同时改权限、数据库结构、文件存储和部署方式。
 
@@ -78,7 +83,7 @@ Pheno Lab 当前已经是一套功能完整的实验数据平台，而不是空�
 | 06R | 完成 | 补上 migration 漂移、capture 关系完整性与 AI key 明文风险，并按首个完整领域闭环重估范围 |
 | 07 | 完成 | experiments / runs / capture / workflow 进入领域服务；跨实体约束与关键写入事务审计 |
 | 08 | 完成 | accounts、AI、data、exports、ingest review、insights、library、organizations、stewardship、system 全部收敛到领域模块；Action / Page / Route 不再直接访问 Prisma；experiments 与 ingest 再按生命周期 / 计划 / 发布 / 重复处置等能力拆分，避免把大 Action 原样搬成大 Service |
-| 09A | 完成 | LocalObjectStorage、外置 `UPLOAD_DIR`、组织 / 实验授权下载、技术员上传 E2E |
+| 09A | 完成 | LocalObjectStorage、外置 `UPLOAD_DIR`、组织 / 实验授权下载、技术员上传 E2E；Local 仅用于开发 / 测试 |
 | 09B | 代码完成、待云端启用 | 私有 COS adapter、CVM instance-role 临时凭据、静态凭据 fallback、COS-only 新写入与本地只读回落；不含 bucket / CAM 实际创建 |
 | 09C | 待部署期执行 | 真实 `uploads/` / `pheno-data/` 盘点、hash 迁移、抽样下载、生产切换与旧副本保留 |
 | 10 | 代码与配置完成 | health、Linux artifact、systemd、Nginx、定时备份、checksum、真实代码回滚；尚未在腾讯云主机演练 |
@@ -236,8 +241,7 @@ AI / instrument helper ─┘
 - 新业务规则有明确领域归属，不再加入通用 `lib/` 大文件；
 - 科研数据关键修改可从 AuditEvent 追溯；
 - 应用可从一份 release artifact 部署到 `/srv/pheno-lab`；
-- 第一里程碑可用 PostgreSQL、`/var/lib/pheno-lab/uploads`、配置和 release artifact 恢复服务；
-- 第二里程碑可在 CVM 删除后只靠 PostgreSQL、COS、配置和 release artifact 恢复服务；
+- 生产首发可在 App CVM 删除后，只靠独立 PostgreSQL、COS、配置和 release artifact 恢复服务；
 - Go Bridge 不更新也能继续上传现有格式文件。
 
 ---
@@ -411,9 +415,8 @@ AuditEvent 不是普通日志。实验修改成功而审计写入失败不可接
 
 生产环境不再把 `process.cwd()/uploads` 当持久存储。数据库保存 object key 和元数据，文件本体进入 COS 私有桶。
 
-为先让 Web 上线，第一里程碑允许 `LocalObjectStorage` 指向 `/var/lib/pheno-lab/uploads`。该目录必须位于 release 外，
-纳入独立备份，并且所有调用已经通过同一个 Storage interface；业务代码不得再直接使用 `process.cwd()/uploads`。
-COS 资源就绪后只替换 adapter 和执行迁移，不改变领域服务或外部 API。
+`LocalObjectStorage` 仅供开发、测试或受控历史数据迁移使用。生产首发直接启用 COS adapter；
+业务代码仍只依赖同一个 Storage interface，不得直接使用 `process.cwd()/uploads`。
 
 初期下载仍由应用代理：应用先执行组织 / 实验权限检查，再读取 COS 返回。预签名 URL 等流量真正成为问题后再引入。
 
@@ -845,7 +848,7 @@ export interface ObjectStorage {
 
 实现：
 
-- `LocalObjectStorage`：开发 / 测试和第一里程碑部署；固定 `UPLOAD_DIR`，不得位于 release；
+- `LocalObjectStorage`：开发 / 测试或受控历史迁移；固定 `UPLOAD_DIR`，不得位于 release；
 - `CosObjectStorage`：生产；私有桶；同地域内网 endpoint。
 
 对象写入与 PostgreSQL 事务无法原子提交，因此 adapter 调用方必须使用确定性 key / request id 实现幂等。
@@ -1014,6 +1017,7 @@ pnpm 使用仓库声明的精确版本。systemd 不通过 nvm 或交互 shell �
 
 ```text
 /srv/pheno-lab/
+├─ source/                       # Git 工作区，不直接运行
 ├─ releases/
 │  ├─ 20260824-001/
 │  └─ 20260825-001/
@@ -1022,9 +1026,6 @@ pnpm 使用仓库声明的精确版本。systemd 不通过 nvm 或交互 shell �
 /etc/pheno-lab/
 └─ pheno-lab.env
 
-/var/lib/pheno-lab/
-├─ uploads/                     # 仅 COS 切换前过渡使用
-└─ runtime/
 ```
 
 权限：
@@ -1034,7 +1035,7 @@ pnpm 使用仓库声明的精确版本。systemd 不通过 nvm 或交互 shell �
 | `/srv/pheno-lab/releases` | `root:pheno` | 运行用户只读 |
 | `/srv/pheno-lab/current` | root 管理软链接 | 发布脚本切换 |
 | `/etc/pheno-lab/pheno-lab.env` | `root:pheno` | `0640` |
-| `/var/lib/pheno-lab` | `pheno:pheno` | 运行用户可写 |
+| release 内 `.next/cache` | `pheno:pheno` | 仅可丢弃的 Next.js 运行缓存可写 |
 
 ### 12.3 systemd
 
@@ -1266,8 +1267,9 @@ docker compose up -d    # pheno_lab @55432、pheno_lab_test @55433
 
 旧版 `23–44` 与逐项求和不一致，已废弃。09C 必须按实际文件数量、体积、网络和停机要求估算，不能在盘点前伪精确。
 
-仓库内的 **00–08、09A、09B 代码部分和 10 的部署制品**已经完成。默认首次启动仍使用
-`/var/lib/pheno-lab/uploads`；COS adapter 可在云资源就绪后通过配置启用。
+仓库内的 **00–08、09A、09B 代码部分和 10 的部署制品**已经完成。
+生产首次启动使用 `STORAGE_DRIVER=cos`、独立 PostgreSQL 和 `BACKUP_MODE=external`；
+App CVM 不创建持久化 uploads / backups 目录。
 
 剩余工作均属于受控部署 / 数据操作：腾讯云 CVM、PostgreSQL、COS bucket 和 CAM 实例角色的实际创建，生产 secret，
 真实数据库导入与恢复演练，09C 存量对象迁移，systemd / Nginx 安装，CLS / 告警接入，以及真实 release / rollback 演练。
@@ -1341,6 +1343,8 @@ docker compose up -d    # pheno_lab @55432、pheno_lab_test @55433
 | `INGEST_CRON_SECRET` | 按功能 | rematch cron 认证 |
 | `STORAGE_DRIVER` | 是 | local / cos |
 | `UPLOAD_DIR` | local | 仓库外绝对路径 |
+| `BACKUP_MODE` | 是 | `external` 表示由 PostgreSQL 服务器管理备份；`local` 仅供开发 / 兼容 |
+| `BACKUP_DIR` | local backup | 应用执行 pg_dump 时的绝对路径；external 模式不设置 |
 | `COS_REGION` | cos | 例如 ap-guangzhou |
 | `COS_FILES_BUCKET` | cos | 应用活跃文件私有 bucket；不包含 archive / backup |
 | `COS_AUTH_MODE` | cos | `instance-role` / `static`；生产优先 instance role |
@@ -1387,7 +1391,8 @@ AI provider 的用户配置当前存数据库，实施 config 重构时需明确
 - [ ] 上传、下载、删除与审计测试通过
 - [ ] 存量文件 hash 校验完成
 - [ ] 应用身份不能访问 research archive / database backup
-- [ ] COS 未启用时，`UPLOAD_DIR=/var/lib/pheno-lab/uploads` 位于 release 外并已备份
+- [ ] 生产 `STORAGE_DRIVER=cos`，App CVM 无持久化 uploads 目录
+- [ ] `BACKUP_MODE=external`，PostgreSQL 服务器的备份与恢复已独立演练
 
 ### 网络与安全
 

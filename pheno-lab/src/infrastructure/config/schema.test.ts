@@ -85,6 +85,26 @@ describe("parseServerConfig", () => {
     ).toThrow(/COS_SECRET_ID/);
   });
 
+  it("does not require a local backup directory in external backup mode", () => {
+    const config = parseServerConfig(
+      {
+        ...base,
+        NODE_ENV: "production",
+        STORAGE_DRIVER: "cos",
+        COS_REGION: "ap-guangzhou",
+        COS_FILES_BUCKET: "pheno-lab-prod-files-123456",
+        COS_AUTH_MODE: "instance-role",
+        BACKUP_MODE: "external",
+        SESSION_SECRET: "production-session-secret-with-random-material",
+        HEALTHCHECK_TOKEN: "production-healthcheck-token-random-value",
+        AI_CREDENTIAL_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      },
+      "/srv/pheno-lab/current/pheno-lab",
+    );
+    expect(config.BACKUP_MODE).toBe("external");
+    expect(config.BACKUP_DIR).toBeUndefined();
+  });
+
   it("allows a read-only legacy directory only outside production releases", () => {
     const cos: NodeJS.ProcessEnv = {
       ...base,

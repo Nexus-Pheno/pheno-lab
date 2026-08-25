@@ -9,16 +9,23 @@ upstream pheno_lab_next {
 
 server {
     listen 80;
-    server_name lab.example.com;
-    return 301 https://$host$request_uri;
+    server_name lab.szkl.com;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }
 
 server {
     listen 443 ssl http2;
-    server_name lab.example.com;
+    server_name lab.szkl.com;
 
-    ssl_certificate /etc/letsencrypt/live/lab.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/lab.example.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/lab.szkl.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lab.szkl.com/privkey.pem;
 
     client_max_body_size 25m;
 
