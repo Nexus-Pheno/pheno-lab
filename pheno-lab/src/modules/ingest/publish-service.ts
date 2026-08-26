@@ -385,7 +385,12 @@ export async function publishIngestItem(
         publishedId = rec.id;
       } else {
         const draft = parseIngestDraft(kind, payload) as ExperimentDraft;
-        publishedId = await publishExperiment(tx, actor, draft);
+        // "Replace existing" on a batch means merge into it. Creating a second
+        // experiment for the same operator and batch would be the duplicate the
+        // gate exists to prevent.
+        publishedId = updateTargetId
+          ? await mergeExperiment(tx, actor, draft, updateTargetId)
+          : await publishExperiment(tx, actor, draft);
       }
 
       await tx.ingestItem.update({
@@ -633,6 +638,137 @@ async function publishExperiment(
     entityType: "Experiment",
     entityId: exp.id,
     metadata: { operator: d.operator, batchLabel: d.batchLabel },
+  });
+  return exp.id;
+}
+
+/**
+ * Merge a re-staged batch into the experiment it duplicates.
+ *
+ * An operator's sheet can split one batch across two staged items — Rose's
+ * batch 22 arrived as sample D1 in one item and Me1/BrMe3 in another. Creating
+ * a second experiment would break one-batch-one-experiment, and skipping would
+ * silently drop the missing samples and their J-V files, so "replace existing"
+ * merges: samples the target does not already have are added, with their
+ * measurements and raw files.
+ *
+ * The protocol is deliberately left alone. The target already carries its steps,
+ * and re-adding them would duplicate every step of the batch.
+ */
+async function mergeExperiment(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  d: ExperimentDraft,
+  targetId: string,
+): Promise<string> {
+  const exp = await tx.experiment.findFirst({
+    where: { id: targetId, organizationId: actor.org },
+    include: {
+      samples: { select: { id: true, code: true } },
+      characterizations: { select: { id: true, name: true, processId: true } },
+    },
+  });
+  if (!exp) throw new Error("The experiment to merge into no longer exists.");
+
+  const byCode = new Map(exp.samples.map((s) => [s.code, s.id]));
+  const added = new Set<string>();
+  for (const s of d.samples ?? []) {
+    const code = (s.code || "").slice(0, 100);
+    if (!code || byCode.has(code)) continue;
+    const row = await tx.sample.create({
+      data: { experimentId: exp.id, code, note: s.note ?? "" },
+    });
+    byCode.set(code, row.id);
+    added.add(code);
+  }
+
+  const processes = await tx.process.findMany({
+    where: { organizationId: actor.org, archived: false },
+    select: { id: true, name: true },
+  });
+  const procIndex = buildNameIndex(processes);
+  const known = [...exp.characterizations];
+  let cpos = known.length;
+
+  for (const c of d.characterizations ?? []) {
+    const proc = matchName(c.processName, procIndex);
+    if (!proc) continue;
+    const name = (c.name || proc.name).slice(0, 200);
+    // Reuse the batch's existing characterisation rather than adding a second
+    // "J-V" to the same experiment.
+    let chId = known.find(
+      (k) => k.processId === proc.id && k.name === name,
+    )?.id;
+    if (!chId) {
+      const created = await tx.characterization.create({
+        data: {
+          experimentId: exp.id,
+          position: cpos++,
+          processId: proc.id,
+          name,
+        },
+      });
+      chId = created.id;
+      known.push({ id: created.id, name, processId: proc.id });
+    }
+    for (const s of d.samples ?? []) {
+      const code = (s.code || "").slice(0, 100);
+      // Only the samples this merge introduced — never overwrite or duplicate
+      // results already recorded against a sample the target already had.
+      if (!added.has(code)) continue;
+      const sid = byCode.get(code);
+      if (!sid) continue;
+      const metrics = s.metrics ?? {};
+      if (Object.keys(metrics).length === 0 && (s.files ?? []).length === 0)
+        continue;
+      const res = await tx.characterizationResult.create({
+        data: {
+          characterizationId: chId,
+          sampleId: sid,
+          metrics: metrics as Prisma.InputJsonValue,
+          note: "",
+          source: "IMPORT",
+        },
+      });
+      for (const f of s.files ?? []) {
+        await tx.attachment.create({
+          data: {
+            fileName: f.split("/").pop() ?? f,
+            storedPath: f,
+            mime: f.toLowerCase().endsWith(".csv")
+              ? "text/csv"
+              : "application/octet-stream",
+            size: 0,
+            characterizationResultId: res.id,
+          },
+        });
+      }
+    }
+  }
+
+  // Keep every source file that contributed to the batch, not just the first.
+  const meta = (exp.metadata ?? {}) as Record<string, unknown>;
+  const sourceFiles = [
+    ...new Set([
+      ...((meta.sourceFiles as string[] | undefined) ?? []),
+      ...(d.sourceFiles ?? []),
+    ]),
+  ];
+  await tx.experiment.update({
+    where: { id: exp.id },
+    data: { metadata: { ...meta, sourceFiles } as Prisma.InputJsonValue },
+  });
+
+  await recordUserAudit(tx, {
+    actor,
+    action: "experiment.merged",
+    entityType: "Experiment",
+    entityId: exp.id,
+    metadata: {
+      operator: d.operator,
+      batchLabel: d.batchLabel,
+      samplesAdded: [...added],
+    },
   });
   return exp.id;
 }
