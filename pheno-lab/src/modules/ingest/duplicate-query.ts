@@ -213,7 +213,13 @@ export async function findDuplicates(
     if (op && batch) {
       const rows = await db.experiment.findMany({
         where: { organizationId: org },
-        select: { id: true, code: true, title: true, metadata: true },
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          metadata: true,
+          samples: { select: { code: true } },
+        },
       });
       for (const r of rows) {
         const meta = (r.metadata ?? {}) as Record<string, unknown>;
@@ -229,6 +235,25 @@ export async function findDuplicates(
         const differences = diffFields(payload, { title: r.title }, [
           ["title", "Title"],
         ]);
+        // Comparing titles alone once reported two records as identical when
+        // their sample sets did not overlap at all — one half of a batch the
+        // sheet had split in two. The reviewer has to see that.
+        const incomingSamples = Array.isArray(payload.samples)
+          ? (payload.samples as { code?: string }[])
+              .map((s) => str(s?.code))
+              .filter(Boolean)
+          : [];
+        const existingSamples = r.samples.map((s) => s.code);
+        const missing = incomingSamples.filter(
+          (code) => !existingSamples.includes(code),
+        );
+        if (missing.length > 0) {
+          differences.push({
+            field: `Samples (${missing.length} not in the existing batch)`,
+            existing: existingSamples.join(", ") || "—",
+            incoming: incomingSamples.join(", ") || "—",
+          });
+        }
         found.push({
           id: r.id,
           name: `${r.code} — ${r.title}`.slice(0, 90),

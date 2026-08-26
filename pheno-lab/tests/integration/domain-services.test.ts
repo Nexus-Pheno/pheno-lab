@@ -370,6 +370,130 @@ describe("domain service integrity", () => {
     }
   });
 
+  it("merges a split batch into the existing experiment instead of creating a second one", async () => {
+    // Rose's batch 22 reached the queue as two items — sample D1 in one,
+    // Me1/BrMe3 in the other — because the sheet split it. Replacing must
+    // merge, not duplicate the batch and not drop the missing samples.
+    const fixture = await organizationWithAdmin("split-batch");
+    try {
+      const characterization = await db.process.create({
+        data: {
+          organizationId: fixture.organization.id,
+          name: "J-V — solar simulation",
+          kind: "CHARACTERIZATION",
+          icon: "SunMedium",
+        },
+      });
+      const existing = await db.experiment.create({
+        data: {
+          organizationId: fixture.organization.id,
+          code: `2026-001-20-22-${crypto.randomUUID().slice(0, 6)}`,
+          title: "对比三种不同的SAM分子",
+          createdById: fixture.user.id,
+          metadata: {
+            imported: true,
+            operator: "Rose",
+            batchLabel: "小面积-22",
+            sourceFiles: ["Rose/sheet.xlsx"],
+          } as Prisma.InputJsonValue,
+          samples: { create: [{ code: "D1" }] },
+          characterizations: {
+            create: {
+              position: 0,
+              processId: characterization.id,
+              name: "J-V",
+            },
+          },
+        },
+      });
+
+      const payload = {
+        title: "对比三种不同的SAM分子",
+        operator: "Rose",
+        scale: "SMALL",
+        batchLabel: "小面积-22",
+        steps: [],
+        characterizations: [
+          { processName: "J-V — solar simulation", name: "J-V" },
+        ],
+        samples: [
+          {
+            code: "Me1",
+            metrics: { PCE: 21.4 },
+            files: ["Rose/Me1.csv"],
+            note: "",
+          },
+          { code: "BrMe3", metrics: { PCE: 20.1 }, files: [], note: "" },
+          // D1 is already in the batch — it must not be duplicated.
+          { code: "D1", metrics: { PCE: 19.0 }, files: [], note: "" },
+        ],
+        sourceFiles: ["Rose/sheet.xlsx", "Rose/extra.xlsx"],
+      };
+      const item = await db.ingestItem.create({
+        data: {
+          organizationId: fixture.organization.id,
+          kind: "EXPERIMENT",
+          title: "Rose · 小面积 · batch 22",
+          payload: payload as Prisma.InputJsonValue,
+        },
+      });
+
+      await publishIngestItem(fixture.actor, item.id, payload, "merged", {
+        mode: "UPDATE",
+        targetId: existing.id,
+      });
+
+      // Still exactly one experiment for this batch.
+      expect(
+        await db.experiment.count({
+          where: { organizationId: fixture.organization.id },
+        }),
+      ).toBe(1);
+
+      const merged = await db.experiment.findUniqueOrThrow({
+        where: { id: existing.id },
+        include: {
+          samples: { orderBy: { code: "asc" } },
+          characterizations: { include: { results: true } },
+        },
+      });
+      expect(merged.samples.map((s) => s.code)).toEqual(["BrMe3", "D1", "Me1"]);
+      // One characterisation, not a second "J-V".
+      expect(merged.characterizations).toHaveLength(1);
+      // Results only for the two samples this merge introduced; D1 already
+      // existed and must not gain a second, conflicting result.
+      const results = merged.characterizations[0].results;
+      expect(results).toHaveLength(2);
+      const newIds = merged.samples
+        .filter((s) => s.code !== "D1")
+        .map((s) => s.id);
+      expect(
+        results.every(
+          (r) => r.sampleId !== null && newIds.includes(r.sampleId),
+        ),
+      ).toBe(true);
+      expect(
+        await db.attachment.count({
+          where: { storedPath: "Rose/Me1.csv" },
+        }),
+      ).toBe(1);
+      expect(
+        (merged.metadata as { sourceFiles: string[] }).sourceFiles,
+      ).toEqual(["Rose/sheet.xlsx", "Rose/extra.xlsx"]);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: fixture.organization.id,
+            action: "experiment.merged",
+            entityId: existing.id,
+          },
+        }),
+      ).toBe(1);
+    } finally {
+      await removeOrganization(fixture.organization.id);
+    }
+  });
+
   it("adds detail and a manual to an existing environment without erasing its conditions", async () => {
     const fixture = await organizationWithAdmin("env-docs");
     try {
