@@ -27,6 +27,11 @@ fi
 
 cd "$APP_DIR"
 pnpm install --frozen-lockfile
+# A frozen install is a no-op when the lockfile has not changed, and pnpm then
+# skips Prisma's postinstall hook. On a long-lived build host that leaves a
+# client generated from an older schema, so the first release carrying a
+# migration fails typecheck against a stale client. Regenerate explicitly.
+pnpm exec prisma generate
 pnpm run verify
 
 STAGING="$(mktemp -d)"
