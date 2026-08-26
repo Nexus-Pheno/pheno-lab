@@ -88,10 +88,16 @@ func LoadConfig() (*Config, error) {
 	}
 	cfg.path = path
 
-	if cfg.ServerURL == "" {
-		return nil, fmt.Errorf("config.json: serverUrl is empty")
+	// config.json is hand-edited when a lab moves from the LAN trial to the
+	// cloud, so normalize rather than trust what was typed.
+	normalized, upgraded, err := normalizeServerURL(cfg.ServerURL)
+	if err != nil {
+		return nil, fmt.Errorf("config.json: %w", err)
 	}
-	cfg.ServerURL = strings.TrimRight(cfg.ServerURL, "/")
+	if upgraded {
+		fmt.Printf("note: serverUrl %q was switched to https (the API key must not travel in clear text)\n", cfg.ServerURL)
+	}
+	cfg.ServerURL = normalized
 	if cfg.APIKey == "" {
 		return nil, fmt.Errorf("config.json: apiKey is empty")
 	}

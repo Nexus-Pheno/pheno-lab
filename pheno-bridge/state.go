@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,19 +21,35 @@ type record struct {
 }
 
 type State struct {
-	mu    sync.Mutex
-	path  string
-	Files map[string]record `json:"files"`
+	mu   sync.Mutex
+	path string
+	// Server the recorded uploads went to. "Already uploaded" is only true of a
+	// particular server, so moving a lab from the LAN trial to the cloud has to
+	// re-send everything — otherwise those measurements would never reach the
+	// new database.
+	Server string            `json:"server"`
+	Files  map[string]record `json:"files"`
 }
 
-func LoadState(path string) *State {
-	s := &State{path: path, Files: map[string]record{}}
+func LoadState(path, server string) *State {
+	s := &State{path: path, Server: server, Files: map[string]record{}}
 	raw, err := os.ReadFile(path)
-	if err == nil {
-		_ = json.Unmarshal(raw, s)
-		if s.Files == nil {
-			s.Files = map[string]record{}
-		}
+	if err != nil {
+		return s
+	}
+	loaded := &State{}
+	if err := json.Unmarshal(raw, loaded); err != nil {
+		return s
+	}
+	if loaded.Server != "" && loaded.Server != server {
+		log.Printf(
+			"server changed from %s to %s — forgetting %d recorded upload(s) so this server receives them too",
+			loaded.Server, server, len(loaded.Files),
+		)
+		return s
+	}
+	if loaded.Files != nil {
+		s.Files = loaded.Files
 	}
 	return s
 }

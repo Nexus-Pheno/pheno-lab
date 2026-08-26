@@ -73,9 +73,16 @@ func main() {
 func newAgent(cfg *Config) *Agent {
 	host, _ := os.Hostname()
 	return &Agent{
-		cfg:      cfg,
-		state:    LoadState(filepath.Join(configDir(), "state.json")),
-		client:   &http.Client{Timeout: 120 * time.Second},
+		cfg:   cfg,
+		state: LoadState(filepath.Join(configDir(), "state.json"), cfg.ServerURL),
+		client: &http.Client{
+			Timeout: 120 * time.Second,
+			// Surface redirects instead of following them: Go turns a redirected
+			// POST into a GET, which would drop the upload body silently.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		hostname: host,
 	}
 }
@@ -232,7 +239,11 @@ func cmdTest() error {
 }
 
 func cmdStatus() error {
-	st := LoadState(filepath.Join(configDir(), "state.json"))
+	cfg, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+	st := LoadState(filepath.Join(configDir(), "state.json"), cfg.ServerURL)
 	fmt.Printf("pheno-bridge %s — %d file(s) recorded\n", version, st.Count())
 	type row struct {
 		path string
@@ -301,7 +312,14 @@ func cmdInstall() error {
 
 	fmt.Printf("pheno-bridge %s — setup\n\n", version)
 	cfg := defaultConfig()
-	cfg.ServerURL = strings.TrimRight(ask("Server URL", *server, ""), "/")
+	serverURL, upgraded, err := normalizeServerURL(ask("Server URL", *server, DefaultServerURL))
+	if err != nil {
+		return err
+	}
+	if upgraded {
+		fmt.Println("  (switched to https — the API key must not travel in clear text)")
+	}
+	cfg.ServerURL = serverURL
 	cfg.APIKey = ask("Instrument API key", *key, "")
 	cfg.Instrument = strings.ToUpper(ask("Instrument (1 = GiantForce 小太阳, 2 = LIGHTSKY 大太阳)", *instr, "1"))
 	switch cfg.Instrument {
@@ -316,8 +334,8 @@ func cmdInstall() error {
 	default:
 		return fmt.Errorf("unknown instrument %q", cfg.Instrument)
 	}
-	if cfg.ServerURL == "" || cfg.APIKey == "" {
-		return fmt.Errorf("server URL and API key are both required")
+	if cfg.APIKey == "" {
+		return fmt.Errorf("an instrument API key is required")
 	}
 	if *history {
 		cfg.IngestFilesAfter = time.Unix(0, 0).UTC().Format(time.RFC3339)

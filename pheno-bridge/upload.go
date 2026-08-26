@@ -95,6 +95,13 @@ func (a *Agent) upload(path string, info os.FileInfo, sum string) (*uploadRespon
 			out.Status = "stored"
 		}
 		return &out, nil
+	case resp.StatusCode >= 300 && resp.StatusCode < 400:
+		// Go rewrites a redirected POST into a GET, so following one would look
+		// successful while uploading nothing. Fail loudly instead.
+		return nil, fmt.Errorf(
+			"server redirected to %q — set serverUrl to that address (uploads must not be redirected)",
+			resp.Header.Get("Location"),
+		)
 	case resp.StatusCode == 401 || resp.StatusCode == 403:
 		return nil, fmt.Errorf("server rejected our API key (%d) — re-run install with a fresh key", resp.StatusCode)
 	case resp.StatusCode == 422:
