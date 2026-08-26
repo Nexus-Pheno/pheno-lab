@@ -133,6 +133,32 @@ func (c *Config) cutoff() time.Time {
 	return t
 }
 
+// SkipTooOld is returned for files the age cutoff excludes. It is reported
+// separately because it is the one skip reason that regularly surprises people:
+// copying a file into the watched folder keeps its ORIGINAL modified time, so a
+// copied test file looks older than the install and is ignored.
+const SkipTooOld = "older than ingestFilesAfter"
+
+// skipReason explains why a file is not eligible for upload, or "" if it is.
+func (c *Config) skipReason(name string, size int64, mod, now time.Time) string {
+	if !c.wants(name) {
+		return "not a watched file type"
+	}
+	if size == 0 {
+		return "empty"
+	}
+	if size > c.MaxFileBytes {
+		return "larger than maxFileBytes"
+	}
+	if mod.Before(c.cutoff()) {
+		return SkipTooOld
+	}
+	if mod.After(now.Add(-time.Duration(c.StableSeconds) * time.Second)) {
+		return "still being written"
+	}
+	return ""
+}
+
 func (c *Config) wants(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	for _, e := range c.Extensions {

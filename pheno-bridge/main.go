@@ -35,6 +35,10 @@ type Agent struct {
 	client   *http.Client
 	hostname string
 	uploaded int
+	// Number of files ignored for being older than the cutoff, so the agent can
+	// say so instead of looking idle while it deliberately skips everything.
+	skippedOld   int
+	skipReported bool
 }
 
 func main() {
@@ -137,8 +141,8 @@ func (a *Agent) scanOnce() (int, error) {
 		info os.FileInfo
 	}
 	var found []candidate
-	cutoff := a.cfg.cutoff()
-	stableBefore := time.Now().Add(-time.Duration(a.cfg.StableSeconds) * time.Second)
+	now := time.Now()
+	skippedOld := 0
 
 	for _, dir := range a.cfg.WatchDirs {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -153,14 +157,11 @@ func (a *Agent) scanOnce() (int, error) {
 			if info.IsDir() {
 				return nil
 			}
-			if !a.cfg.wants(info.Name()) || info.Size() == 0 {
-				return nil
-			}
-			if info.Size() > a.cfg.MaxFileBytes {
-				return nil
-			}
 			mod := info.ModTime()
-			if mod.Before(cutoff) || mod.After(stableBefore) {
+			if reason := a.cfg.skipReason(info.Name(), info.Size(), mod, now); reason != "" {
+				if reason == SkipTooOld {
+					skippedOld++
+				}
 				return nil
 			}
 			if a.state.Done(path, info.Size(), mod) {
@@ -173,6 +174,19 @@ func (a *Agent) scanOnce() (int, error) {
 			return 0, fmt.Errorf("walking %s: %w", dir, err)
 		}
 	}
+
+	// Saying nothing here is what makes a copied test file look like a broken
+	// agent: copying keeps the original timestamp, so the file is older than the
+	// install and is skipped on purpose.
+	if skippedOld > 0 && (!a.skipReported || skippedOld != a.skippedOld) {
+		log.Printf(
+			"ignoring %d file(s) older than ingestFilesAfter (%s) — copying a file keeps its original "+
+				"date modified, so re-save it or take a fresh measurement to have it uploaded",
+			skippedOld, a.cfg.IngestFilesAfter,
+		)
+		a.skipReported = true
+	}
+	a.skippedOld = skippedOld
 
 	sort.Slice(found, func(i, j int) bool { return found[i].info.ModTime().Before(found[j].info.ModTime()) })
 
