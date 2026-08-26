@@ -5,6 +5,7 @@ import { ProfileForms, FeedbackForm } from "@/components/profile/ProfileForms";
 import { Icon } from "@/components/ui";
 import { AiProviders } from "@/components/profile/AiProviders";
 import { getProfileData } from "@/modules/accounts/query";
+import { getSystemStatus } from "@/modules/system/query";
 
 export default async function ProfilePage() {
   const session = await requireSession();
@@ -16,7 +17,7 @@ export default async function ProfilePage() {
     statistics,
   } = await getProfileData(session);
 
-  const stats = [
+  const stats: { label: string; value: string | number; icon: string }[] = [
     {
       label: t("profile.statExperiments"),
       value: statistics.experiments,
@@ -44,6 +45,26 @@ export default async function ProfilePage() {
     },
   ];
 
+  // Admins also see how full the server's data disk is.
+  if (session.role === "ADMIN") {
+    try {
+      const { storage } = await getSystemStatus(session);
+      if (storage.diskTotalBytes && storage.diskFreeBytes !== null) {
+        const usedBytes = storage.diskTotalBytes - storage.diskFreeBytes;
+        const gb = (n: number) => (n / 1_000_000_000).toFixed(1);
+        stats.push({
+          label: t("profile.statDisk")
+            .replace("{used}", gb(usedBytes))
+            .replace("{total}", gb(storage.diskTotalBytes)),
+          value: `${Math.round((usedBytes / storage.diskTotalBytes) * 100)}%`,
+          icon: "HardDrive",
+        });
+      }
+    } catch {
+      // A missing filesystem reading never breaks the profile page.
+    }
+  }
+
   return (
     <main className="h-full overflow-y-auto bg-subtle">
       <div className="max-w-3xl mx-auto p-6 space-y-6">
@@ -63,7 +84,7 @@ export default async function ProfilePage() {
         {/* Stats */}
         <section>
           <h2 className="text-[13px] font-bold mb-2">{t("profile.stats")}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          <div className={"grid grid-cols-2 gap-2.5 " + (stats.length > 5 ? "sm:grid-cols-3" : "sm:grid-cols-5")}>
             {stats.map((s) => (
               <div
                 key={s.label}
