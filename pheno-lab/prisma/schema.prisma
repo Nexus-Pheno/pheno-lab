@@ -746,3 +746,19 @@ model AuditEvent {
   @@index([entityType, entityId, createdAt])
   @@index([actorUserId, createdAt])
 }
+
+// Cached machine translations of user-entered free text. Keyed by content
+// hash so identical notes are translated once; originals are never modified.
+model Translation {
+  id             String   @id @default(cuid())
+  organizationId String
+  sourceHash     String // sha256 of the trimmed source text
+  sourceLang     String // "en" | "zh", detected
+  targetLang     String // "en" | "zh"
+  translatedText String
+  model          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, sourceHash, targetLang])
+}

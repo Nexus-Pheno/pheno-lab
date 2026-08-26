@@ -327,6 +327,10 @@ export const en = {
   "profile.statDataPoints": "Data points saved",
   "profile.statPresets": "Presets created",
   "profile.statDisk": "Server disk used · {used} of {total} GB",
+  "tr.showOriginal": "original",
+  "tr.showTranslation": "translation",
+  "tr.translate": "translate",
+  "tr.translating": "translating…",
   "profile.saved": "Saved.",
 
   // Feedback
@@ -1204,6 +1208,10 @@ export const zh: Record<TKey, string> = {
   "profile.statDataPoints": "已保存数据点",
   "profile.statPresets": "创建预设数",
   "profile.statDisk": "服务器磁盘已用 · {used} / {total} GB",
+  "tr.showOriginal": "原文",
+  "tr.showTranslation": "译文",
+  "tr.translate": "翻译",
+  "tr.translating": "翻译中…",
   "profile.saved": "已保存。",
 
   "fb.title": "报告问题 / 提交反馈",

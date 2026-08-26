@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { approveExperiment, requestChanges } from "@/lib/actions/workflow";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { TranslatedText } from "@/components/TranslatedText";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
 
 // Manager sign-off: shown on an experiment handed back for review. Approving
@@ -55,7 +56,7 @@ export function ReviewPanel({
       </p>
       {submitNote && (
         <p className="text-[12px] text-ink bg-surface border border-warn-line rounded-[4px] px-2.5 py-1.5 mt-2">
-          {submitNote}
+          <TranslatedText text={submitNote} />
         </p>
       )}
 
