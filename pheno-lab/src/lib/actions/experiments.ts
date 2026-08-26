@@ -1,6 +1,7 @@
 "use server";
 
 import type { ExperimentStatus, Prisma } from "@prisma/client";
+import { queueTranslations } from "@/modules/translations/service";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -70,7 +71,14 @@ export async function updateExperimentMeta(
     status: ExperimentStatus;
   }>,
 ) {
-  await updateExperimentMetaService(await requireSession(), id, data);
+  const session = await requireSession();
+  await updateExperimentMetaService(session, id, data);
+  queueTranslations(session, [
+    data.observation,
+    data.problem,
+    data.hypothesis,
+    data.conclusion,
+  ]);
   revalidatePath("/");
 }
 

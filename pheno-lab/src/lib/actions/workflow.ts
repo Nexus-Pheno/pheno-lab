@@ -1,5 +1,6 @@
 "use server";
 
+import { queueTranslations } from "@/modules/translations/service";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import {
@@ -26,7 +27,9 @@ export async function startLabWork(id: string) {
 }
 
 export async function submitForReview(id: string, note: string) {
-  await submitForReviewService(await requireSession(), id, note);
+  const session = await requireSession();
+  await submitForReviewService(session, id, note);
+  queueTranslations(session, [note]);
   refresh();
 }
 
