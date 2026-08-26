@@ -4,6 +4,13 @@ Internal web platform for capturing perovskite solar cell experiments — a card
 Experiment Designer for admins/managers plus (Phase 3) a mobile capture portal for
 lab technicians. See `../PLAN.md` for the full project plan.
 
+Before agent-assisted development, read [`../AGENTS.md`](../AGENTS.md) and the current
+[`development standards`](../docs/development-standards.md). Production changes must follow the single
+[`deployment manual`](deploy/README.md); the first real deployment is recorded in the
+[`production deployment log`](../docs/pheno-lab-production-deployment-log-2026-08-25.md).
+Bulk PostgreSQL or file imports are separate production changes and must follow the
+[`data import rules`](../docs/data-import-rules.md).
+
 ## Stack
 
 Next.js 16 (App Router, TypeScript) · Tailwind 4 (Pheno design tokens) · PostgreSQL + Prisma 6 · pnpm
