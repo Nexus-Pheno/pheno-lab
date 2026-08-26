@@ -326,6 +326,7 @@ export const en = {
   "profile.statSamples": "Samples planned",
   "profile.statDataPoints": "Data points saved",
   "profile.statPresets": "Presets created",
+  "profile.statDisk": "Server disk used · {used} of {total} GB",
   "profile.saved": "Saved.",
 
   // Feedback
@@ -1202,6 +1203,7 @@ export const zh: Record<TKey, string> = {
   "profile.statSamples": "计划样品数",
   "profile.statDataPoints": "已保存数据点",
   "profile.statPresets": "创建预设数",
+  "profile.statDisk": "服务器磁盘已用 · {used} / {total} GB",
   "profile.saved": "已保存。",
 
   "fb.title": "报告问题 / 提交反馈",
