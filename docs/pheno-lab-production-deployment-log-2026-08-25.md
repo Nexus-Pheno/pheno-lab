@@ -1630,3 +1630,43 @@ postinstall，`node_modules` 中仍是上一版 schema 生成的 client，`pnpm 
 
 **浏览器 smoke test**：本次改动涉及上传与文件读取路径，但设备附件要等设备记录入库后才有
 可点开的对象，浏览器端点击验证尚未执行，记为待办。
+
+### 17.2 release `20260826-004`（2026-08-26）
+
+**内容**：`main` 推进到 `4b69274`。除本次的 LabEnvironment 说明/附件能力（PR #7）外，
+还一并带上另一位 agent 已合入的 PWA manifest 与 service worker。
+
+**migration**：`20260826160000_environment_details_and_documents` —
+`LabEnvironment` 增加 `notes TEXT NOT NULL DEFAULT ''`，`Attachment` 增加可空
+`labEnvironmentId` 加级联外键。expand-only，不回填。
+
+**发布前发现的不一致（必须记录）**：预检时 `current` 已指向
+`/srv/pheno-lab/releases/20260826-003`，但 `/etc/pheno-lab/pheno-lab.env` 里的
+`APP_VERSION` 仍是 `20260826-001`，因此 `/api/health/live` 报告的版本是错的。核对
+`/proc/<MainPID>/cwd` 确认真正在跑的是 003 的代码，服务启动时间与 `current` 软链接
+mtime 相差 1 秒，说明 003 确实已经生效，只是版本标签没跟上。002 和 003 由另一位 agent
+在 15:55 / 16:09 发布，第 4.2 节要求的 `APP_VERSION` 同步更新被跳过了。本次发布把
+`APP_VERSION` 设为 `20260826-004`，标签恢复正确。
+
+**并发发布是真实风险**：本机同一天由多个 agent 发布。开始前必须 `pgrep` 确认没有
+`build-release.sh` / `deploy-release.sh` / `next build` 在跑，并确认 release ID 未被占用
+（本次 `20260826-002` 和 `-003` 都已被别人用掉，第 4.2 节的 `test ! -e` 直接挡下了覆盖）。
+
+**数据前后对照**：
+
+| 指标 | 迁移前 | 迁移后 |
+| --- | --- | --- |
+| `LabEnvironment` 行数 | 7 | 7 |
+| `Attachment` 行数 | 45776 | 45776 |
+| `IngestItem` PENDING EQUIPMENT | 20 | 20 |
+| `LabEnvironment.notes` 列 | absent | `text`, NOT NULL |
+| `notes` 非空行数 | — | 0 |
+| `Attachment.labEnvironmentId` 列 | absent | `text`, nullable |
+
+**验收**：`current` → `20260826-004`；3457 仅监听 loopback；`/api/health/live` 与带 token 的
+`/api/health/ready` 都返回 `version: 20260826-004`、`database: ready`、`storage: ready (cos)`；
+公网 301 到 HTTPS，公网 liveness 正常。
+
+**仍未做**：与 17.1 相同——应用 CVM 不做 `pg_dump`（两次都是纯增列，安全证据是上面的前后
+行数对照），数据库服务器侧备份/异机副本/恢复演练依旧是最高优先级欠账。新的附件读取路径
+仍未做浏览器点击验收。
