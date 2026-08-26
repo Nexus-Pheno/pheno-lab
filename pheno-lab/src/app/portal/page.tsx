@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { setViewMode } from "@/lib/actions/view";
 import { getT } from "@/lib/i18n/server";
 import { Icon } from "@/components/ui";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { listPortalExperiments } from "@/modules/experiments/query";
 
 // The mobile input portal: a touch-first landing that goes straight to data
@@ -48,6 +49,8 @@ export default async function PortalPage() {
             {session.name.slice(0, 2).toUpperCase()}
           </Link>
         </div>
+
+        <InstallAppButton />
 
         {inLab.length === 0 ? (
           <p className="text-center text-muted text-[13px] py-12 px-6">
