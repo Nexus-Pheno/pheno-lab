@@ -55,6 +55,42 @@ function mergeKeep<T extends Record<string, unknown>>(
   return out as T;
 }
 
+/**
+ * Attach already-uploaded documents to the record just published.
+ *
+ * Re-publishing an item, or updating an existing record, must not stack
+ * duplicate rows — a reviewer who approves twice would otherwise double every
+ * spec sheet — so keys already attached to this owner are skipped.
+ */
+async function attachDocuments(
+  tx: Prisma.TransactionClient,
+  owner: { equipmentId: string } | { labEnvironmentId: string },
+  documents:
+    | { fileName: string; storedPath: string; mime: string; size: number }[]
+    | undefined,
+) {
+  if (!documents?.length) return;
+  const attached = new Set(
+    (
+      await tx.attachment.findMany({
+        where: owner,
+        select: { storedPath: true },
+      })
+    ).map((a) => a.storedPath),
+  );
+  const fresh = documents.filter((doc) => !attached.has(doc.storedPath));
+  if (fresh.length === 0) return;
+  await tx.attachment.createMany({
+    data: fresh.map((doc) => ({
+      ...owner,
+      fileName: doc.fileName,
+      storedPath: doc.storedPath,
+      mime: doc.mime,
+      size: doc.size,
+    })),
+  });
+}
+
 /** Approve → write the reviewed facts into the live library. */
 export async function publishIngestItem(
   actor: Actor,
@@ -207,34 +243,7 @@ export async function publishIngestItem(
           : await tx.equipment.create({
               data: { ...equipData, organizationId: actor.org },
             });
-        // Attach the original spec sheets. Re-publishing the same item, or
-        // updating an existing machine, must not stack duplicate rows, so
-        // documents already attached by stored key are left alone.
-        const documents = d.documents ?? [];
-        if (documents.length > 0) {
-          const attached = new Set(
-            (
-              await tx.attachment.findMany({
-                where: { equipmentId: rec.id },
-                select: { storedPath: true },
-              })
-            ).map((a) => a.storedPath),
-          );
-          const fresh = documents.filter(
-            (doc) => !attached.has(doc.storedPath),
-          );
-          if (fresh.length > 0) {
-            await tx.attachment.createMany({
-              data: fresh.map((doc) => ({
-                equipmentId: rec.id,
-                fileName: doc.fileName,
-                storedPath: doc.storedPath,
-                mime: doc.mime,
-                size: doc.size,
-              })),
-            });
-          }
-        }
+        await attachDocuments(tx, { equipmentId: rec.id }, d.documents);
         publishedId = rec.id;
       } else if (item.kind === "FORMULA") {
         // Formulas are proprietary — publishing one needs recipe access, not just
@@ -294,6 +303,7 @@ export async function publishIngestItem(
         const envData = {
           name: d.name.trim(),
           conditions: conditions as Prisma.InputJsonValue,
+          notes: (d.notes ?? "").trim(),
         };
         const existing = updateTargetId
           ? await tx.labEnvironment.findFirst({
@@ -305,11 +315,19 @@ export async function publishIngestItem(
         const rec = existing
           ? await tx.labEnvironment.update({
               where: { id: existing.id },
-              data: envData,
+              // A draft that says nothing about conditions or notes must not
+              // erase what the environment already records.
+              data: mergeKeep(envData, {
+                name: existing.name,
+                conditions: (existing.conditions ??
+                  []) as Prisma.InputJsonValue,
+                notes: existing.notes,
+              }),
             })
           : await tx.labEnvironment.create({
               data: { ...envData, organizationId: actor.org },
             });
+        await attachDocuments(tx, { labEnvironmentId: rec.id }, d.documents);
         publishedId = rec.id;
       } else if (item.kind === "PRESET") {
         const d = parseIngestDraft(kind, payload) as PresetDraft;

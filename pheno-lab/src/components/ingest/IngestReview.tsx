@@ -659,7 +659,7 @@ function ReviewModal({
               "notes",
             ]
           : item.kind === "ENVIRONMENT"
-            ? ["name", "conditions", "notes"]
+            ? ["name", "conditions", "documents", "notes"]
             : item.kind === "PRESET"
               ? ["name", "processName", "parameters", "notes"]
               : item.kind === "EXPERIMENT"
@@ -967,7 +967,20 @@ function ReviewModal({
                 }
                 onChange={(v) => set("conditions", v)}
               />
-              {textArea(t("ing.formulaNotes"), "notes", 2)}
+              {textArea(t("lib.envDetails"), "notes", 3)}
+              <SpecSheetList
+                documents={
+                  (payload.documents as StagedDocument[]) ?? []
+                }
+                onRemove={(storedPath) =>
+                  set(
+                    "documents",
+                    ((payload.documents as StagedDocument[]) ?? []).filter(
+                      (doc) => doc.storedPath !== storedPath,
+                    ),
+                  )
+                }
+              />
             </>
           )}
 

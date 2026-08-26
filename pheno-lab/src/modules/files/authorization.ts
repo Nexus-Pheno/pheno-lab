@@ -24,7 +24,7 @@ export async function canReadObject(
 
   // Legacy objects and new objects opened by someone other than their uploader
   // must resolve to a business record the actor may actually read.
-  const [stepAttachment, resultAttachment, feedback, equipment] =
+  const [stepAttachment, resultAttachment, feedback, equipment, environment] =
     await Promise.all([
       db.attachment.findFirst({
         where: { storedPath: key, stepExecutionId: { not: null } },
@@ -85,6 +85,15 @@ export async function canReadObject(
         },
         select: { id: true },
       }),
+      // An enclosure's manual — same rule as equipment: shared reference data,
+      // readable by any member of the organization.
+      db.labEnvironment.findFirst({
+        where: {
+          organizationId: actor.org,
+          attachments: { some: { storedPath: key } },
+        },
+        select: { id: true },
+      }),
     ]);
 
   const stepExperiment = stepAttachment?.stepExecution?.run.experiment;
@@ -98,5 +107,5 @@ export async function canReadObject(
   if (feedback && (feedback.userId === actor.uid || actor.role === "ADMIN")) {
     return true;
   }
-  return Boolean(equipment);
+  return Boolean(equipment || environment);
 }

@@ -233,6 +233,9 @@ export const en = {
   "lib.replacePhoto": "Replace photo",
   "lib.removePhoto": "Remove",
   "lib.uploading": "Uploading…",
+  "lib.envDetails": "Details",
+  "lib.envDetailsHint":
+    "The enclosure itself — make, model, chamber layout. Conditions above are what an operator records each run.",
   "lib.specSheets": "Spec sheets",
   "lib.specSheetsHint":
     "The manufacturer's original documents for this machine — manuals, datasheets, acceptance reports.",
@@ -1109,6 +1112,8 @@ export const zh: Record<TKey, string> = {
   "lib.replacePhoto": "更换照片",
   "lib.removePhoto": "移除",
   "lib.uploading": "上传中…",
+  "lib.envDetails": "环境说明",
+  "lib.envDetailsHint": "描述环境本体——品牌、型号、腔体配置。上方的条件是每次实验需要记录的读数。",
   "lib.specSheets": "设备资料",
   "lib.specSheetsHint": "该设备的厂家原始文件——说明书、规格书、验收报告等。",
   "lib.addSpecSheet": "添加文件",

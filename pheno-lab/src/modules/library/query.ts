@@ -43,6 +43,12 @@ export async function getLibraryPageData(actor: Actor) {
     db.labEnvironment.findMany({
       where,
       orderBy: [{ archived: "asc" }, { name: "asc" }],
+      include: {
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, fileName: true, storedPath: true, size: true },
+        },
+      },
     }),
     db.preset.findMany({
       where,

@@ -369,4 +369,75 @@ describe("domain service integrity", () => {
       await removeOrganization(fixture.organization.id);
     }
   });
+
+  it("adds detail and a manual to an existing environment without erasing its conditions", async () => {
+    const fixture = await organizationWithAdmin("env-docs");
+    try {
+      const conditions = [
+        { name: "O₂", unit: "ppm", defaultValue: "<0.01" },
+        { name: "H₂O", unit: "ppm", defaultValue: "<0.01" },
+      ];
+      const environment = await db.labEnvironment.create({
+        data: {
+          organizationId: fixture.organization.id,
+          name: "Glovebox N₂ (Mikrouna)",
+          conditions: conditions as Prisma.InputJsonValue,
+        },
+      });
+      expect(environment.notes).toBe("");
+
+      const manual = {
+        fileName: "手套箱-说明书.pdf",
+        storedPath: `organizations/${fixture.organization.id}/documents/glovebox.pdf`,
+        mime: "application/pdf",
+        size: 8192,
+      };
+      // The draft deliberately carries no conditions: a record that only adds
+      // detail must not wipe the readings operators already record.
+      const payload = {
+        name: environment.name,
+        notes: "Mikrouna Inpure, three 2440 mm chambers.",
+        documents: [manual],
+      };
+      const staged = async () =>
+        db.ingestItem.create({
+          data: {
+            organizationId: fixture.organization.id,
+            kind: "ENVIRONMENT",
+            title: environment.name,
+            payload: payload as Prisma.InputJsonValue,
+          },
+        });
+
+      const first = await staged();
+      await publishIngestItem(fixture.actor, first.id, payload, "reviewed", {
+        mode: "UPDATE",
+        targetId: environment.id,
+      });
+      const updated = await db.labEnvironment.findUniqueOrThrow({
+        where: { id: environment.id },
+        include: { attachments: true },
+      });
+      expect(updated.notes).toContain("Mikrouna Inpure");
+      expect(updated.conditions).toEqual(conditions);
+      expect(updated.attachments).toHaveLength(1);
+      expect(updated.attachments[0].fileName).toBe(manual.fileName);
+
+      const second = await staged();
+      await publishIngestItem(fixture.actor, second.id, payload, "reviewed", {
+        mode: "UPDATE",
+        targetId: environment.id,
+      });
+      expect(
+        await db.attachment.count({
+          where: { labEnvironmentId: environment.id },
+        }),
+      ).toBe(1);
+    } finally {
+      await db.labEnvironment.deleteMany({
+        where: { organizationId: fixture.organization.id },
+      });
+      await removeOrganization(fixture.organization.id);
+    }
+  });
 });
