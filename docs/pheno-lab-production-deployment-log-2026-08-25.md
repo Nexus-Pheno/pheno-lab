@@ -1570,3 +1570,63 @@ systemd、PostgreSQL、COS、正式空库 bootstrap、DNS、HTTPS、证书续期
 备份、异机副本和真实恢复演练；随后开启 COS 版本控制并决定保留策略。在这些工作完成前，
 不要把系统描述成已经具备不可替代科研数据的完整灾难恢复能力，也不要重新执行数据库创建、
 migration、COS 策略或 production bootstrap。
+
+## 17. 后续发布记录
+
+本节只追加**已经发生并验证**的发布事件，按时间顺序排列。首发过程仍以第 5 节为准。
+
+### 17.1 release `20260826-001`（2026-08-26）
+
+**内容**：`main` 从 `c0f7258` 推进到 `4abb21d`，共两部分——
+2026-08-25 合入的文档/部署守则（PR #4，无应用代码），以及本次的设备附件能力
+（PR #5）与 release 脚本修复（PR #6）。
+
+**授权**：Michael 明确要求直接部署，并确认本次不需要 Louis 签字。
+
+**migration**：`20260826140000_add_equipment_attachments`，只做
+`ALTER TABLE "Attachment" ADD COLUMN "equipmentId" TEXT` 加一条级联外键。属于
+expand-only：上一版代码忽略该列，回滚后仍可运行；不回填、不改动任何既有行。
+
+**执行**：严格按 `deploy/README.md` 第 4 节。
+
+| 步骤 | 结果 |
+| --- | --- |
+| 4.1 只读预检 | 服务 active；`current` = `20260825-001`；source 工作区干净，fast-forward 到 `4abb21d` |
+| 4.2 `APP_VERSION` | `20260825-001` → `20260826-001`，只改这一行；权限仍为 `root pheno 0640`；`validate-runtime-config.ts` 通过 |
+| 4.3 构建 | `build-release.sh` 首次失败（见下），修复后通过完整 `pnpm run verify`；artifact sha256 校验 OK |
+| 4.4 发布 | `prisma migrate deploy` 应用 1 条 migration；脚本输出 `deployed 20260826-001` |
+| 4.5 验收 | 见下 |
+
+**4.3 首次失败与根因**：`build-release.sh` 只执行
+`pnpm install --frozen-lockfile`。lockfile 未变时该命令是 no-op，pnpm 因此跳过 Prisma 的
+postinstall，`node_modules` 中仍是上一版 schema 生成的 client，`pnpm run typecheck` 报出
+10 个 `'equipmentId' does not exist in type 'AttachmentWhereInput'`。CI 每次都是冷装
+`node_modules`，所以从不复现；只有长期保留 `node_modules` 的构建机（即
+`/srv/pheno-lab/source`）会中招。修复方式是在 install 与 verify 之间显式执行
+`pnpm exec prisma generate`（PR #6），不是在服务器上临时手工生成。
+
+**数据前后对照**（同一生产库 `pheno_lab`）：
+
+| 指标 | 迁移前 | 迁移后 |
+| --- | --- | --- |
+| `Attachment` 行数 | 45776 | 45776 |
+| `Equipment` 行数 | 19 | 19 |
+| `IngestItem` PENDING | 1 | 1 |
+| `Attachment.equipmentId` 列 | absent | `text`, nullable |
+| `equipmentId` 非空行数 | — | 0 |
+
+**验收证据**：`pheno-lab.service` active；`current` →
+`/srv/pheno-lab/releases/20260826-001`；3457 仅监听 `127.0.0.1`；
+`/api/health/live` 与带 token 的 `/api/health/ready` 均返回
+`version: 20260826-001`，`database: ready`，`storage: ready (cos)`；
+公网 `http://lab.szkl.com/` 301 到 HTTPS，`https://lab.szkl.com/api/health/live` 正常，
+`/` 307 到 `/login`。保留 release：`20260825-001`、`20260826-001`（回滚目标已存在，
+首发时没有）。
+
+**未做**：本次没有在 App CVM 上做 `pg_dump`。第 2 节和第 10 节明确规定应用 CVM 不保存
+数据库备份，备份归 PostgreSQL 服务器统一管理；本次变更是纯增列，安全证据取的是上表的
+前后行数对照，而不是一份落在应用机上的 dump。数据库服务器侧的自动备份、异机副本和恢复
+演练**仍然是未完成的最高优先级工作**，本次发布没有改变这一点。
+
+**浏览器 smoke test**：本次改动涉及上传与文件读取路径，但设备附件要等设备记录入库后才有
+可点开的对象，浏览器端点击验证尚未执行，记为待办。
