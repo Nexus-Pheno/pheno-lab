@@ -31,6 +31,7 @@ export async function proxy(req: NextRequest) {
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/onboard" ||
+    pathname === "/manifest.webmanifest" ||
     pathname === "/api/health/live" ||
     pathname === "/api/health/ready"
   ) {
