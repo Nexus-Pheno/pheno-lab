@@ -16,6 +16,41 @@ import { LibrarySection } from "./Collapsible";
 
 const ADD_LOCATION = "__add_location__";
 
+// A machine's original vendor documents, attached when the equipment was
+// ingested. They are read-only here: the ingestion gate owns what gets attached.
+type EquipmentDoc = { id: string; fileName: string; storedPath: string; size: number };
+export type EquipmentWithDocs = Equipment & { attachments: EquipmentDoc[] };
+
+function fileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function SpecSheets({ docs }: { docs: EquipmentDoc[] }) {
+  const t = useT();
+  if (docs.length === 0) return null;
+  return (
+    <div className="px-3 pb-2 -mt-1 flex flex-wrap gap-1.5">
+      <span className="text-[10px] font-bold uppercase text-muted self-center">{t("lib.specSheets")}</span>
+      {docs.map((d) => (
+        <a
+          key={d.id}
+          href={`/api/files/${d.storedPath}`}
+          target="_blank"
+          rel="noreferrer"
+          title={d.fileName}
+          className="inline-flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded-[3px] bg-subtle border border-line text-charcoal hover:border-brand-deep hover:text-brand-deep max-w-56"
+        >
+          <Icon name="FileText" size={11} className="shrink-0" />
+          <span className="truncate">{d.fileName}</span>
+          <span className="text-muted shrink-0">{fileSize(d.size)}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 // Shared editor for parameter/condition definition rows.
 function DefRows({
   defs,
@@ -280,7 +315,7 @@ export function ProcessLibrary({
   layers,
 }: {
   processes: Process[];
-  equipment: Equipment[];
+  equipment: EquipmentWithDocs[];
   locations: Location[];
   layers: { code: string; name: string }[];
   canEdit: boolean;
@@ -390,6 +425,7 @@ export function ProcessLibrary({
                         </div>
                       )}
                     </div>
+                    <SpecSheets docs={e.attachments} />
                     {editingEq === e.id && (
                       <EquipmentEditor
                         canAddLocation={canAddLocation}

@@ -377,6 +377,7 @@ model Equipment {
   createdAt         DateTime           @default(now())
   steps             ProcessStep[]
   characterizations Characterization[]
+  attachments       Attachment[]
 }
 
 // A lab environment preset: each lab defines its own environments and which
@@ -618,6 +619,10 @@ model Attachment {
   stepExecution            StepExecution?          @relation(fields: [stepExecutionId], references: [id], onDelete: Cascade)
   characterizationResultId String?
   characterizationResult   CharacterizationResult? @relation(fields: [characterizationResultId], references: [id], onDelete: Cascade)
+  // Equipment carries its original spec sheets, so a machine's documentation
+  // stays with the record rather than in someone's downloads folder.
+  equipmentId              String?
+  equipment                Equipment?              @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   createdAt                DateTime                @default(now())
 }
 

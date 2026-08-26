@@ -43,6 +43,63 @@ export type ExperimentSample = {
   note: string;
 };
 
+export type StagedDocument = {
+  fileName: string;
+  storedPath: string;
+  size: number;
+};
+
+// Vendor spec sheets that were uploaded with a staged equipment record. The
+// reviewer can open each one before approving, and drop any that do not belong.
+function SpecSheetList({
+  documents,
+  onRemove,
+}: {
+  documents: StagedDocument[];
+  onRemove: (storedPath: string) => void;
+}) {
+  const t = useT();
+  return (
+    <div>
+      <FieldLabel>{t("lib.specSheets")}</FieldLabel>
+      {documents.length === 0 ? (
+        <p className="text-[11px] text-muted">{t("lib.noSpecSheets")}</p>
+      ) : (
+        <ul className="space-y-1">
+          {documents.map((doc) => (
+            <li
+              key={doc.storedPath}
+              className="flex items-center gap-2 text-[12px] border border-line rounded-[4px] px-2 py-1.5 bg-surface"
+            >
+              <Icon name="FileText" size={13} className="text-muted shrink-0" />
+              <a
+                href={`/api/files/${doc.storedPath}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 truncate hover:text-brand-deep hover:underline"
+              >
+                {doc.fileName}
+              </a>
+              <span className="text-[10.5px] text-muted shrink-0">
+                {doc.size >= 1024 * 1024
+                  ? `${(doc.size / 1024 / 1024).toFixed(1)} MB`
+                  : `${Math.max(1, Math.round(doc.size / 1024))} KB`}
+              </span>
+              <button
+                onClick={() => onRemove(doc.storedPath)}
+                className="text-muted hover:text-danger shrink-0"
+                aria-label={t("lib.removePhoto")}
+              >
+                <Icon name="X" size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export type IngestRow = {
   id: string;
   kind: string;
@@ -586,6 +643,7 @@ function ReviewModal({
             "processName",
             "locationName",
             "parameters",
+            "documents",
             "notes",
           ]
         : item.kind === "FORMULA"
@@ -840,6 +898,27 @@ function ReviewModal({
                   }[]) ?? []
                 }
                 onChange={(v) => set("parameters", v)}
+              />
+              <SpecSheetList
+                documents={
+                  (payload.documents as {
+                    fileName: string;
+                    storedPath: string;
+                    size: number;
+                  }[]) ?? []
+                }
+                onRemove={(storedPath) =>
+                  set(
+                    "documents",
+                    (
+                      (payload.documents as {
+                        fileName: string;
+                        storedPath: string;
+                        size: number;
+                      }[]) ?? []
+                    ).filter((doc) => doc.storedPath !== storedPath),
+                  )
+                }
               />
             </>
           )}

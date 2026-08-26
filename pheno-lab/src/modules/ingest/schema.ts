@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { storedDocumentSchema } from "@/modules/files/schema";
+
 export const ingestKindSchema = z.enum([
   "EQUIPMENT",
   "MATERIAL",
@@ -48,6 +50,7 @@ export const equipmentDraftSchema = z.object({
   processName: requiredName,
   locationName: text(500),
   parameters: z.array(parameterDefinitionSchema).max(500).default([]),
+  documents: z.array(storedDocumentSchema).max(50).default([]),
   notes: text(50_000),
 });
 

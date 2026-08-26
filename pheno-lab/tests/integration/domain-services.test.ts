@@ -302,4 +302,71 @@ describe("domain service integrity", () => {
       await removeOrganization(organization.id);
     }
   });
+
+  it("attaches equipment spec sheets on publish without stacking duplicates", async () => {
+    const fixture = await organizationWithAdmin("equip-docs");
+    try {
+      const process = await db.process.create({
+        data: {
+          organizationId: fixture.organization.id,
+          name: "XRD",
+          kind: "CHARACTERIZATION",
+          icon: "Wrench",
+        },
+      });
+      const manual = {
+        fileName: "MiniFlex600 规格书.pdf",
+        storedPath: `organizations/${fixture.organization.id}/documents/miniflex.pdf`,
+        mime: "application/pdf",
+        size: 4096,
+      };
+      const payload = {
+        name: "Rigaku XRD",
+        make: "Rigaku",
+        model: "MiniFlex600",
+        processName: process.name,
+        documents: [manual],
+      };
+      const staged = async () =>
+        db.ingestItem.create({
+          data: {
+            organizationId: fixture.organization.id,
+            kind: "EQUIPMENT",
+            title: "Rigaku XRD",
+            payload: payload as Prisma.InputJsonValue,
+          },
+        });
+
+      const first = await staged();
+      await publishIngestItem(fixture.actor, first.id, payload, "reviewed", {
+        mode: "AUTO",
+      });
+      const equipment = await db.equipment.findFirstOrThrow({
+        where: { organizationId: fixture.organization.id },
+        include: { attachments: true },
+      });
+      expect(equipment.attachments).toHaveLength(1);
+      expect(equipment.attachments[0].fileName).toBe(manual.fileName);
+      expect(equipment.attachments[0].storedPath).toBe(manual.storedPath);
+
+      // Publishing the same sheet onto the same machine again must not stack a
+      // second row — spec sheets are re-sent whenever a record is re-reviewed.
+      const second = await staged();
+      await publishIngestItem(fixture.actor, second.id, payload, "reviewed", {
+        mode: "UPDATE",
+        targetId: equipment.id,
+      });
+      expect(
+        await db.attachment.count({ where: { equipmentId: equipment.id } }),
+      ).toBe(1);
+
+      // Deleting the machine takes its documents with it.
+      await db.equipment.delete({ where: { id: equipment.id } });
+      expect(
+        await db.attachment.count({ where: { equipmentId: equipment.id } }),
+      ).toBe(0);
+    } finally {
+      await removeOrganization(fixture.organization.id);
+    }
+  });
 });
