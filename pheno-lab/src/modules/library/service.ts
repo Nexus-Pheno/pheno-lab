@@ -191,6 +191,7 @@ export async function createEnvironment(actor: Actor, raw: unknown) {
         organizationId: actor.org,
         name: input.name,
         conditions: input.conditions as Prisma.InputJsonValue,
+        notes: input.notes,
       },
     });
     await recordUserAudit(tx, {

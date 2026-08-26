@@ -62,6 +62,9 @@ export const equipmentUpdateSchema = z.object({
 export const environmentCreateSchema = z.object({
   name: z.string().trim().min(1).max(200),
   conditions: z.array(paramDefSchema).max(200),
+  // Detail about the enclosure itself — make, model, chambers. Distinct from
+  // `conditions`, which are the readings an operator records per run.
+  notes: z.string().max(50_000).default(""),
 });
 
 export const environmentUpdateSchema = z.object({

@@ -78,6 +78,7 @@ export const formulaDraftSchema = z.object({
 export const environmentDraftSchema = z.object({
   name: requiredName,
   conditions: z.array(parameterDefinitionSchema).max(500).default([]),
+  documents: z.array(storedDocumentSchema).max(50).default([]),
   notes: text(50_000),
 });
 

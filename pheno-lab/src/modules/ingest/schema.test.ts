@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { equipmentDraftSchema, parseIngestDraft } from "./schema";
+import {
+  environmentDraftSchema,
+  equipmentDraftSchema,
+  parseIngestDraft,
+} from "./schema";
 
 const base = { name: "Rigaku XRD", processName: "XRD" };
 
@@ -53,5 +57,30 @@ describe("equipmentDraftSchema documents", () => {
       mime: "",
       size: 0,
     });
+  });
+});
+
+describe("environmentDraftSchema documents", () => {
+  it("defaults to no documents so older staged environments still parse", () => {
+    const draft = environmentDraftSchema.parse({ name: "Glovebox N₂" });
+    expect(draft.documents).toEqual([]);
+    expect(draft.notes).toBe("");
+  });
+
+  it("carries the enclosure's manual and its detail text", () => {
+    const draft = environmentDraftSchema.parse({
+      name: "Glovebox N₂ (Mikrouna)",
+      notes: "Mikrouna Inpure, three 2440 mm chambers.",
+      documents: [
+        {
+          fileName: "手套箱-说明书.pdf",
+          storedPath: "organizations/org1/documents/glovebox.pdf",
+          mime: "application/pdf",
+          size: 2048,
+        },
+      ],
+    });
+    expect(draft.notes).toContain("Mikrouna Inpure");
+    expect(draft.documents[0].fileName).toBe("手套箱-说明书.pdf");
   });
 });

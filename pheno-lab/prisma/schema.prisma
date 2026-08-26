@@ -389,10 +389,14 @@ model LabEnvironment {
   organization      Organization       @relation(fields: [organizationId], references: [id])
   name              String // "Glovebox N₂", "Clean room", ...
   conditions        Json               @default("[]") // [{ name, unit, defaultValue }]
+  // Free-text detail about the enclosure itself — make, model, chambers — as
+  // opposed to `conditions`, which are the readings an operator records per run.
+  notes             String             @default("")
   archived          Boolean            @default(false)
   createdAt         DateTime           @default(now())
   steps             ProcessStep[]
   characterizations Characterization[]
+  attachments       Attachment[]
 }
 
 // Materials are categorized under a process: under PVD you only see PVD
@@ -623,6 +627,10 @@ model Attachment {
   // stays with the record rather than in someone's downloads folder.
   equipmentId              String?
   equipment                Equipment?              @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  // An enclosure such as a glovebox is an environment, not a process step, so
+  // its manual belongs to the environment record.
+  labEnvironmentId         String?
+  labEnvironment           LabEnvironment?         @relation(fields: [labEnvironmentId], references: [id], onDelete: Cascade)
   createdAt                DateTime                @default(now())
 }
 

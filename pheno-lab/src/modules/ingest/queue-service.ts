@@ -71,6 +71,13 @@ export type FormulaDraft = {
 export type EnvironmentDraft = {
   name: string;
   conditions: { name: string; unit: string; defaultValue: string }[];
+  /** Manuals for the enclosure itself, already uploaded to object storage. */
+  documents: {
+    fileName: string;
+    storedPath: string;
+    mime: string;
+    size: number;
+  }[];
   notes: string;
 };
 

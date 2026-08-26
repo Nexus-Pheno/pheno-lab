@@ -584,7 +584,8 @@ export function LocationSection({ locations, canEdit }: { locations: Location[];
 
 // ---------------- Environments ----------------
 
-type EnvironmentForm = { name: string; conditions: ParamDef[] };
+type EnvironmentForm = { name: string; conditions: ParamDef[]; notes: string };
+export type EnvironmentWithDocs = LabEnvironment & { attachments: EquipmentDoc[] };
 
 function EnvironmentEditorForm({
   value,
@@ -615,6 +616,12 @@ function EnvironmentEditorForm({
         </p>
         <DefRows defs={form.conditions} onChange={(conditions) => setForm((f) => ({ ...f, conditions }))} nameLabel={t("insp.setting")} />
       </div>
+      <div>
+        <FieldLabel>{t("lib.envDetails")}</FieldLabel>
+        <p className="text-[11px] text-muted mb-1.5">{t("lib.envDetailsHint")}</p>
+        <textarea className={inputCls + " resize-none"} rows={3}
+          value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+      </div>
       <div className="flex gap-2 justify-end">
         <button onClick={onCancel} className="border border-line rounded-[4px] px-4 py-1.5 text-[12px] font-semibold hover:bg-surface">
           {t("lib.cancel")}
@@ -635,7 +642,7 @@ function EnvironmentEditorForm({
   );
 }
 
-export function EnvironmentSection({ environments, canEdit }: { environments: LabEnvironment[]; canEdit: boolean }) {
+export function EnvironmentSection({ environments, canEdit }: { environments: EnvironmentWithDocs[]; canEdit: boolean }) {
   const t = useT();
   const tt = useTerm();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -672,9 +679,13 @@ export function EnvironmentSection({ environments, canEdit }: { environments: La
                 </div>
               )}
             </div>
+            {env.notes && (
+              <p className="px-3.5 pb-2 -mt-1 text-[11.5px] text-muted whitespace-pre-wrap">{env.notes}</p>
+            )}
+            <SpecSheets docs={env.attachments} />
             {editingId === env.id && (
               <EnvironmentEditorForm
-                value={{ name: env.name, conditions: paramDefs(env.conditions) }}
+                value={{ name: env.name, conditions: paramDefs(env.conditions), notes: env.notes }}
                 saveLabel={t("lib.saveChanges")}
                 onCancel={() => setEditingId(null)}
                 onSave={async (form) => { await updateEnvironment(env.id, form); setEditingId(null); }}
@@ -685,7 +696,7 @@ export function EnvironmentSection({ environments, canEdit }: { environments: La
         {canEdit && (
           adding ? (
             <EnvironmentEditorForm
-              value={{ name: "", conditions: [] }}
+              value={{ name: "", conditions: [], notes: "" }}
               saveLabel={t("lib.addEnvironment")}
               onCancel={() => setAdding(false)}
               onSave={async (form) => { await createEnvironment(form); setAdding(false); }}
