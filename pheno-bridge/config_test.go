@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -72,5 +73,33 @@ func TestResavingAnOldFileMakesItEligible(t *testing.T) {
 	resaved := now.Add(-time.Minute)
 	if got := cfg.skipReason("cell17-5-2.csv", 4060, resaved, now); got != "" {
 		t.Errorf("expected the re-saved file to be eligible, got %q", got)
+	}
+}
+
+func TestSummarizeSkipsIsStableAndCounts(t *testing.T) {
+	got := summarizeSkips(map[string]int{SkipTooOld: 2, SkipWrongType: 1})
+	want := "1 not a watched file type, 2 older than ingestFilesAfter"
+	if got != want {
+		t.Errorf("summarizeSkips = %q, want %q", got, want)
+	}
+	if summarizeSkips(map[string]int{}) != "" {
+		t.Error("no skips should render as an empty summary, so nothing is logged")
+	}
+}
+
+// The .xlsx case is worth naming: re-saving a CSV in Excel or WPS produces a
+// file the rig never writes, and the agent must say so rather than go quiet.
+func TestSkipHintsNameTheTwoConfusingCases(t *testing.T) {
+	cfg := testConfig(time.Now())
+	hints := skipHints(map[string]int{SkipWrongType: 1}, cfg)
+	if !strings.Contains(hints, ".xlsx") {
+		t.Errorf("expected the Excel/WPS hint, got %q", hints)
+	}
+	hints = skipHints(map[string]int{SkipTooOld: 1}, cfg)
+	if !strings.Contains(hints, "date modified") {
+		t.Errorf("expected the copied-file hint, got %q", hints)
+	}
+	if skipHints(map[string]int{"empty": 1}, cfg) != "" {
+		t.Error("an ordinary skip needs no hint")
 	}
 }

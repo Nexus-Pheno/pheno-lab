@@ -139,10 +139,14 @@ func (c *Config) cutoff() time.Time {
 // copied test file looks older than the install and is ignored.
 const SkipTooOld = "older than ingestFilesAfter"
 
+// SkipWrongType is the other one that looks like a malfunction: re-saving a CSV
+// from Excel or WPS silently turns it into .xlsx, which the rig never produces.
+const SkipWrongType = "not a watched file type"
+
 // skipReason explains why a file is not eligible for upload, or "" if it is.
 func (c *Config) skipReason(name string, size int64, mod, now time.Time) string {
 	if !c.wants(name) {
-		return "not a watched file type"
+		return SkipWrongType
 	}
 	if size == 0 {
 		return "empty"

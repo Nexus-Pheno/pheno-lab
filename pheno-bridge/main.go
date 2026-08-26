@@ -35,10 +35,9 @@ type Agent struct {
 	client   *http.Client
 	hostname string
 	uploaded int
-	// Number of files ignored for being older than the cutoff, so the agent can
-	// say so instead of looking idle while it deliberately skips everything.
-	skippedOld   int
-	skipReported bool
+	// Why files in the watched folders are being ignored, so the agent explains
+	// itself instead of looking idle while it deliberately skips everything.
+	lastSkipSummary string
 }
 
 func main() {
@@ -142,7 +141,7 @@ func (a *Agent) scanOnce() (int, error) {
 	}
 	var found []candidate
 	now := time.Now()
-	skippedOld := 0
+	skipped := map[string]int{}
 
 	for _, dir := range a.cfg.WatchDirs {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -159,9 +158,7 @@ func (a *Agent) scanOnce() (int, error) {
 			}
 			mod := info.ModTime()
 			if reason := a.cfg.skipReason(info.Name(), info.Size(), mod, now); reason != "" {
-				if reason == SkipTooOld {
-					skippedOld++
-				}
+				skipped[reason]++
 				return nil
 			}
 			if a.state.Done(path, info.Size(), mod) {
@@ -175,18 +172,13 @@ func (a *Agent) scanOnce() (int, error) {
 		}
 	}
 
-	// Saying nothing here is what makes a copied test file look like a broken
-	// agent: copying keeps the original timestamp, so the file is older than the
-	// install and is skipped on purpose.
-	if skippedOld > 0 && (!a.skipReported || skippedOld != a.skippedOld) {
-		log.Printf(
-			"ignoring %d file(s) older than ingestFilesAfter (%s) — copying a file keeps its original "+
-				"date modified, so re-save it or take a fresh measurement to have it uploaded",
-			skippedOld, a.cfg.IngestFilesAfter,
-		)
-		a.skipReported = true
+	// Saying nothing here is what makes a skipped file look like a broken agent.
+	if summary := summarizeSkips(skipped); summary != a.lastSkipSummary {
+		if summary != "" {
+			log.Printf("ignoring %s%s", summary, skipHints(skipped, a.cfg))
+		}
+		a.lastSkipSummary = summary
 	}
-	a.skippedOld = skippedOld
 
 	sort.Slice(found, func(i, j int) bool { return found[i].info.ModTime().Before(found[j].info.ModTime()) })
 
@@ -216,6 +208,43 @@ func (a *Agent) scanOnce() (int, error) {
 		log.Print(msg)
 	}
 	return sent, nil
+}
+
+// summarizeSkips renders "3 older than ingestFilesAfter, 1 not a watched file
+// type" — counts only, so a folder with years of history stays one short line.
+func summarizeSkips(counts map[string]int) string {
+	if len(counts) == 0 {
+		return ""
+	}
+	reasons := make([]string, 0, len(counts))
+	for reason := range counts {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	parts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		parts = append(parts, fmt.Sprintf("%d %s", counts[reason], reason))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// skipHints explains the two skips that regularly look like a malfunction.
+func skipHints(counts map[string]int, cfg *Config) string {
+	var hints []string
+	if counts[SkipTooOld] > 0 {
+		hints = append(hints, fmt.Sprintf(
+			"copying a file keeps its original date modified, and only files newer than %s are sent — "+
+				"take a fresh measurement instead", cfg.IngestFilesAfter))
+	}
+	if counts[SkipWrongType] > 0 {
+		hints = append(hints, fmt.Sprintf(
+			"only %s are sent — saving a CSV from Excel or WPS turns it into .xlsx, which is not the "+
+				"instrument's format", strings.Join(cfg.Extensions, " ")))
+	}
+	if len(hints) == 0 {
+		return ""
+	}
+	return " — " + strings.Join(hints, "; ")
 }
 
 func cmdTest() error {
