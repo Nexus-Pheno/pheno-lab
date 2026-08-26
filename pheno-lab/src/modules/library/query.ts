@@ -28,6 +28,12 @@ export async function getLibraryPageData(actor: Actor) {
     db.equipment.findMany({
       where,
       orderBy: [{ archived: "asc" }, { name: "asc" }],
+      include: {
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, fileName: true, storedPath: true, size: true },
+        },
+      },
     }),
     db.material.findMany({
       where,

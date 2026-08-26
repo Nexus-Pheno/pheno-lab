@@ -73,7 +73,16 @@ export async function canReadObject(
         select: { userId: true },
       }),
       db.equipment.findFirst({
-        where: { organizationId: actor.org, photoPath: key },
+        where: {
+          organizationId: actor.org,
+          // Either the machine's photo or one of its spec sheets. Equipment is
+          // shared reference data, so any member of the organization may read
+          // it — the same rule the photo already followed.
+          OR: [
+            { photoPath: key },
+            { attachments: { some: { storedPath: key } } },
+          ],
+        },
         select: { id: true },
       }),
     ]);

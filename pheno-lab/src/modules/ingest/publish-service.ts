@@ -207,6 +207,34 @@ export async function publishIngestItem(
           : await tx.equipment.create({
               data: { ...equipData, organizationId: actor.org },
             });
+        // Attach the original spec sheets. Re-publishing the same item, or
+        // updating an existing machine, must not stack duplicate rows, so
+        // documents already attached by stored key are left alone.
+        const documents = d.documents ?? [];
+        if (documents.length > 0) {
+          const attached = new Set(
+            (
+              await tx.attachment.findMany({
+                where: { equipmentId: rec.id },
+                select: { storedPath: true },
+              })
+            ).map((a) => a.storedPath),
+          );
+          const fresh = documents.filter(
+            (doc) => !attached.has(doc.storedPath),
+          );
+          if (fresh.length > 0) {
+            await tx.attachment.createMany({
+              data: fresh.map((doc) => ({
+                equipmentId: rec.id,
+                fileName: doc.fileName,
+                storedPath: doc.storedPath,
+                mime: doc.mime,
+                size: doc.size,
+              })),
+            });
+          }
+        }
         publishedId = rec.id;
       } else if (item.kind === "FORMULA") {
         // Formulas are proprietary — publishing one needs recipe access, not just

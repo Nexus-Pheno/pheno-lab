@@ -29,6 +29,14 @@ export type EquipmentDraft = {
   processName: string; // matched to a Process by name on publish
   locationName: string;
   parameters: { name: string; unit: string; defaultValue: string }[];
+  // Original vendor spec sheets, already uploaded to object storage. Publishing
+  // attaches them to the equipment record.
+  documents: {
+    fileName: string;
+    storedPath: string;
+    mime: string;
+    size: number;
+  }[];
   notes: string;
 };
 
