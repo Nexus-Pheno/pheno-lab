@@ -49,8 +49,23 @@ if (!deploymentFiles.env.includes("STORAGE_DRIVER=cos")) {
 if (!deploymentFiles.env.includes("BACKUP_MODE=external")) {
   throw new Error("production env template must use external database backups");
 }
-if (!deploymentFiles.nginx.includes("server_name lab.szkl.com;")) {
-  throw new Error("nginx template must serve lab.szkl.com");
+if (!deploymentFiles.env.includes("COS_AUTH_MODE=instance-role")) {
+  throw new Error("production env template must use the CVM instance role");
+}
+for (const directive of [
+  "server_name lab.szkl.com;",
+  "listen [::]:80;",
+  "listen [::]:443 ssl;",
+  "http2 on;",
+  "ssl_protocols TLSv1.2 TLSv1.3;",
+  "ssl_session_tickets off;",
+]) {
+  if (!deploymentFiles.nginx.includes(directive)) {
+    throw new Error(`nginx template is missing: ${directive}`);
+  }
+}
+if (deploymentFiles.nginx.includes("listen 443 ssl http2;")) {
+  throw new Error("nginx template must use the Nginx 1.28 HTTP/2 syntax");
 }
 if (
   /\/var\/lib\/pheno-lab\/(?:uploads|backups)/.test(deploymentFiles.service)
@@ -61,6 +76,16 @@ if (
 }
 if (!deploymentFiles.service.includes(".next/cache")) {
   throw new Error("application service must allow the Next.js runtime cache");
+}
+for (const directive of [
+  "User=pheno",
+  "Group=pheno",
+  "EnvironmentFile=/etc/pheno-lab/pheno-lab.env",
+  "next start -H 127.0.0.1 -p 3457",
+]) {
+  if (!deploymentFiles.service.includes(directive)) {
+    throw new Error(`systemd unit is missing: ${directive}`);
+  }
 }
 
 console.log("Deployment scripts passed syntax and permission checks.");

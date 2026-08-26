@@ -2,16 +2,18 @@
 
 > 状态：待数据所有者在开发者工作站 / 实验室服务器填写
 > 原则：只记录统计与恢复证据，不复制实验正文、密码、连接串、API key 或文件内容。
+> 后续：本模板只负责只读盘点；任何 production apply 必须继续遵守
+> [`data-import-rules.md`](data-import-rules.md)，不能从盘点直接跳到生产导入。
 
 ## 1. 数据分类结论
 
-| 数据集 | 位置 | 负责人 | 分类 | 是否不可再生 | 迁移决定 |
-| --- | --- | --- | --- | --- | --- |
-| PostgreSQL | 待填 | 待填 | production / demo / test / mixed | 待填 | 待填 |
-| `uploads/` | 待填 | 待填 | active / historical / mixed | 待填 | 待填 |
-| `backups/` | 待填 | 待填 | backup | 是 | 待填 |
-| `pheno-data/` | 待填 | 待填 | research archive | 待填 | 待填 |
-| 仪器电脑源目录 | 待填 | 待填 | instrument source | 待填 | 待填 |
+| 数据集         | 位置 | 负责人 | 分类                             | 是否不可再生 | 迁移决定 |
+| -------------- | ---- | ------ | -------------------------------- | ------------ | -------- |
+| PostgreSQL     | 待填 | 待填   | production / demo / test / mixed | 待填         | 待填     |
+| `uploads/`     | 待填 | 待填   | active / historical / mixed      | 待填         | 待填     |
+| `backups/`     | 待填 | 待填   | backup                           | 是           | 待填     |
+| `pheno-data/`  | 待填 | 待填   | research archive                 | 待填         | 待填     |
+| 仪器电脑源目录 | 待填 | 待填   | instrument source                | 待填         | 待填     |
 
 ## 2. PostgreSQL
 
@@ -22,15 +24,15 @@
 - 是否仍有活跃写入：待填
 - 最近写入时间：待填
 
-| 表 / 领域 | 行数 | 最早时间 | 最新时间 | 备注 |
-| --- | ---: | --- | --- | --- |
-| Organization / User | 待填 | 待填 | 待填 | 不记录邮箱和密码哈希 |
-| Experiment / Sample | 待填 | 待填 | 待填 | |
-| Run / StepExecution | 待填 | 待填 | 待填 | |
-| CharacterizationResult | 待填 | 待填 | 待填 | |
-| InstrumentUpload | 待填 | 待填 | 待填 | |
-| JvMeasurement | 待填 | 待填 | 待填 | |
-| Attachment | 待填 | 待填 | 待填 | |
+| 表 / 领域              | 行数 | 最早时间 | 最新时间 | 备注                 |
+| ---------------------- | ---: | -------- | -------- | -------------------- |
+| Organization / User    | 待填 | 待填     | 待填     | 不记录邮箱和密码哈希 |
+| Experiment / Sample    | 待填 | 待填     | 待填     |                      |
+| Run / StepExecution    | 待填 | 待填     | 待填     |                      |
+| CharacterizationResult | 待填 | 待填     | 待填     |                      |
+| InstrumentUpload       | 待填 | 待填     | 待填     |                      |
+| JvMeasurement          | 待填 | 待填     | 待填     |                      |
+| Attachment             | 待填 | 待填     | 待填     |                      |
 
 ## 3. 文件存储
 
@@ -68,10 +70,10 @@
 
 ## 5. Bridge 与仪器电脑
 
-| 仪器 | Bridge 版本 | source 目录 | `config.json` | `state.json` | 可重新注册 |
-| --- | --- | --- | --- | --- | --- |
-| GiantForce | 待填 | 待填 | 有 / 无 | 有 / 无 | 是 / 否 |
-| LIGHTSKY | 待填 | 待填 | 有 / 无 | 有 / 无 | 是 / 否 |
+| 仪器       | Bridge 版本 | source 目录 | `config.json` | `state.json` | 可重新注册 |
+| ---------- | ----------- | ----------- | ------------- | ------------ | ---------- |
+| GiantForce | 待填        | 待填        | 有 / 无       | 有 / 无      | 是 / 否    |
+| LIGHTSKY   | 待填        | 待填        | 有 / 无       | 有 / 无      | 是 / 否    |
 
 不在本文记录原始 API key。只确认吊销旧 key、签发新 key和测试上传的流程是否可执行。
 
@@ -85,5 +87,8 @@
 - [ ] Bridge 重新注册和上传测试流程可执行
 - [ ] COS files / archive / backup 权限域已确定
 - [ ] 停机窗口、RPO、RTO 和回滚负责人已确认
+- [ ] source → target 字段、ID、外键、组织、单位和时区 mapping 已审查
+- [ ] importer commit、dry run、staging apply 和第二次幂等结果已批准
+- [ ] 生产 batchId、canary、reconciliation 查询和精确回滚清单已确定
 
 以上门槛完成前，可以开发和部署兼容代码，但不得执行生产数据清理、覆盖或存量 COS 切换。
