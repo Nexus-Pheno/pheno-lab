@@ -98,6 +98,196 @@ test("a technician can upload and read a capture image", async ({ page }) => {
   expect(download.headers()["x-content-type-options"]).toBe("nosniff");
 });
 
+test("capture controls keep chips dense, select Trash, confirm photo deletion, and cancel a run", async ({
+  page,
+}) => {
+  const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+  if (!testDatabaseUrl) throw new Error("TEST_DATABASE_URL is required");
+  const prisma = new PrismaClient({
+    datasources: { db: { url: testDatabaseUrl } },
+  });
+  let experimentId: string | undefined;
+  let processId: string | undefined;
+  let runIds: string[] = [];
+  try {
+    const organization = await prisma.organization.findUniqueOrThrow({
+      where: { slug: "e2e-org" },
+    });
+    const manager = await prisma.user.findUniqueOrThrow({
+      where: { email: E2E_MANAGER_EMAIL },
+    });
+    const suffix = crypto.randomUUID();
+    const process = await prisma.process.create({
+      data: {
+        organizationId: organization.id,
+        name: `Capture controls ${suffix}`,
+        kind: "PROCESSING",
+        icon: "FlaskConical",
+      },
+    });
+    processId = process.id;
+    const experiment = await prisma.experiment.create({
+      data: {
+        organizationId: organization.id,
+        code: `E2E-CAP-${suffix}`,
+        title: "Capture controls",
+        status: "IN_LAB",
+        createdById: manager.id,
+        metadata: {
+          testPlan: {
+            groups: [{ label: "A", isControl: true }],
+            assignments: {
+              S1: "A",
+              S2: "A",
+              S3: "A",
+              S4: "A",
+              S5: "EXTRA",
+              S6: "ERROR",
+            },
+          },
+        },
+        samples: {
+          create: [
+            { code: "S1", simCode: "01A01", variationGroup: "A" },
+            { code: "S2", simCode: "01A02", variationGroup: "A" },
+            { code: "S3", simCode: "01A03", variationGroup: "A" },
+            { code: "S4", simCode: "01A04", variationGroup: "A" },
+            { code: "S5", simCode: "01A05" },
+            { code: "S6", simCode: "01A06", variationGroup: "ERROR" },
+          ],
+        },
+        steps: {
+          create: {
+            position: 0,
+            processId: process.id,
+            name: "Spin coat",
+          },
+        },
+        runs: {
+          create: [
+            { runNo: 1, status: "IN_PROGRESS", technicianId: manager.id },
+            { runNo: 2, status: "IN_PROGRESS", technicianId: manager.id },
+          ],
+        },
+      },
+      include: {
+        samples: { orderBy: { code: "asc" } },
+        steps: true,
+        runs: { orderBy: { runNo: "asc" } },
+      },
+    });
+    experimentId = experiment.id;
+    runIds = experiment.runs.map((run) => run.id);
+    const [run1, run2] = experiment.runs;
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/login");
+    await page.locator("#email").fill(E2E_MANAGER_EMAIL);
+    await page.locator("#password").fill(E2E_PASSWORD);
+    await page.locator('button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/$/);
+
+    const upload = await page.request.post("/api/upload", {
+      multipart: {
+        file: {
+          name: "capture-confirmation.png",
+          mimeType: "image/png",
+          buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        },
+      },
+    });
+    expect(upload.status()).toBe(200);
+    const { fileName } = (await upload.json()) as { fileName: string };
+    const execution = await prisma.stepExecution.create({
+      data: {
+        runId: run2.id,
+        stepId: experiment.steps[0].id,
+        sampleId: experiment.samples[0].id,
+        actuals: {},
+        attachments: {
+          create: {
+            fileName,
+            storedPath: fileName,
+            mime: "image/png",
+            size: 8,
+          },
+        },
+      },
+      include: { attachments: true },
+    });
+
+    await page.goto(`/experiments/${experiment.id}/capture?run=${run2.id}`);
+    await expect(page.locator("select")).toHaveValue(run2.id);
+
+    const firstThree = await Promise.all(
+      ["S1", "S2", "S3"].map((code) =>
+        page.locator(`[data-substrate-sample="${code}"]`).boundingBox(),
+      ),
+    );
+    expect(firstThree.every(Boolean)).toBe(true);
+    expect(
+      firstThree.every((box) => box && Math.abs(box.y - firstThree[0]!.y) < 2),
+    ).toBe(true);
+
+    await page.locator('[data-substrate-sample="S1"]').click();
+    await page.locator('[data-substrate-sample="S6"]').click();
+    await expect(
+      page.getByRole("button", { name: /Confirm for S6 \(1\)/ }),
+    ).toBeVisible();
+
+    await page.locator('[data-substrate-sample="S6"]').click();
+    await page.locator('[data-substrate-sample="S1"]').click();
+    await page.getByRole("button", { name: /Photos \(1\)/ }).click();
+    await page.getByRole("button", { name: "Delete photo?" }).click();
+    await expect(
+      page.getByText("Delete photo?", { exact: true }),
+    ).toBeVisible();
+    expect(
+      await prisma.attachment.count({
+        where: { stepExecutionId: execution.id },
+      }),
+    ).toBe(1);
+    await page.getByRole("button", { name: "Cancel" }).click();
+    expect(
+      await prisma.attachment.count({
+        where: { stepExecutionId: execution.id },
+      }),
+    ).toBe(1);
+    await page.getByRole("button", { name: "Close" }).click();
+
+    await page.getByRole("button", { name: "Delete current run" }).click();
+    await expect(
+      page.getByText("Delete Run 2?", { exact: true }),
+    ).toBeVisible();
+    expect(
+      await prisma.run.findUniqueOrThrow({ where: { id: run2.id } }),
+    ).toMatchObject({ status: "IN_PROGRESS" });
+    await page.getByRole("button", { name: "Confirm delete run" }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/experiments/${experiment.id}/capture\\?run=${run1.id}`),
+    );
+    await expect(page.locator("select")).toHaveValue(run1.id);
+    await expect
+      .poll(() =>
+        prisma.run
+          .findUniqueOrThrow({ where: { id: run2.id } })
+          .then((run) => run.status),
+      )
+      .toBe("CANCELLED");
+  } finally {
+    if (experimentId) {
+      await prisma.auditEvent.deleteMany({
+        where: { entityId: { in: [experimentId, ...runIds] } },
+      });
+      await prisma.experiment.deleteMany({ where: { id: experimentId } });
+    }
+    if (processId) {
+      await prisma.process.deleteMany({ where: { id: processId } });
+    }
+    await prisma.$disconnect();
+  }
+});
+
 test("an existing session loses access when its user is deactivated", async ({
   page,
 }) => {

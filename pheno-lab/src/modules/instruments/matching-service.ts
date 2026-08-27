@@ -62,7 +62,12 @@ async function matchByInstrumentCode(
       experiment: {
         select: {
           code: true,
-          runs: { select: { id: true }, orderBy: { runNo: "desc" }, take: 1 },
+          runs: {
+            where: { status: { not: "CANCELLED" } },
+            select: { id: true },
+            orderBy: { runNo: "desc" },
+            take: 1,
+          },
         },
       },
     },
@@ -124,6 +129,7 @@ export async function matchSerial(
       id: true,
       samples: { select: { id: true, code: true } },
       runs: {
+        where: { status: { not: "CANCELLED" } },
         select: { id: true, runNo: true },
         orderBy: { runNo: "desc" },
         take: 1,

@@ -11,6 +11,7 @@ import {
 } from "@/modules/runs/schema";
 import {
   addExecutionPhotosService,
+  cancelRunService,
   clearExecutionsService,
   completeExperimentService,
   createNewRunService,
@@ -29,6 +30,11 @@ export async function getOrCreateRun(experimentId: string) {
 export async function createNewRun(experimentId: string) {
   const actor = await requireSession();
   return createNewRunService(actor, entityIdSchema.parse(experimentId));
+}
+
+export async function deleteRun(runId: string) {
+  const actor = await requireSession();
+  return cancelRunService(actor, entityIdSchema.parse(runId));
 }
 
 export async function saveExecution(

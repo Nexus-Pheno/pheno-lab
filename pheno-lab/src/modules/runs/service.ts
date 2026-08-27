@@ -22,7 +22,7 @@ async function requireCaptureGraph(
   const [run, step, samples] = await Promise.all([
     db.run.findUniqueOrThrow({
       where: { id: input.runId },
-      select: { experimentId: true },
+      select: { experimentId: true, status: true },
     }),
     db.processStep.findUniqueOrThrow({
       where: { id: input.stepId },
@@ -35,6 +35,7 @@ async function requireCaptureGraph(
   ]);
 
   if (
+    run.status === "CANCELLED" ||
     step.experimentId !== run.experimentId ||
     samples.length !== input.sampleIds.length ||
     samples.some((sample) => sample.experimentId !== run.experimentId)
@@ -67,15 +68,20 @@ export async function getOrCreateRunService(
 ) {
   await requireExperimentPermission(actor, experimentId, "capture");
   const existing = await db.run.findFirst({
-    where: { experimentId },
+    where: { experimentId, status: { not: "CANCELLED" } },
     orderBy: { runNo: "desc" },
   });
   if (existing) return existing;
   return db.$transaction(async (transaction) => {
+    const latest = await transaction.run.findFirst({
+      where: { experimentId },
+      orderBy: { runNo: "desc" },
+      select: { runNo: true },
+    });
     const run = await transaction.run.create({
       data: {
         experimentId,
-        runNo: 1,
+        runNo: (latest?.runNo ?? 0) + 1,
         status: "IN_PROGRESS",
         technicianId: actor.uid,
       },
@@ -85,7 +91,7 @@ export async function getOrCreateRunService(
       action: "run.create",
       entityType: "Run",
       entityId: run.id,
-      metadata: { experimentId, runNo: 1 },
+      metadata: { experimentId, runNo: run.runNo },
     });
     return run;
   });
@@ -116,6 +122,79 @@ export async function createNewRunService(actor: Actor, experimentId: string) {
     });
     return run;
   });
+}
+
+/**
+ * Remove a run from active capture without destroying its research records.
+ * The existing CANCELLED state is the soft-delete boundary: active queries
+ * omit it, while executions, results, measurements, and attachment references
+ * remain available for audit/recovery. At least one active run must remain.
+ */
+export async function cancelRunService(actor: Actor, runId: string) {
+  const run = await db.run.findUniqueOrThrow({
+    where: { id: runId },
+    select: { experimentId: true },
+  });
+  await requireExperimentPermission(actor, run.experimentId, "capture");
+
+  return db.$transaction(
+    async (transaction) => {
+      const target = await transaction.run.findUniqueOrThrow({
+        where: { id: runId },
+        select: {
+          id: true,
+          experimentId: true,
+          runNo: true,
+          status: true,
+          _count: {
+            select: {
+              executions: true,
+              results: true,
+              jvMeasurements: true,
+            },
+          },
+        },
+      });
+      if (target.status === "CANCELLED") {
+        throw new Error("Run is already cancelled.");
+      }
+
+      const activeRuns = await transaction.run.findMany({
+        where: {
+          experimentId: target.experimentId,
+          status: { not: "CANCELLED" },
+        },
+        orderBy: { runNo: "asc" },
+        select: { id: true, runNo: true },
+      });
+      if (activeRuns.length <= 1) {
+        throw new Error("At least one active run must remain.");
+      }
+
+      const nextRun = activeRuns.filter((row) => row.id !== target.id).at(-1);
+      if (!nextRun) throw new Error("No active run remains.");
+
+      await transaction.run.update({
+        where: { id: target.id },
+        data: { status: "CANCELLED" },
+      });
+      await recordUserAudit(transaction, {
+        actor,
+        action: "run.cancel",
+        entityType: "Run",
+        entityId: target.id,
+        metadata: {
+          experimentId: target.experimentId,
+          runNo: target.runNo,
+          executionsPreserved: target._count.executions,
+          resultsPreserved: target._count.results,
+          measurementsPreserved: target._count.jvMeasurements,
+        },
+      });
+      return { nextRunId: nextRun.id };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 export async function saveExecutionBatchService(
@@ -339,13 +418,15 @@ export async function saveCharacterizationResultService(
     input.runId
       ? db.run.findUniqueOrThrow({
           where: { id: input.runId },
-          select: { experimentId: true },
+          select: { experimentId: true, status: true },
         })
       : Promise.resolve(null),
   ]);
   if (
     sample.experimentId !== characterization.experimentId ||
-    (run && run.experimentId !== characterization.experimentId)
+    (run &&
+      (run.status === "CANCELLED" ||
+        run.experimentId !== characterization.experimentId))
   ) {
     throw new Error(
       "Characterization, sample, and run must belong to the same experiment.",

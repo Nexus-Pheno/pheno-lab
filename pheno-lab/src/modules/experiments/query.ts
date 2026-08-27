@@ -43,6 +43,7 @@ export async function listPortalExperiments(actor: Actor) {
     include: {
       _count: { select: { samples: true, steps: true } },
       runs: {
+        where: { status: { not: "CANCELLED" } },
         include: { _count: { select: { executions: true } } },
         orderBy: { runNo: "desc" },
       },
@@ -149,7 +150,7 @@ export async function getCaptureRunData(
   const runId = rawRunId ? experimentIdSchema.parse(rawRunId) : undefined;
   const [runs, layers] = await Promise.all([
     db.run.findMany({
-      where: { experimentId },
+      where: { experimentId, status: { not: "CANCELLED" } },
       orderBy: { runNo: "asc" },
     }),
     db.deviceLayer.findMany({
@@ -184,7 +185,18 @@ export async function getResultsExperiment(actor: Actor, rawId: unknown) {
       samples: { orderBy: { code: "asc" } },
       characterizations: {
         orderBy: { position: "asc" },
-        include: { process: true, results: { include: { run: true } } },
+        include: {
+          process: true,
+          results: {
+            where: {
+              OR: [
+                { runId: null },
+                { run: { is: { status: { not: "CANCELLED" } } } },
+              ],
+            },
+            include: { run: true },
+          },
+        },
       },
       steps: {
         include: {
@@ -227,10 +239,22 @@ export async function getReportExperiment(actor: Actor, rawId: unknown) {
         include: {
           process: true,
           equipment: true,
-          results: { include: { run: true } },
+          results: {
+            where: {
+              OR: [
+                { runId: null },
+                { run: { is: { status: { not: "CANCELLED" } } } },
+              ],
+            },
+            include: { run: true },
+          },
         },
       },
-      runs: { orderBy: { runNo: "asc" }, include: { executions: true } },
+      runs: {
+        where: { status: { not: "CANCELLED" } },
+        orderBy: { runNo: "asc" },
+        include: { executions: true },
+      },
       labels: { include: { label: true } },
     },
   });
