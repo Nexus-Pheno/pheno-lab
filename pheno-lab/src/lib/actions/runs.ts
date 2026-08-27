@@ -43,6 +43,7 @@ export async function saveExecution(
   sampleId: string,
   data: {
     actuals: Record<string, string>;
+    materialSelections?: Record<string, string>;
     environmentConditions: Record<string, string>;
     note: string;
     flagged: boolean;
@@ -70,6 +71,7 @@ export async function saveExecutionBatch(
   sampleIds: string[],
   data: {
     actuals: Record<string, string>;
+    materialSelections?: Record<string, string>;
     environmentConditions: Record<string, string>;
     note: string;
     flagged: boolean;
@@ -143,7 +145,11 @@ export async function setJvDisplayPolicy(resultId: string, policy: string) {
   return setJvMetricPolicy(actor, String(resultId), String(policy));
 }
 
-export async function regroupSample(sampleId: string, zone: string, note?: string) {
+export async function regroupSample(
+  sampleId: string,
+  zone: string,
+  note?: string,
+) {
   const actor = await requireSession();
   return regroupSampleService(
     actor,

@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentFull, StepFull, SampleRow } from "@/lib/types";
+import {
+  captureFieldKind,
+  materialCardsForStep,
+  materialSelectionForValues,
+  selectOptionsForParameter,
+  type CaptureCategoryLayers,
+  type CaptureMaterialCard,
+} from "@/lib/capture-fields";
 import { saveExecutionBatch, saveCharResult, createNewRun, deleteRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
 import { submitForReview } from "@/lib/actions/workflow";
 import { regroupSample } from "@/lib/actions/runs";
@@ -16,6 +24,7 @@ type Execution = {
   stepId: string;
   sampleId: string;
   actuals: Record<string, string>;
+  materialSelections: Record<string, string>;
   environmentConditions: Record<string, string>;
   note: string;
   flagged: boolean;
@@ -64,6 +73,9 @@ export function CaptureView({
   exp,
   backHref,
   layers,
+  materials,
+  categoryLayers,
+  captureChoiceCatalog,
   runId,
   runNo,
   runs,
@@ -72,6 +84,9 @@ export function CaptureView({
 }: {
   exp: ExperimentFull;
   layers: { code: string; name: string }[];
+  materials: CaptureMaterialCard[];
+  categoryLayers: CaptureCategoryLayers[];
+  captureChoiceCatalog: Record<string, string[]>;
   backHref: string;
   runId: string;
   runNo: number;
@@ -87,6 +102,7 @@ export function CaptureView({
   const [runDeleteAsk, setRunDeleteAsk] = useState(false);
   const [runBusy, setRunBusy] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
+  const programmaticSlideRef = useRef<number | null>(null);
 
   // Capture owns the whole screen: hide the app chrome header while mounted.
   useEffect(() => {
@@ -159,8 +175,14 @@ export function CaptureView({
     const el = trackRef.current;
     if (!el) return;
     const clamped = Math.max(0, Math.min(slideCount - 1, i));
-    el.scrollTo({ left: clamped * el.clientWidth, behavior: "smooth" });
+    const left = clamped * el.clientWidth;
+    programmaticSlideRef.current = clamped;
     setSlide(clamped);
+    if (Math.abs(el.scrollLeft - left) < 1) {
+      programmaticSlideRef.current = null;
+      return;
+    }
+    el.scrollTo({ left, behavior: "smooth" });
   }, [slideCount]);
 
   // Survive pull-to-refresh: remember the current card and restore it on load.
@@ -182,16 +204,33 @@ export function CaptureView({
     const el = trackRef.current;
     if (!el) return;
     let raf = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    const currentSlide = () => Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        setSlide(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
+        // Smooth jumps cross intermediate cards. Keep the clicked target
+        // active until the programmatic animation settles.
+        if (programmaticSlideRef.current === null) setSlide(currentSlide());
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => {
+          programmaticSlideRef.current = null;
+          setSlide(currentSlide());
+        }, 120);
       });
     };
+    const onUserIntent = () => {
+      programmaticSlideRef.current = null;
+    };
     el.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("pointerdown", onUserIntent, { passive: true });
+    el.addEventListener("wheel", onUserIntent, { passive: true });
     return () => {
       el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("pointerdown", onUserIntent);
+      el.removeEventListener("wheel", onUserIntent);
       cancelAnimationFrame(raf);
+      if (settleTimer) clearTimeout(settleTimer);
     };
   }, []);
 
@@ -302,8 +341,11 @@ export function CaptureView({
             return (
               <button
                 key={st.id}
+                type="button"
                 onClick={() => jumpTo(i)}
                 title={st.name}
+                data-process-slide={i}
+                aria-current={i === slide ? "step" : undefined}
                 className={
                   "shrink-0 w-10 h-10 rounded-full font-bold border flex flex-col items-center justify-center leading-none gap-0.5 " +
                   (i === slide
@@ -330,8 +372,11 @@ export function CaptureView({
             return (
               <button
                 key={c.id}
+                type="button"
                 onClick={() => jumpTo(i)}
                 title={c.name}
+                data-process-slide={i}
+                aria-current={i === slide ? "step" : undefined}
                 className={
                   "shrink-0 w-10 h-10 rounded-full border flex flex-col items-center justify-center leading-none gap-0.5 " +
                   (i === slide
@@ -354,6 +399,7 @@ export function CaptureView({
       <div className="flex-1 min-h-0 flex flex-col">
         <div
           ref={trackRef}
+          data-capture-track
           className="no-scrollbar flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
         >
           {orderedSteps.map((step, i) => (
@@ -365,6 +411,9 @@ export function CaptureView({
                 <BatchStepCapture
                   step={step}
                   layerName={layers.find((l) => l.code === step.layer)?.name}
+                  materials={materials}
+                  categoryLayers={categoryLayers}
+                  captureChoiceCatalog={captureChoiceCatalog}
                   expCode={exp.code}
                   samples={exp.samples}
                   groups={planGroups}
@@ -513,6 +562,9 @@ function CompleteCard({ exp, missing }: { exp: ExperimentFull; missing: number }
 function BatchStepCapture({
   step,
   layerName,
+  materials,
+  categoryLayers,
+  captureChoiceCatalog,
   expCode,
   samples,
   groups,
@@ -526,6 +578,9 @@ function BatchStepCapture({
 }: {
   step: StepFull;
   layerName?: string;
+  materials: CaptureMaterialCard[];
+  categoryLayers: CaptureCategoryLayers[];
+  captureChoiceCatalog: Record<string, string[]>;
   expCode: string;
   samples: SampleRow[];
   groups: string[];
@@ -598,11 +653,36 @@ function BatchStepCapture({
 
   const planned = useMemo(() => plannedFor(step, scopeGroup), [step, scopeGroup]);
   const plannedEnv = (step.environmentConditions ?? {}) as Record<string, string>;
+  const plannedMaterialNames = useMemo(
+    () => step.parameters
+      .filter((parameter) => captureFieldKind(parameter) === "material")
+      .flatMap((parameter) => [parameter.value, ...parameter.variations.map((variation) => variation.value)]),
+    [step.parameters],
+  );
+  const materialOptions = useMemo(
+    () => materialCardsForStep({
+      processId: step.processId,
+      layer: step.layer,
+      linkedMaterialIds: step.materials.map((row) => row.materialId),
+      plannedNames: plannedMaterialNames,
+      materials,
+      categoryLayers,
+    }),
+    [categoryLayers, materials, plannedMaterialNames, step],
+  );
 
   const existing = targets.length > 0 ? executions.find((x) => x.sampleId === targets[0].id) : undefined;
   const allTargetsCaptured = targets.length > 0 && targets.every((s) => capturedIds.has(s.id));
 
   const [actuals, setActuals] = useState<Record<string, string>>(() => existing?.actuals ?? planned);
+  const [materialSelections, setMaterialSelections] = useState<Record<string, string>>(() =>
+    materialSelectionForValues(
+      step.parameters,
+      existing?.actuals ?? planned,
+      existing?.materialSelections ?? {},
+      materialOptions,
+    )
+  );
   const [envActuals, setEnvActuals] = useState<Record<string, string>>(() => existing?.environmentConditions ?? plannedEnv);
   const [note, setNote] = useState(existing?.note ?? "");
   const [flagged, setFlagged] = useState(existing?.flagged ?? false);
@@ -625,7 +705,9 @@ function BatchStepCapture({
     setBusy(false);
     setClearAsk(false);
     setEditing(false);
-    setActuals(plannedFor(step, scopeGroup));
+    const resetActuals = plannedFor(step, scopeGroup);
+    setActuals(resetActuals);
+    setMaterialSelections(materialSelectionForValues(step.parameters, resetActuals, {}, materialOptions));
     setEnvActuals(plannedEnv);
     setNote("");
     setFlagged(false);
@@ -666,7 +748,11 @@ function BatchStepCapture({
     if (lastScopeKey.current === scopeKey) return;
     lastScopeKey.current = scopeKey;
     const ex = targets.length > 0 ? executions.find((x) => x.sampleId === targets[0].id) : undefined;
-    setActuals(ex?.actuals ?? plannedFor(step, scopeGroup));
+    const nextActuals = ex?.actuals ?? plannedFor(step, scopeGroup);
+    setActuals(nextActuals);
+    setMaterialSelections(
+      materialSelectionForValues(step.parameters, nextActuals, ex?.materialSelections ?? {}, materialOptions),
+    );
     setEnvActuals(ex?.environmentConditions ?? plannedEnv);
     setNote(ex?.note ?? "");
     setFlagged(ex?.flagged ?? false);
@@ -697,7 +783,7 @@ function BatchStepCapture({
     setBusy(true);
     setOverwriteAsk(false);
     const saved = await saveExecutionBatch(runId, step.id, targets.map((sm) => sm.id), {
-      actuals, environmentConditions: envActuals, note, flagged,
+      actuals, materialSelections, environmentConditions: envActuals, note, flagged,
       photoFileNames: newPhotos.length > 0 ? newPhotos : undefined,
     });
     setBusy(false);
@@ -709,6 +795,7 @@ function BatchStepCapture({
       stepId: step.id,
       sampleId: x.sampleId,
       actuals,
+      materialSelections,
       environmentConditions: envActuals,
       note,
       flagged,
@@ -719,6 +806,9 @@ function BatchStepCapture({
 
   // The scope selector IS the sample map: tap All, a group, or one sample.
   const allCaptured = samples.length > 0 && samples.every((s) => capturedIds.has(s.id));
+  const materialSelectionMissing = step.parameters.some(
+    (parameter) => captureFieldKind(parameter) === "material" && !materialSelections[parameter.name],
+  );
 
   // Human label for the confirm button: All / whole groups / leftover codes.
   const selectionLabel = useMemo(() => {
@@ -879,17 +969,56 @@ function BatchStepCapture({
               {step.parameters.map((p) => {
                 const plan = planned[p.name] ?? "";
                 const varied = p.variations.length > 0;
+                const fieldKind = captureFieldKind(p);
+                const options = selectOptionsForParameter(
+                  step.processId, p, captureChoiceCatalog, actuals[p.name],
+                );
                 return (
                   <div key={p.id} className="grid grid-cols-[1fr_76px_96px_40px] gap-1.5 items-center">
                     <span className={"text-[12px] truncate " + (varied ? "font-bold text-brand-deep" : "text-charcoal")}>
                       {tt(p.name)}
                     </span>
                     <span className="mono text-[12px] text-muted truncate">{plan}</span>
-                    <input
-                      className="h-9 mono border border-line rounded-[3px] px-2 text-[13px]"
-                      value={actuals[p.name] ?? ""}
-                      onChange={(e) => setActuals((a) => ({ ...a, [p.name]: e.target.value }))}
-                    />
+                    {fieldKind === "material" ? (
+                      <select
+                        className="h-9 min-w-0 mono border border-line rounded-[3px] px-1.5 text-[12px] bg-surface"
+                        value={materialSelections[p.name] ?? ""}
+                        aria-label={tt(p.name)}
+                        data-capture-field={p.name}
+                        data-capture-kind="material"
+                        onChange={(e) => {
+                          const material = materialOptions.find((option) => option.id === e.target.value);
+                          setMaterialSelections((current) => ({ ...current, [p.name]: e.target.value }));
+                          setActuals((current) => ({ ...current, [p.name]: material?.name ?? "" }));
+                        }}
+                      >
+                        <option value="">{t("plan.selectMaterial")}</option>
+                        {materialOptions.map((material) => (
+                          <option key={material.id} value={material.id}>{material.name}</option>
+                        ))}
+                      </select>
+                    ) : fieldKind === "select" ? (
+                      <select
+                        className="h-9 min-w-0 mono border border-line rounded-[3px] px-1.5 text-[12px] bg-surface"
+                        value={actuals[p.name] ?? ""}
+                        aria-label={tt(p.name)}
+                        data-capture-field={p.name}
+                        data-capture-kind="select"
+                        onChange={(e) => setActuals((current) => ({ ...current, [p.name]: e.target.value }))}
+                      >
+                        {!actuals[p.name] && <option value="">—</option>}
+                        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        className="h-9 min-w-0 mono border border-line rounded-[3px] px-2 text-[13px]"
+                        value={actuals[p.name] ?? ""}
+                        aria-label={tt(p.name)}
+                        data-capture-field={p.name}
+                        data-capture-kind="text"
+                        onChange={(e) => setActuals((a) => ({ ...a, [p.name]: e.target.value }))}
+                      />
+                    )}
                     <span className="text-[10.5px] text-muted truncate">{p.unit}</span>
                   </div>
                 );
@@ -931,7 +1060,7 @@ function BatchStepCapture({
           {(existingPhotos.length > 0 || newPhotos.length > 0) && (
             <div className="mb-2.5">
               <FieldLabel>{t("cap.photos")}</FieldLabel>
-              <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+              <div data-pending-photo-strip className="no-scrollbar flex gap-1.5 overflow-x-auto pt-2 pr-3">
                 {existingPhotos.map((ph) => (
                   <button key={ph.path} onClick={() => setGalleryOpen(true)} className="shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1020,7 +1149,7 @@ function BatchStepCapture({
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
               onChange={(e) => e.target.files?.length && upload(e.target.files)} />
             <button
-              disabled={busy || targets.length === 0}
+              disabled={busy || targets.length === 0 || materialSelectionMissing}
               onClick={() => {
                 // Overwriting existing captures needs an explicit confirmation
                 // (e.g. batching "All samples" over groups already recorded).

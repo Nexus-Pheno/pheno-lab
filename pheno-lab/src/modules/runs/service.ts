@@ -62,6 +62,61 @@ async function requireOwnedUploadKeys(
   }
 }
 
+type ResolvedMaterialSelection = {
+  parameterName: string;
+  materialId: string;
+};
+
+async function resolveMaterialSelections(
+  actor: Actor,
+  input: ExecutionBatchInput,
+): Promise<ResolvedMaterialSelection[]> {
+  const materialParameters = await db.stepParameter.findMany({
+    where: { stepId: input.stepId, source: "material" },
+    select: { name: true },
+  });
+  const materialParameterNames = new Set(
+    materialParameters.map((parameter) => parameter.name),
+  );
+  const entries = Object.entries(input.data.materialSelections);
+
+  if (entries.some(([name]) => !materialParameterNames.has(name))) {
+    throw new Error("A material selection does not belong to this step.");
+  }
+  for (const parameter of materialParameters) {
+    const actual = input.data.actuals[parameter.name]?.trim() ?? "";
+    if (actual && !input.data.materialSelections[parameter.name]) {
+      throw new Error(
+        `Material actual “${parameter.name}” must select a material card.`,
+      );
+    }
+  }
+  if (entries.length === 0) return [];
+
+  const ids = [...new Set(entries.map(([, materialId]) => materialId))];
+  const materials = await db.material.findMany({
+    where: {
+      id: { in: ids },
+      organizationId: actor.org,
+      archived: false,
+    },
+    select: { id: true, name: true },
+  });
+  if (materials.length !== ids.length) {
+    throw new Error("A selected material card is unavailable.");
+  }
+  const byId = new Map(materials.map((material) => [material.id, material]));
+  return entries.map(([parameterName, materialId]) => {
+    const material = byId.get(materialId)!;
+    if (input.data.actuals[parameterName]?.trim() !== material.name) {
+      throw new Error(
+        `Material actual “${parameterName}” does not match its material card.`,
+      );
+    }
+    return { parameterName, materialId };
+  });
+}
+
 export async function getOrCreateRunService(
   actor: Actor,
   experimentId: string,
@@ -203,6 +258,7 @@ export async function saveExecutionBatchService(
 ) {
   const experimentId = await requireCaptureGraph(actor, input);
   const photos = input.data.photoFileNames ?? [];
+  const materialSelections = await resolveMaterialSelections(actor, input);
   await requireOwnedUploadKeys(actor, photos);
 
   const executionIds = await db.$transaction(async (transaction) => {
@@ -234,6 +290,17 @@ export async function saveExecutionBatchService(
         },
       });
       ids.push(execution.id);
+      await transaction.executionMaterial.deleteMany({
+        where: { executionId: execution.id },
+      });
+      if (materialSelections.length > 0) {
+        await transaction.executionMaterial.createMany({
+          data: materialSelections.map((selection) => ({
+            executionId: execution.id,
+            ...selection,
+          })),
+        });
+      }
       for (const key of photos) {
         await transaction.attachment.create({
           data: {
@@ -257,6 +324,7 @@ export async function saveExecutionBatchService(
         sampleIds: input.sampleIds,
         flagged: input.data.flagged,
         photoCount: photos.length,
+        materialSelectionCount: materialSelections.length,
       },
     });
     return ids;
@@ -264,7 +332,7 @@ export async function saveExecutionBatchService(
 
   return db.stepExecution.findMany({
     where: { id: { in: executionIds } },
-    include: { attachments: true },
+    include: { attachments: true, materialSelections: true },
   });
 }
 
