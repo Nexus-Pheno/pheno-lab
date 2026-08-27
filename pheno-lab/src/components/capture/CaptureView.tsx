@@ -1241,10 +1241,22 @@ function PerSampleCharCapture({
       </div>
 
       {activeSample && (
-        <p className="mono text-[11px] text-charcoal mb-2">
-          <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
-          {expCode}-{activeSample.code}
-        </p>
+        <div className="mb-2">
+          <p className="mono text-[11px] text-charcoal">
+            <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
+            {expCode}-{activeSample.code}
+          </p>
+          {activeSample.simCode && (
+            <div className="mt-1.5 inline-flex items-baseline gap-2 bg-ink text-white rounded-[6px] px-3 py-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                {t("cap.simCode")}
+              </span>
+              <span className="mono text-[20px] font-bold tracking-widest">
+                {activeSample.simCode}
+              </span>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="space-y-1.5">
