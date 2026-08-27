@@ -119,11 +119,18 @@ export function CaptureView({
     ),
   );
   const moveSubstrate = async (code: string, zone: string) => {
-    setAssignments((a) => ({ ...a, [code]: zone }));
     const sample = exp.samples.find((s) => s.code === code);
     if (!sample) return;
+    // Trashing a substrate records why; photos can be added on the step card.
+    let note: string | undefined;
+    if (zone === "ERROR") {
+      const answer = prompt(t("cap.trashWhy"), "");
+      if (answer === null) return;
+      note = answer;
+    }
+    setAssignments((a) => ({ ...a, [code]: zone }));
     try {
-      await regroupSample(sample.id, zone);
+      await regroupSample(sample.id, zone, note);
       router.refresh();
     } catch {
       setAssignments((a) => ({ ...a, [code]: sample.variationGroup ?? "EXTRA" }));

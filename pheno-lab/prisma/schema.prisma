@@ -442,6 +442,9 @@ model MaterialCategoryDef {
   nameZh         String       @default("")
   position       Int          @default(0)
   builtIn        Boolean      @default(false) // seeded defaults, still renamable
+  // DeviceLayer codes this category's materials are used in (HTL, PEROVSKITE...).
+  // Drives layer-filtered material dropdowns; empty = shown for every layer.
+  layers         String[]     @default([])
   createdAt      DateTime     @default(now())
 
   @@unique([organizationId, code])

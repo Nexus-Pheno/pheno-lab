@@ -40,6 +40,7 @@ export function TestPlanCard({
   equipment,
   materials,
   layers,
+  categoryLayers = [],
   sampleCount,
   canEdit,
   onApply,
@@ -49,6 +50,7 @@ export function TestPlanCard({
   equipment: Equipment[];
   materials: Material[];
   layers: { code: string; name: string }[];
+  categoryLayers?: { code: string; layers: string[] }[];
   sampleCount: number;
   canEdit: boolean;
   onApply: (plan: TestPlan) => Promise<void>;
@@ -75,6 +77,27 @@ export function TestPlanCard({
   };
 
   const materialsFor = (processId: string) => materials.filter((m) => m.processId === processId);
+  // Materials are classified by use layer via their category (SAMs → HTL).
+  // With a layer selected, the dropdown narrows to that layer's materials;
+  // a layer no category claims falls back to the process's materials.
+  const categoriesForLayer = (layer: string) =>
+    categoryLayers.filter((c) => c.layers.includes(layer)).map((c) => c.code);
+  const materialsForVariable = (v: TestPlanVariable) => {
+    const cats = v.layer ? categoriesForLayer(v.layer) : [];
+    if (cats.length > 0) {
+      return materials.filter((m) => cats.includes((m as { category?: string }).category ?? ""));
+    }
+    return materialsFor(v.processId);
+  };
+  const substrateMaterials = (() => {
+    const cats = categoriesForLayer("SUBSTRATE");
+    return cats.length > 0
+      ? materials.filter((m) => cats.includes((m as { category?: string }).category ?? ""))
+      : materials;
+  })();
+  // The material slot name is derived, not typed: "<layer> Material".
+  const autoSlotName = (layer?: string) =>
+    layer ? `${layerName(layer)} Material` : "Material";
   const equipmentFor = (processId: string) => equipment.filter((e) => e.processId === processId && !e.archived);
   const layerName = (code?: string) => layers.find((l) => l.code === code)?.name ?? "";
   const equipmentName = (id?: string) => equipment.find((e) => e.id === id)?.name ?? "";
@@ -213,7 +236,10 @@ export function TestPlanCard({
                         processId: e.target.value,
                         equipmentId: "",
                         layer: defaultLayerFor(e.target.value),
-                        parameter: v.kind === "material" ? "Material" : "",
+                        parameter:
+                          v.kind === "material"
+                            ? autoSlotName(defaultLayerFor(e.target.value))
+                            : "",
                         unit: "",
                         values: {},
                       });
@@ -242,7 +268,14 @@ export function TestPlanCard({
                   <select
                     className={selectCls}
                     value={v.layer ?? ""}
-                    onChange={(e) => patchVar(vi, { layer: e.target.value })}
+                    onChange={(e) =>
+                      patchVar(vi, {
+                        layer: e.target.value,
+                        ...(v.kind === "material"
+                          ? { parameter: autoSlotName(e.target.value) }
+                          : {}),
+                      })
+                    }
                   >
                     <option value="">{t("plan.noLayer")}</option>
                     {layers.map((l) => (
@@ -285,7 +318,9 @@ export function TestPlanCard({
                 ) : (
                   <div className="flex-1 min-w-44">
                     <FieldLabel>{t("plan.materialSlot")}</FieldLabel>
-                    <input className={inputCls} value={v.parameter} placeholder="e.g. Perovskite ink" onChange={(e) => patchVar(vi, { parameter: e.target.value })} />
+                    <div className="border border-line rounded-[3px] px-2 py-1.5 text-[12px] bg-subtle text-charcoal">
+                      {v.parameter || autoSlotName(v.layer)}
+                    </div>
                   </div>
                 )}
                 {draft.variables.length > 1 && (
@@ -342,9 +377,8 @@ export function TestPlanCard({
           </div>
           <div className="flex-1 min-w-40">
             <FieldLabel>{t("plan.substrateMaterial")}</FieldLabel>
-            <input
-              className={inputCls}
-              list="substrate-materials"
+            <select
+              className={selectCls}
               value={draft.substrates?.materialName ?? ""}
               onChange={(e) =>
                 setDraft({
@@ -352,12 +386,16 @@ export function TestPlanCard({
                   substrates: { count: draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0), materialName: e.target.value },
                 })
               }
-            />
-            <datalist id="substrate-materials">
-              {materials.map((m) => (
-                <option key={m.id} value={m.name} />
+            >
+              <option value="">{t("plan.selectMaterial")}</option>
+              {substrateMaterials.map((m) => (
+                <option key={m.id} value={m.name}>{m.name}</option>
               ))}
-            </datalist>
+              {draft.substrates?.materialName &&
+                !substrateMaterials.some((m) => m.name === draft.substrates?.materialName) && (
+                  <option value={draft.substrates.materialName}>{draft.substrates.materialName}</option>
+                )}
+            </select>
           </div>
         </div>
         {draft.substrates && draft.assignments ? (
@@ -436,7 +474,7 @@ export function TestPlanCard({
                         onChange={(e) => setCell(vi, g.label, e.target.value)}
                       >
                         <option value="">{t("plan.selectMaterial")}</option>
-                        {materialsFor(v.processId).map((m) => (
+                        {materialsForVariable(v).map((m) => (
                           <option key={m.id} value={m.name}>{m.name}</option>
                         ))}
                       </select>
