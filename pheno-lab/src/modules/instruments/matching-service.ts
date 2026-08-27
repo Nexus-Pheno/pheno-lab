@@ -1,6 +1,8 @@
 import "server-only";
 
 import { db as prisma } from "@/infrastructure/db/client";
+import type { Actor } from "@/modules/authorization/actor";
+import { requireExperimentPermission } from "@/modules/authorization/service";
 import { normalizeSerial } from "@/lib/instruments/normalize";
 import type { JvMetrics } from "@/lib/instruments/types";
 
@@ -201,6 +203,48 @@ export function metricsToResult(m: JvMetrics): Record<string, string> {
   return out;
 }
 
+export type JvMetricPolicy = "BEST" | "MIN" | "AVERAGE" | "MEDIAN";
+
+const METRIC_KEYS = Object.keys(
+  METRIC_LABELS,
+) as (keyof typeof METRIC_LABELS)[];
+
+function aggregate(values: number[], how: "AVERAGE" | "MEDIAN"): number | null {
+  if (!values.length) return null;
+  if (how === "AVERAGE")
+    return values.reduce((a, b) => a + b, 0) / values.length;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * The displayed metrics under a policy. BEST/MIN point at a single scan
+ * (kept in sourceMeasurementId); AVERAGE/MEDIAN are derived across every
+ * scan, so no single source measurement applies.
+ */
+export function pickByPolicy(
+  scored: { m: { id: string; metrics: unknown }; pce: number }[],
+  policy: JvMetricPolicy,
+): { metrics: Record<string, string>; sourceMeasurementId: string | null } {
+  if (policy === "BEST" || policy === "MIN") {
+    const pick = policy === "BEST" ? scored[0] : scored[scored.length - 1];
+    return {
+      metrics: metricsToResult(pick.m.metrics as JvMetrics),
+      sourceMeasurementId: pick.m.id,
+    };
+  }
+  const out: Record<string, string> = {};
+  for (const key of METRIC_KEYS) {
+    const values = scored
+      .map((x) => (x.m.metrics as JvMetrics)[key])
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+    const value = aggregate(values, policy);
+    if (value !== null) out[METRIC_LABELS[key]] = value.toFixed(DECIMALS[key]);
+  }
+  return { metrics: out, sourceMeasurementId: null };
+}
+
 /** The J-V characterization card of an experiment, if the designer has one. */
 async function findJvCharacterization(
   experimentId: string,
@@ -258,7 +302,7 @@ export async function refreshSampleJvResult(
 
   const existing = await prisma.characterizationResult.findFirst({
     where: { characterizationId, sampleId, runId: best.runId },
-    select: { id: true, source: true, metrics: true },
+    select: { id: true, source: true, metrics: true, metricPolicy: true },
   });
   if (
     existing &&
@@ -268,15 +312,18 @@ export async function refreshSampleJvResult(
     return "kept-manual";
   }
 
+  const policy = (existing?.metricPolicy ?? "BEST") as JvMetricPolicy;
+  const picked = pickByPolicy(scored, policy);
   const scanCount = measurements.length;
+  const policyLabel = policy === "BEST" ? "best" : policy.toLowerCase();
   const note =
-    `Auto-filled from ${best.instrument.name}: best of ${scanCount} scan${scanCount === 1 ? "" : "s"} ` +
+    `Auto-filled from ${best.instrument.name}: ${policyLabel} of ${scanCount} scan${scanCount === 1 ? "" : "s"} ` +
     `(${best.serial}${best.direction ? `, ${best.direction.toLowerCase()}` : ""}).`;
   const data = {
-    metrics: metricsToResult(best.metrics as JvMetrics),
+    metrics: picked.metrics,
     note,
     source: "INSTRUMENT",
-    sourceMeasurementId: best.id,
+    sourceMeasurementId: picked.sourceMeasurementId,
     capturedAt: best.measuredAt ?? new Date(),
   };
 
@@ -291,4 +338,52 @@ export async function refreshSampleJvResult(
     });
   }
   return "written";
+}
+
+const POLICIES: JvMetricPolicy[] = ["BEST", "MIN", "AVERAGE", "MEDIAN"];
+
+/**
+ * Technician picks which statistic an instrument-filled J-V result displays.
+ * Raw scans are untouched; the result row is recomputed under the policy.
+ */
+export async function setJvMetricPolicy(
+  actor: Actor,
+  resultId: string,
+  rawPolicy: string,
+) {
+  const policy = POLICIES.find((p) => p === rawPolicy);
+  if (!policy) throw new Error("Unknown metric policy.");
+  const result = await prisma.characterizationResult.findUniqueOrThrow({
+    where: { id: resultId },
+    select: {
+      sampleId: true,
+      source: true,
+      characterization: { select: { experimentId: true } },
+    },
+  });
+  if (result.source !== "INSTRUMENT") {
+    throw new Error("Only instrument-filled results have a scan policy.");
+  }
+  await requireExperimentPermission(
+    actor,
+    result.characterization.experimentId,
+    "capture",
+  );
+  await prisma.characterizationResult.update({
+    where: { id: resultId },
+    data: { metricPolicy: policy },
+  });
+  if (result.sampleId) await refreshSampleJvResult(result.sampleId);
+  return prisma.characterizationResult.findUniqueOrThrow({
+    where: { id: resultId },
+    select: {
+      id: true,
+      characterizationId: true,
+      sampleId: true,
+      metrics: true,
+      note: true,
+      source: true,
+      metricPolicy: true,
+    },
+  });
 }

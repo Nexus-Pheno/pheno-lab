@@ -1,5 +1,6 @@
 "use server";
 
+import { setJvMetricPolicy } from "@/modules/instruments/matching-service";
 import { requireSession } from "@/lib/auth";
 import {
   captureTargetSchema,
@@ -128,4 +129,9 @@ export async function saveCharResult(
       runId,
     }),
   );
+}
+
+export async function setJvDisplayPolicy(resultId: string, policy: string) {
+  const actor = await requireSession();
+  return setJvMetricPolicy(actor, String(resultId), String(policy));
 }

@@ -67,10 +67,7 @@ async function ensureSimCodePrefix(
       id: { not: experimentId },
       codeLetter: { not: null },
       status: { notIn: ["COMPLETE", "ARCHIVED"] },
-      OR: [
-        { assigneeId: ownerId },
-        { assigneeId: null, createdById: ownerId },
-      ],
+      OR: [{ assigneeId: ownerId }, { assigneeId: null, createdById: ownerId }],
     },
     select: { codeLetter: true },
   });
@@ -111,9 +108,7 @@ export async function syncSampleSerials(
         simCode ? normalizeSerial(simCode) : "",
       ].filter(Boolean),
     );
-    const aliases = sample.instrumentCodes.filter(
-      (code) => !derived.has(code),
-    );
+    const aliases = sample.instrumentCodes.filter((code) => !derived.has(code));
     const next = serialsFor(shortCode, sample.code, aliases);
     if (simCode) {
       const key = normalizeSerial(simCode);

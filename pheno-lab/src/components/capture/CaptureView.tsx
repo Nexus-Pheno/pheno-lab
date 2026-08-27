@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentFull, StepFull, SampleRow } from "@/lib/types";
-import { saveExecutionBatch, saveCharResult, createNewRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions } from "@/lib/actions/runs";
+import { saveExecutionBatch, saveCharResult, createNewRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
 import { submitForReview } from "@/lib/actions/workflow";
+import type { TKey } from "@/lib/i18n/dict";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
 
@@ -23,10 +24,13 @@ type Execution = {
 type PhotoRef = { id?: string; path: string };
 
 type CharResult = {
+  id?: string;
   characterizationId: string;
   sampleId: string;
   metrics: Record<string, string>;
   note: string;
+  source?: string;
+  metricPolicy?: string;
 };
 
 // Default metric suggestions per characterization process name.
@@ -1171,6 +1175,27 @@ function PerSampleCharCapture({
   );
   const [busy, setBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [policyBusy, setPolicyBusy] = useState(false);
+
+  const changePolicy = async (policy: string) => {
+    if (!activeResult?.id) return;
+    setPolicyBusy(true);
+    try {
+      const r = await setJvDisplayPolicy(activeResult.id, policy);
+      onSaved({
+        id: r.id,
+        characterizationId: r.characterizationId,
+        sampleId: r.sampleId ?? "",
+        metrics: (r.metrics ?? {}) as Record<string, string>,
+        note: r.note,
+        source: r.source,
+        metricPolicy: r.metricPolicy,
+      });
+      setMetrics(Object.entries((r.metrics ?? {}) as Record<string, string>));
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
 
   // Re-seed metrics when the active sample changes.
   const lastSample = useRef(activeSampleId);
@@ -1254,6 +1279,27 @@ function PerSampleCharCapture({
               <span className="mono text-[20px] font-bold tracking-widest">
                 {activeSample.simCode}
               </span>
+            </div>
+          )}
+          {activeResult?.source === "INSTRUMENT" && activeResult.id && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-muted">{t("cap.scanPolicy")}</span>
+              {(["BEST", "MIN", "AVERAGE", "MEDIAN"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={policyBusy}
+                  onClick={() => changePolicy(p)}
+                  className={
+                    "h-6 px-2 text-[10.5px] font-semibold rounded-[4px] border disabled:opacity-50 " +
+                    ((activeResult.metricPolicy ?? "BEST") === p
+                      ? "bg-ink text-white border-ink"
+                      : "bg-surface text-charcoal border-line")
+                  }
+                >
+                  {t(`cap.policy.${p}` as TKey)}
+                </button>
+              ))}
             </div>
           )}
         </div>

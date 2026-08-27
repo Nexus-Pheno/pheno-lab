@@ -618,6 +618,9 @@ model CharacterizationResult {
   // JvMeasurement. Auto-fill never overwrites a MANUAL row.
   source              String           @default("MANUAL")
   sourceMeasurementId String?
+  // Which of the sample's scans this row displays: BEST (highest PCE,
+  // default), MIN, AVERAGE or MEDIAN. Raw scans are always kept.
+  metricPolicy        String           @default("BEST")
 }
 
 model Attachment {
