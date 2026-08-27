@@ -94,6 +94,7 @@ model User {
   assignedExperiments Experiment[]       @relation("ExperimentAssignee")
   approvedExperiments Experiment[]       @relation("ExperimentApprover")
   ingestReviews       IngestItem[]
+  ownedMeasurements   JvMeasurement[]    @relation("MeasurementOwner")
 }
 
 // One-time passcodes for registration. Delivery is via server log and the
@@ -716,6 +717,11 @@ model JvMeasurement {
   sample         Sample?          @relation(fields: [sampleId], references: [id], onDelete: SetNull)
   runId          String?
   run            Run?             @relation(fields: [runId], references: [id], onDelete: SetNull)
+  // Who owns this scan when no sample explains it: either resolved from the
+  // operator name written on the instrument, or handed over by a manager.
+  // A scan attached to a sample takes its visibility from that experiment.
+  assignedToId   String?
+  assignedTo     User?            @relation("MeasurementOwner", fields: [assignedToId], references: [id], onDelete: SetNull)
   status         String // MATCHED | UNMATCHED | IGNORED
   matchNote      String           @default("")
   createdAt      DateTime         @default(now())
@@ -724,6 +730,7 @@ model JvMeasurement {
   @@index([organizationId, status])
   @@index([sampleId])
   @@index([serialKey])
+  @@index([assignedToId])
 }
 
 // Append-only security and data-provenance trail. Deliberately no foreign-key

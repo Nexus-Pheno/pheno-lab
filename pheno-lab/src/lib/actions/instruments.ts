@@ -6,6 +6,7 @@ import type { RematchSummary } from "@/modules/instruments/measurement-rematch-s
 import {
   assignMeasurement as assignMeasurementService,
   explainSerial as explainSerialService,
+  handOverMeasurements as handOverMeasurementsService,
   pullJvFiles as pullJvFilesService,
   rematchNow as rematchNowService,
   setSampleAliases as setSampleAliasesService,
@@ -29,6 +30,18 @@ export async function assignMeasurement(
     sampleId,
   });
   revalidatePath(`/experiments/${experimentId}`);
+}
+
+export async function handOverMeasurements(
+  measurementIds: string[],
+  assignedToId: string | null,
+): Promise<number> {
+  const count = await handOverMeasurementsService(await requireSession(), {
+    measurementIds,
+    assignedToId,
+  });
+  revalidatePath("/instruments");
+  return count;
 }
 
 export async function unassignMeasurement(

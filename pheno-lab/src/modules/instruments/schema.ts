@@ -47,6 +47,17 @@ export const measurementUnassignmentSchema = z.object({
   ignore: z.boolean(),
 });
 
+/** Hand a batch of unexplained scans to the operator who should sort them. */
+export const measurementHandoverSchema = z.object({
+  measurementIds: z
+    .array(instrumentEntityIdSchema)
+    .min(1)
+    .max(500)
+    .transform((ids) => [...new Set(ids)]),
+  // null returns the scans to the shared orphan queue.
+  assignedToId: instrumentEntityIdSchema.nullable(),
+});
+
 export const sampleAliasesSchema = z.object({
   sampleId: instrumentEntityIdSchema,
   aliases: z.array(z.string().trim().min(1).max(200)).max(100),

@@ -45,8 +45,10 @@ export const en = {
   "list.steps": "Steps",
   "list.labels": "Labels",
   "list.updated": "Updated",
-  "list.emptyStaff": "No experiments yet. Create one to design your first process flow.",
-  "list.emptyTech": "No experiments assigned to you yet. Ask a manager to grant you access.",
+  "list.emptyStaff":
+    "No experiments yet. Create one to design your first process flow.",
+  "list.emptyTech":
+    "No experiments assigned to you yet. Ask a manager to grant you access.",
 
   // Dashboard
   "dash.title": "Dashboard",
@@ -70,7 +72,8 @@ export const en = {
   "designer.settings": "Settings",
   "designer.readonly": "Read-only",
   "designer.processLibrary": "Process library",
-  "designer.railHintEdit": "Click a step to append it to the flow. Drag cards to reorder.",
+  "designer.railHintEdit":
+    "Click a step to append it to the flow. Drag cards to reorder.",
   "designer.railHintView": "Process step types available in this lab.",
   "designer.characterization": "Characterization",
   "designer.processFlow": "Process flow",
@@ -78,8 +81,10 @@ export const en = {
   "designer.dragHint": "drag cards to reorder",
   "designer.charPlan": "Characterization plan",
   "designer.charHint": "runs after processing",
-  "designer.emptySteps": "No process steps yet. Add the first step from the library on the left — start with how the substrate is cleaned.",
-  "designer.emptyChars": "No characterization planned yet. Add measurements from the library on the left.",
+  "designer.emptySteps":
+    "No process steps yet. Add the first step from the library on the left — start with how the substrate is cleaned.",
+  "designer.emptyChars":
+    "No characterization planned yet. Add measurements from the library on the left.",
   "designer.saved": "All changes saved",
   "designer.saving": "Saving…",
   "designer.saveFailed": "Save failed — retry your last edit",
@@ -87,7 +92,8 @@ export const en = {
   "designer.processSteps": "process steps",
   "designer.characterizations": "characterizations",
   "designer.selectHint": "Select a card in the flow to inspect and edit it.",
-  "designer.selectHintEdit": "Use the test plan to define what this experiment varies — tested steps light up green.",
+  "designer.selectHintEdit":
+    "Use the test plan to define what this experiment varies — tested steps light up green.",
 
   // Science strip
   "sci.observation": "Observation",
@@ -101,7 +107,8 @@ export const en = {
 
   // Test plan
   "plan.title": "Test plan",
-  "plan.question": "which variables are you testing, in which processes, with which groups and control?",
+  "plan.question":
+    "which variables are you testing, in which processes, with which groups and control?",
   "plan.testing": "Testing",
   "plan.in": "in",
   "plan.none": "No variables defined yet — what are you testing?",
@@ -126,7 +133,8 @@ export const en = {
   "plan.addGroup": "Add group",
   "plan.total": "Total samples:",
   "plan.autoCalc": "(auto-calculated)",
-  "plan.applyNote": "Applying regenerates samples and highlights each tested variable on its process step (added if missing). Variables removed from the plan are cleaned off the flow.",
+  "plan.applyNote":
+    "Applying regenerates samples and highlights each tested variable on its process step (added if missing). Variables removed from the plan are cleaned off the flow.",
   "plan.cancel": "Cancel",
   "plan.apply": "Apply test plan",
 
@@ -143,8 +151,10 @@ export const en = {
   "insp.instrument": "Instrument",
   "insp.noEquipment": "No equipment",
   "insp.noInstrument": "No instrument",
-  "insp.equipmentHintEmpty": "No {process} equipment yet — add it in the Library under this process.",
-  "insp.equipmentHint": "Only equipment under this process is selectable. Selecting a machine loads its parameter set.",
+  "insp.equipmentHintEmpty":
+    "No {process} equipment yet — add it in the Library under this process.",
+  "insp.equipmentHint":
+    "Only equipment under this process is selectable. Selecting a machine loads its parameter set.",
   "insp.parameters": "Process parameters",
   "insp.parameter": "Parameter",
   "insp.value": "Value",
@@ -162,8 +172,10 @@ export const en = {
   "insp.addMaterialOpt": "＋ Add material…",
   "insp.amountPh": "amount",
   "insp.amountMixPh": "e.g. 60 mol%",
-  "insp.mixHint": "Multiple materials in one process — give the share of each (e.g. mol%).",
-  "insp.materialFilterHint": "Only materials categorized under {process} are shown.",
+  "insp.mixHint":
+    "Multiple materials in one process — give the share of each (e.g. mol%).",
+  "insp.materialFilterHint":
+    "Only materials categorized under {process} are shown.",
   "insp.settings": "Settings",
   "insp.setting": "Setting",
   "insp.addSetting": "Add setting",
@@ -190,15 +202,18 @@ export const en = {
   "set.title": "Experiment settings",
   "set.expTitle": "Title",
   "set.status": "Status",
-  "set.statusHint": "Draft → In lab when the plan is ready for technicians. The conclusion unlocks at Complete.",
+  "set.statusHint":
+    "Draft → In lab when the plan is ready for technicians. The conclusion unlocks at Complete.",
   "set.participants": "Participants — who is involved",
   "set.creator": "Creator",
   "set.remove": "Remove",
   "set.grant": "＋ Grant access to…",
   "set.autoLabels": "Auto-generated labels",
-  "set.autoLabelsHint": "Generated from the processes, equipment, materials, and variables this experiment uses.",
+  "set.autoLabelsHint":
+    "Generated from the processes, equipment, materials, and variables this experiment uses.",
   "set.campaign": "Campaign / group",
-  "set.campaignHint": "Optional — group related experiments under one larger campaign, e.g. \"Anneal optimization Q3\". Searchable from the board.",
+  "set.campaignHint":
+    'Optional — group related experiments under one larger campaign, e.g. "Anneal optimization Q3". Searchable from the board.',
   "set.delete": "Delete experiment",
   "set.deleteQ": "Delete this experiment and all its data?",
   "set.deleteYes": "Delete",
@@ -206,13 +221,15 @@ export const en = {
 
   // Library
   "lib.processes": "Processes",
-  "lib.processesHint": "the overarching layer — equipment and materials live under each process",
+  "lib.processesHint":
+    "the overarching layer — equipment and materials live under each process",
   "lib.characterization": "Characterization",
   "lib.charHint": "measurement processes and their instruments",
   "lib.equipmentFor": "Equipment for",
   "lib.materialsFor": "Materials for",
   "lib.paramsFor": "Processing parameters for",
-  "lib.paramsHint": "The parameters recorded for every step of this process. Each is tagged as a processing parameter in the database. New steps start with these; machine parameters overlay them when equipment is selected.",
+  "lib.paramsHint":
+    "The parameters recorded for every step of this process. Each is tagged as a processing parameter in the database. New steps start with these; machine parameters overlay them when equipment is selected.",
   "lib.noEquipment": "No equipment under this process yet.",
   "lib.noMaterials": "No materials categorized under this process yet.",
   "lib.addEquipment": "Add equipment",
@@ -242,7 +259,8 @@ export const en = {
   "lib.addSpecSheet": "Add document",
   "lib.noSpecSheets": "No documents attached",
   "lib.machineParams": "Machine parameters",
-  "lib.machineParamsHint": "These parameters belong to this machine. When a process step selects it, the step's parameter list is filled from these definitions.",
+  "lib.machineParamsHint":
+    "These parameters belong to this machine. When a process step selects it, the step's parameter list is filled from these definitions.",
   "lib.materialName": "Material name",
   "lib.composition": "Composition / recipe",
   "lib.supplier": "Supplier",
@@ -257,22 +275,27 @@ export const en = {
   "lib.saveChanges": "Save changes",
   "lib.saveParams": "Save parameters",
   "lib.environments": "Environments",
-  "lib.environmentsHint": "your lab's environments and the conditions mapped in each",
+  "lib.environmentsHint":
+    "your lab's environments and the conditions mapped in each",
   "lib.envName": "Environment name",
   "lib.conditions": "Tracked conditions",
-  "lib.conditionsHint": "The conditions mapped in this environment — e.g. O₂/H₂O ppm and temperature for a glovebox, or particle count and humidity for a clean room.",
+  "lib.conditionsHint":
+    "The conditions mapped in this environment — e.g. O₂/H₂O ppm and temperature for a glovebox, or particle count and humidity for a clean room.",
   "lib.addEnvironment": "Add environment",
   "lib.locations": "Locations",
-  "lib.locationsHint": "organization locations rarely change — set them once, select everywhere",
+  "lib.locationsHint":
+    "organization locations rarely change — set them once, select everywhere",
   "lib.addLocationBtn": "Add location",
   "lib.newLocationPh": "New location, e.g. Building A — Perovskite lab",
   "lib.noLocations": "No locations yet.",
   "lib.presets": "Presets",
-  "lib.presetsHint": "click a preset to edit it — saved from the designer via \"Save as preset\"",
+  "lib.presetsHint":
+    'click a preset to edit it — saved from the designer via "Save as preset"',
   "lib.presetName": "Preset name",
   "lib.paramValues": "Parameter values",
   "lib.presetSettings": "Settings",
-  "lib.noPresets": "No presets yet — configure a step in the designer and use \"Save as preset\".",
+  "lib.noPresets":
+    'No presets yet — configure a step in the designer and use "Save as preset".',
   "lib.stepKind": "Process step",
   "lib.charKind": "Characterization",
   "lib.process": "Process",
@@ -287,7 +310,8 @@ export const en = {
 
   // Data table
   "data.title": "Data table",
-  "data.subtitle": "One row per sample — parameters resolved per variation group, tagged and export-ready.",
+  "data.subtitle":
+    "One row per sample — parameters resolved per variation group, tagged and export-ready.",
   "data.filter": "Filter rows…",
   "data.search": "Search experiments, samples…",
   "data.searchGo": "Search",
@@ -339,7 +363,8 @@ export const en = {
   "fb.bug": "Bug report",
   "fb.feedback": "Feedback",
   "fb.message": "What happened, or what could be better?",
-  "fb.messagePh": "Describe the issue or idea. For bugs: what did you expect, what happened instead?",
+  "fb.messagePh":
+    "Describe the issue or idea. For bugs: what did you expect, what happened instead?",
   "fb.screenshot": "Screenshot (optional)",
   "fb.attach": "Attach screenshot",
   "fb.attached": "Screenshot attached",
@@ -347,7 +372,8 @@ export const en = {
   "fb.submit": "Submit",
   "fb.submitted": "Thanks — your report has been recorded.",
   "fb.adminTitle": "Feedback & bug reports",
-  "fb.adminHint": "collected across the organization — exportable for agents to fix",
+  "fb.adminHint":
+    "collected across the organization — exportable for agents to fix",
   "fb.exportJson": "Export JSON",
   "fb.open": "Open",
   "fb.resolved": "Resolved",
@@ -381,7 +407,8 @@ export const en = {
   "cap.addMetric": "Add metric",
   "cap.saveResult": "Save result",
   "cap.resultSaved": "Result saved",
-  "cap.notInLab": "This experiment is not in the lab yet. Set its status to \"In lab\" to start capturing data.",
+  "cap.notInLab":
+    'This experiment is not in the lab yet. Set its status to "In lab" to start capturing data.',
   "cap.open": "Open capture portal",
   "cap.allDone": "All steps captured for this sample.",
   "cap.doneOf": "captured",
@@ -392,14 +419,16 @@ export const en = {
   "cap.swipeHint": "Swipe between steps · tap a dot to jump",
   "cap.run": "Run",
   "cap.newRun": "Start new run",
-  "cap.newRunHint": "Execute the same plan again with a fresh set of actuals and results (e.g. a reproducibility batch).",
+  "cap.newRunHint":
+    "Execute the same plan again with a fresh set of actuals and results (e.g. a reproducibility batch).",
 
   // Mobile input portal
   "portal.title": "Lab input portal",
   "portal.subtitle": "experiments ready for data capture",
   "portal.captureNow": "Tap to capture",
   "portal.progress": "captured",
-  "portal.empty": "No experiments are in the lab right now. When one is set to \"In lab\", it appears here.",
+  "portal.empty":
+    'No experiments are in the lab right now. When one is set to "In lab", it appears here.',
   "portal.toDesktop": "Switch to full dashboard",
   "portal.install": "Install this app",
   "portal.toPortal": "Lab portal",
@@ -408,11 +437,13 @@ export const en = {
   "cap.batchAll": "All samples",
   "cap.batchGroup": "Group",
   "cap.batchOne": "Single sample",
-  "cap.batchHint": "Tap a group or a single sample to choose what you're recording — one confirm covers the selection. Steps with tested variables are captured per group.",
+  "cap.batchHint":
+    "Tap a group or a single sample to choose what you're recording — one confirm covers the selection. Steps with tested variables are captured per group.",
   "cap.pickScope": "Select a group or a sample above to start recording.",
   "cap.complete": "Complete experiment",
   "cap.completeHint": "All data captured — mark this experiment as complete.",
-  "cap.completeMissing": "captures still missing — you can still complete now and add them later.",
+  "cap.completeMissing":
+    "captures still missing — you can still complete now and add them later.",
   "cap.completeQ": "Mark as complete?",
   "cap.completed": "Experiment completed",
   "cap.viewReport": "View report",
@@ -421,25 +452,30 @@ export const en = {
   "cap.clear": "Clear capture",
   "cap.clearQ": "Clear capture?",
   "users.add": "Add member",
-  "users.addHint": "Create a login directly — useful while passcode emails are not yet configured. Share the credentials with your colleague; they can change the password in their profile.",
+  "users.addHint":
+    "Create a login directly — useful while passcode emails are not yet configured. Share the credentials with your colleague; they can change the password in their profile.",
   "users.password": "Password",
   "users.generate": "Generate password",
   "users.create": "Create account",
   "users.created": "Account created — share these credentials:",
   "users.emailTaken": "An account with this email already exists.",
-  "users.badInput": "Check the email address and use a password of at least 8 characters.",
+  "users.badInput":
+    "Check the email address and use a password of at least 8 characters.",
   "users.pwShort": "Password must be at least 8 characters.",
   "mat.title": "Materials",
-  "mat.subtitle": "the lab's material wiki — maintained by material administrators",
+  "mat.subtitle":
+    "the lab's material wiki — maintained by material administrators",
   "mat.search": "Search materials (name, formula, CAS)...",
-  "mat.readonlyHint": "Read-only — material administrators keep this library in sync with what the lab actually has (vendor, batch, characteristics).",
+  "mat.readonlyHint":
+    "Read-only — material administrators keep this library in sync with what the lab actually has (vendor, batch, characteristics).",
   "mat.add": "Add",
   "mat.new": "New material",
   "mat.name": "Name",
   "mat.category": "Category",
   "mat.formula": "Molecular formula / structure",
   "mat.smiles": "SMILES (organic molecules)",
-  "mat.smilesHint": "Structure notation — the 2D structure is drawn from this. Leave empty for salts and metals.",
+  "mat.smilesHint":
+    "Structure notation — the 2D structure is drawn from this. Leave empty for salts and metals.",
   "mat.structure": "Molecular structure",
   "mat.mw": "MW (g/mol)",
   "mat.purity": "Purity",
@@ -465,12 +501,13 @@ export const en = {
   "mat.cat.SOLVENT": "Solvents",
   "mat.cat.OTHER": "Other / prepared solutions",
   "rec.title": "Recipes",
-  "rec.subtitle": "proprietary perovskite recipes — contents visible only with recipe access",
+  "rec.subtitle":
+    "proprietary perovskite recipes — contents visible only with recipe access",
   "rec.add": "Add recipe",
   "rec.new": "New recipe",
   "rec.name": "Recipe name",
   "rec.summary": "Public summary",
-  "rec.summaryHint": "Shown to everyone, e.g. \"1.68 eV wide-gap triple-cation\"",
+  "rec.summaryHint": 'Shown to everyone, e.g. "1.68 eV wide-gap triple-cation"',
   "rec.components": "Components",
   "rec.component": "Component",
   "rec.amount": "Amount",
@@ -478,7 +515,8 @@ export const en = {
   "rec.solvents": "Solvent system",
   "rec.concentration": "Concentration",
   "rec.procedure": "Preparation procedure",
-  "rec.lockedHint": "You can select these recipes when planning experiments; their contents are visible only to members with recipe access.",
+  "rec.lockedHint":
+    "You can select these recipes when planning experiments; their contents are visible only to members with recipe access.",
   "rec.hidden": "Contents hidden — recipe access required",
   "rec.empty": "No recipes yet.",
   "users.perms": "Extra permissions",
@@ -486,24 +524,30 @@ export const en = {
   "users.permRecipes": "Recipe access",
   "insp.searchMaterial": "Type to search materials...",
   "insp.createMaterial": "Create material",
-  "insp.materialSearchHint": "Search finds close matches even if the spelling is slightly off. New materials are added by material administrators in the Library.",
+  "insp.materialSearchHint":
+    "Search finds close matches even if the spelling is slightly off. New materials are added by material administrators in the Library.",
   "insp.recipe": "Recipe",
   "insp.noRecipe": "No recipe",
-  "insp.recipeHidden": "Recipe selected — contents visible to recipe-access members only.",
+  "insp.recipeHidden":
+    "Recipe selected — contents visible to recipe-access members only.",
   "wf.assignee": "Assigned technician",
-  "wf.assigneeHint": "Whoever is designated here runs the experiment in the lab and can capture its data. Required before sending it to the lab.",
+  "wf.assigneeHint":
+    "Whoever is designated here runs the experiment in the lab and can capture its data. Required before sending it to the lab.",
   "wf.unassigned": "Not assigned yet",
   "wf.startLab": "Send to lab",
-  "wf.needAssignee": "Assign someone before sending this experiment to the lab.",
+  "wf.needAssignee":
+    "Assign someone before sending this experiment to the lab.",
   "wf.submit": "Submit for review",
   "wf.submitTitle": "Hand back to your manager",
-  "wf.submitHint": "The manager reviews the captured data and closes the experiment.",
+  "wf.submitHint":
+    "The manager reviews the captured data and closes the experiment.",
   "wf.submitNote": "Notes for the manager (optional)",
   "wf.submitted": "Submitted for review",
   "wf.submittedBy": "Submitted",
   "wf.awaiting": "Awaiting your approval",
   "wf.reviewTitle": "Manager review",
-  "wf.reviewHint": "Approving seals the evidence pack — plan, captured data, photos and results — and closes the experiment.",
+  "wf.reviewHint":
+    "Approving seals the evidence pack — plan, captured data, photos and results — and closes the experiment.",
   "wf.reviewNote": "Closing notes / thoughts on this experiment",
   "wf.approve": "Approve & close",
   "wf.approveQ": "Approve and close?",
@@ -516,20 +560,24 @@ export const en = {
   "dash.newReal": "Real experiment",
   "dash.newTest": "Test",
   "test.title": "Test data",
-  "test.subtitle": "experiments created in test mode — hidden from every real view",
-  "test.explain": "Test experiments never appear on the board, in the data table, the lab portal or profile statistics. They exist so you can try the app with throwaway work, and they can all be removed in one action.",
+  "test.subtitle":
+    "experiments created in test mode — hidden from every real view",
+  "test.explain":
+    "Test experiments never appear on the board, in the data table, the lab portal or profile statistics. They exist so you can try the app with throwaway work, and they can all be removed in one action.",
   "test.badge": "Test",
   "test.experiments": "test experiment(s)",
   "test.empty": "No test experiments.",
   "test.clear": "Clear all test data",
   "test.clearNow": "Delete",
-  "test.confirm": "Permanently delete {n} test experiment(s) and all their samples, runs and results? Type DELETE to confirm.",
+  "test.confirm":
+    "Permanently delete {n} test experiment(s) and all their samples, runs and results? Type DELETE to confirm.",
   "test.cleared": "Deleted {n} test experiment(s).",
   "test.promote": "Mark as real",
   "test.promoteHint": "Move this experiment into the real database",
   "test.nav": "Test data",
   "sum.dataPoints": "Data points",
-  "sum.dataPointsHint": "Every individual recorded value: step parameters, characterisation metrics, captured actuals and material properties.",
+  "sum.dataPointsHint":
+    "Every individual recorded value: step parameters, characterisation metrics, captured actuals and material properties.",
   "sum.experiments": "Experiments",
   "sum.samples": "Samples",
   "sum.results": "Measurements",
@@ -540,11 +588,13 @@ export const en = {
   "sum.search": "Search",
   "sum.searching": "Searching…",
   "sum.clear": "Clear",
-  "sum.searchPh": "Search a material, process, formula, sample or ask a question…",
+  "sum.searchPh":
+    "Search a material, process, formula, sample or ask a question…",
   "sum.found": "{n} related experiment(s)",
   "sum.none": "Nothing matched.",
   "ai.title": "AI models",
-  "ai.subtitle": "keys are stored on the server and never shown again — only the last few characters",
+  "ai.subtitle":
+    "keys are stored on the server and never shown again — only the last few characters",
   "ai.add": "Add model",
   "ai.label": "Name",
   "ai.provider": "Provider",
@@ -560,13 +610,15 @@ export const en = {
   "ai.cancel": "Cancel",
   "ai.remove": "Remove",
   "ai.removeQ": "Remove this model?",
-  "ai.empty": "No model configured. Natural-language search falls back to keyword search until one is added.",
+  "ai.empty":
+    "No model configured. Natural-language search falls back to keyword search until one is added.",
   "ai.never": "never tested",
   "ai.nav": "AI models",
   "ai.loadModels": "Load models",
   "ai.loading": "Loading…",
   "ai.liveModels": "{n} models offered by this provider right now",
-  "ai.modelHint": "Paste a key and press Load models to see what this provider currently offers.",
+  "ai.modelHint":
+    "Paste a key and press Load models to see what this provider currently offers.",
   "exp.title": "Data exports",
   "exp.subtitleAdmin": "approve requests and review who has taken data out",
   "exp.subtitleMine": "your export requests and their status",
@@ -591,9 +643,11 @@ export const en = {
   "exp.status.DENIED": "Denied",
   "exp.nav": "Data exports",
   "ing.title": "Ingestion",
-  "ing.subtitle": "review and publish facts extracted from documents and old data",
+  "ing.subtitle":
+    "review and publish facts extracted from documents and old data",
   "ing.howTitle": "How this works",
-  "ing.howBody": "Hand your files (formula sheets, material datasheets, equipment manuals, old experiment records) to the agent. It extracts the facts and stages them here — nothing reaches the live library automatically. Review each item, correct anything wrong, then publish or reject it.",
+  "ing.howBody":
+    "Hand your files (formula sheets, material datasheets, equipment manuals, old experiment records) to the agent. It extracts the facts and stages them here — nothing reaches the live library automatically. Review each item, correct anything wrong, then publish or reject it.",
   "ing.pending": "Awaiting review",
   "ing.reviewed": "Reviewed",
   "ing.emptyPending": "Nothing waiting for review.",
@@ -639,10 +693,13 @@ export const en = {
   "ing.matches": "in library as",
   "ing.notInLibrary": "not in library",
   "ing.allKnown": "All components already exist in the materials library.",
-  "ing.unknownCount": "components are not in the materials library — publishing this formula will not create them.",
-  "ing.dupFormula": "A recipe with this name already exists — publishing will update it in place.",
+  "ing.unknownCount":
+    "components are not in the materials library — publishing this formula will not create them.",
+  "ing.dupFormula":
+    "A recipe with this name already exists — publishing will update it in place.",
   "ing.dupTitle": "Already in your library",
-  "ing.dupBody": "This item matches something you already have. Update the existing record, skip this item, or deliberately create a second one.",
+  "ing.dupBody":
+    "This item matches something you already have. Update the existing record, skip this item, or deliberately create a second one.",
   "ing.dupMatchedOn": "matched on",
   "ing.dupIdentical": "identical — nothing new to add",
   "ing.dupUpdate": "Update this one",
@@ -662,7 +719,8 @@ export const en = {
   "ing.bulkRunning": "Publishing…",
   "ing.bulkConfirm": "Publish {n} item(s) to the library?",
   "ing.bulkDone": "Published {n} of {total} item(s).",
-  "ing.dupWhatNext": "{n} held back as duplicates — what should happen to them?",
+  "ing.dupWhatNext":
+    "{n} held back as duplicates — what should happen to them?",
   "ing.dupReplace": "Replace existing",
   "ing.dupReplaceQ": "Overwrite the existing records?",
   "ing.dupBulkSkip": "Skip (keep existing)",
@@ -677,11 +735,13 @@ export const en = {
   "plan.noLayer": "Not layer-specific",
   "insp.layer": "Device layer",
   "insp.noLayer": "Not layer-specific",
-  "insp.layerHint": "Which layer of the cell stack this step builds — shown on the flow card and used to group the test plan.",
+  "insp.layerHint":
+    "Which layer of the cell stack this step builds — shown on the flow card and used to group the test plan.",
   "lib.defaultLayer": "Default layer",
   "team.owner": "Owner",
   "team.team": "Team",
-  "team.firstIsResponsible": "— first person is responsible for completing the work",
+  "team.firstIsResponsible":
+    "— first person is responsible for completing the work",
   "team.lead": "responsible",
   "team.searchFirst": "Search a person…",
   "team.searchMore": "Add participant…",
@@ -689,15 +749,18 @@ export const en = {
   "team.remove": "Remove",
   "team.noMatch": "No matching person.",
   "org.title": "Organization",
-  "org.subtitle": "settings, people, roles and who is responsible for each part of the lab",
+  "org.subtitle":
+    "settings, people, roles and who is responsible for each part of the lab",
   "org.settings": "Organization settings",
   "org.name": "Organization name",
   "org.number": "Organization number",
   "org.numberHint": "used in every experiment code — cannot be changed",
   "org.responsible": "Responsible people",
-  "org.responsibleHint": "Assign who maintains each part of the library. Several people can share a responsibility; admins always have all of them.",
+  "org.responsibleHint":
+    "Assign who maintains each part of the library. Several people can share a responsibility; admins always have all of them.",
   "org.stewMaterials": "Materials",
-  "org.stewMaterialsHint": "adds and edits materials, categories and supplier/batch data",
+  "org.stewMaterialsHint":
+    "adds and edits materials, categories and supplier/batch data",
   "org.stewEquipment": "Equipment",
   "org.stewEquipmentHint": "adds and edits machines and their parameter sets",
   "org.stewFacilities": "Facilities",
@@ -709,7 +772,8 @@ export const en = {
   "org.you": "you",
   "org.manage": "Organization (admin)",
   "orgs.title": "Organizations",
-  "orgs.subtitle": "Trusted organizations on this platform — approve onboarding requests and manage email domains",
+  "orgs.subtitle":
+    "Trusted organizations on this platform — approve onboarding requests and manage email domains",
   "orgs.manage": "Organizations (platform admin)",
   "orgs.name": "Organization",
   "orgs.admin": "Designated admin",
@@ -723,23 +787,30 @@ export const en = {
   "orgs.rejectQ": "Reject & remove?",
   "orgs.editDomains": "Click to edit domains",
   "orgs.invite": "Invite an organization",
-  "orgs.inviteHint": "Generate a one-time link and send it to the organization's representative. They register their organization and its admin account; it appears above as pending until you approve it.",
+  "orgs.inviteHint":
+    "Generate a one-time link and send it to the organization's representative. They register their organization and its admin account; it appears above as pending until you approve it.",
   "orgs.generateLink": "Generate invite link",
   "orgs.copy": "Copy",
   "orgs.copied": "Copied ✓",
   "orgs.linkTtl": "The link is valid for 7 days and can be used once.",
   "onboard.title": "Register your organization",
-  "onboard.subtitle": "You were invited to join the Pheno Lab Data Platform as a trusted organization.",
+  "onboard.subtitle":
+    "You were invited to join the Pheno Lab Data Platform as a trusted organization.",
   "onboard.orgName": "Organization name",
   "onboard.domains": "Email domains",
-  "onboard.domainsHint": "Comma-separated. Only emails on these domains can register into your organization.",
+  "onboard.domainsHint":
+    "Comma-separated. Only emails on these domains can register into your organization.",
   "onboard.adminSection": "Designated admin account",
   "onboard.adminEmail": "Admin email (must be on one of the domains above)",
   "onboard.submit": "Submit for approval",
-  "onboard.done": "Submitted. Your organization is pending approval — you'll be able to sign in once the platform admin approves it.",
-  "onboard.badToken": "This invite link is invalid, expired, or already used. Ask the platform admin for a new one.",
-  "onboard.emailDomain": "The admin email must be on one of the listed domains.",
-  "onboard.badInput": "Check the organization name, domains, email, and use a password of at least 8 characters.",
+  "onboard.done":
+    "Submitted. Your organization is pending approval — you'll be able to sign in once the platform admin approves it.",
+  "onboard.badToken":
+    "This invite link is invalid, expired, or already used. Ask the platform admin for a new one.",
+  "onboard.emailDomain":
+    "The admin email must be on one of the listed domains.",
+  "onboard.badInput":
+    "Check the organization name, domains, email, and use a password of at least 8 characters.",
   "cap.confirmFor": "Confirm for",
   "cap.capturedSamples": "Captured",
   "cap.perSampleHint": "Results are recorded one sample at a time.",
@@ -756,7 +827,8 @@ export const en = {
   "res.subtitle": "measured results side by side across variation groups",
   "res.group": "Group",
   "res.mean": "mean",
-  "res.noResults": "No results captured yet — record them in the capture portal.",
+  "res.noResults":
+    "No results captured yet — record them in the capture portal.",
   "res.variables": "Tested variables",
   "res.samples": "Samples",
   "res.open": "View results",
@@ -782,18 +854,22 @@ export const en = {
 
   // Registration
   "reg.title": "Create your account",
-  "reg.subtitle": "Registration uses a one-time passcode sent for your organization email.",
+  "reg.subtitle":
+    "Registration uses a one-time passcode sent for your organization email.",
   "reg.email": "Organization email",
   "reg.request": "Send passcode",
-  "reg.codeSent": "A one-time passcode was generated. Enter it below — if you did not receive it, ask your admin (codes are visible in Users → Pending registrations).",
-  "reg.codeEmailed": "A one-time passcode was sent to your email. Enter it below — check your spam folder if it doesn't arrive within a minute.",
+  "reg.codeSent":
+    "A one-time passcode was generated. Enter it below — if you did not receive it, ask your admin (codes are visible in Users → Pending registrations).",
+  "reg.codeEmailed":
+    "A one-time passcode was sent to your email. Enter it below — check your spam folder if it doesn't arrive within a minute.",
   "reg.code": "One-time passcode",
   "reg.name": "Your name",
   "reg.password": "Choose a password",
   "reg.password2": "Confirm password",
   "reg.submit": "Verify & create account",
   "reg.done": "Account created — you can sign in now.",
-  "reg.badDomain": "This email domain is not registered to any organization. Ask your admin to add it.",
+  "reg.badDomain":
+    "This email domain is not registered to any organization. Ask your admin to add it.",
   "reg.badCode": "Invalid or expired passcode.",
   "reg.exists": "An account with this email already exists.",
   "reg.link": "New here? Register with your organization email",
@@ -810,10 +886,12 @@ export const en = {
   "users.deactivate": "Deactivate",
   "users.activate": "Activate",
   "users.domains": "Allowed registration domains",
-  "users.domainsHint": "Only emails on these domains can register into this organization. Comma-separated, e.g. ultiprice.com, pheno.lab",
+  "users.domainsHint":
+    "Only emails on these domains can register into this organization. Comma-separated, e.g. ultiprice.com, pheno.lab",
   "users.saveDomains": "Save domains",
   "users.pending": "Pending registrations",
-  "users.pendingHint": "Active one-time passcodes — relay the code to the person registering if email delivery is not configured.",
+  "users.pendingHint":
+    "Active one-time passcodes — relay the code to the person registering if email delivery is not configured.",
   "users.noPending": "No pending registrations.",
   "users.expires": "expires",
   "users.manage": "Manage users (admin)",
@@ -833,9 +911,12 @@ export const en = {
   "sys.backupNow": "Back up now",
   "sys.backupDone": "Backup created.",
   "sys.noBackups": "No backups yet.",
-  "sys.backupHint": "Backups are pg_dump snapshots in the backups/ folder, rotated automatically (last 30 kept). A daily scheduled backup is installed on this machine.",
-  "sys.backupExternalHint": "Database backups are managed and restored on the external PostgreSQL server.",
-  "sys.migrateHint": "To move storage later (NAS/cloud), point DATABASE_URL at the new PostgreSQL host and restore the latest backup — no app changes needed.",
+  "sys.backupHint":
+    "Backups are pg_dump snapshots in the backups/ folder, rotated automatically (last 30 kept). A daily scheduled backup is installed on this machine.",
+  "sys.backupExternalHint":
+    "Database backups are managed and restored on the external PostgreSQL server.",
+  "sys.migrateHint":
+    "To move storage later (NAS/cloud), point DATABASE_URL at the new PostgreSQL host and restore the latest backup — no app changes needed.",
   "sys.manage": "System & storage (admin)",
 
   // Instrument data (J-V auto-ingest)
@@ -852,6 +933,11 @@ export const en = {
   "inst.host": "Computer",
   "inst.watching": "Watching",
   "inst.inbox": "Incoming measurements",
+  "inst.ownedBy": "for",
+  "inst.selectAll": "Select all",
+  "inst.nSelected": "{n} selected",
+  "inst.handTo": "Hand to…",
+  "inst.handedOver": "{n} measurement(s) handed to {name}",
   "inst.matched": "Matched",
   "inst.unmatched": "Needs attention",
   "inst.ignored": "Ignored",
@@ -869,7 +955,8 @@ export const en = {
   "inst.detach": "Detach",
   "inst.ignore": "Ignore",
   "inst.pickSample": "Choose a sample",
-  "inst.autoHint": "Files arrive on their own — the agent on each simulator PC pushes every new measurement. Unmatched ones are re-checked automatically every few minutes, because a scan often arrives before the experiment that explains it exists.",
+  "inst.autoHint":
+    "Files arrive on their own — the agent on each simulator PC pushes every new measurement. Unmatched ones are re-checked automatically every few minutes, because a scan often arrives before the experiment that explains it exists.",
 
   // Per-experiment J-V pull
   "jv.title": "J-V files",
@@ -883,12 +970,15 @@ export const en = {
   "jv.noScans": "no file yet",
   "jv.best": "best",
   "jv.candidates": "Unmatched files from the last 30 days",
-  "jv.candidatesHint": "If an operator mistyped the serial, attach the file to the right sample here.",
+  "jv.candidatesHint":
+    "If an operator mistyped the serial, attach the file to the right sample here.",
   "jv.attach": "Attach",
   "jv.attached": "Attached files",
-  "jv.hint": "Operators type the sample ID into the instrument (e.g. {example}). Anything that matches lands here on its own.",
+  "jv.hint":
+    "Operators type the sample ID into the instrument (e.g. {example}). Anything that matches lands here on its own.",
   "jv.serials": "Serials to type on the instrument",
-  "jv.serialsHint": "Type this into the instrument's Serial NO. / Sample name field. Add the pixel after it, e.g. {example}-2.",
+  "jv.serialsHint":
+    "Type this into the instrument's Serial NO. / Sample name field. Add the pixel after it, e.g. {example}-2.",
   "jv.copyAll": "Copy all",
   "jv.copied": "Copied",
   "jv.alias": "Also answers to",
@@ -969,7 +1059,8 @@ export const zh: Record<TKey, string> = {
   "designer.dragHint": "拖动卡片调整顺序",
   "designer.charPlan": "表征方案",
   "designer.charHint": "在工艺完成后进行",
-  "designer.emptySteps": "暂无工艺步骤。请从左侧工艺库添加第一步——通常从基片清洗开始。",
+  "designer.emptySteps":
+    "暂无工艺步骤。请从左侧工艺库添加第一步——通常从基片清洗开始。",
   "designer.emptyChars": "暂无表征计划。请从左侧添加测试项目。",
   "designer.saved": "所有更改已保存",
   "designer.saving": "保存中…",
@@ -978,7 +1069,8 @@ export const zh: Record<TKey, string> = {
   "designer.processSteps": "个工艺步骤",
   "designer.characterizations": "项表征",
   "designer.selectHint": "点击流程中的卡片进行查看和编辑。",
-  "designer.selectHintEdit": "使用实验方案定义本实验的变量——被测步骤将以绿色高亮。",
+  "designer.selectHintEdit":
+    "使用实验方案定义本实验的变量——被测步骤将以绿色高亮。",
 
   "sci.observation": "观察",
   "sci.problem": "问题",
@@ -1015,7 +1107,8 @@ export const zh: Record<TKey, string> = {
   "plan.addGroup": "添加组",
   "plan.total": "样品总数：",
   "plan.autoCalc": "（自动计算）",
-  "plan.applyNote": "应用后将重新生成样品，并在对应工艺步骤上标记被测变量（如无该步骤则自动添加）。从方案中移除的变量会同步从流程中清除。",
+  "plan.applyNote":
+    "应用后将重新生成样品，并在对应工艺步骤上标记被测变量（如无该步骤则自动添加）。从方案中移除的变量会同步从流程中清除。",
   "plan.cancel": "取消",
   "plan.apply": "应用实验方案",
 
@@ -1076,7 +1169,8 @@ export const zh: Record<TKey, string> = {
   "set.title": "实验设置",
   "set.expTitle": "标题",
   "set.status": "状态",
-  "set.statusHint": "方案就绪后将状态从「草稿」改为「实验中」以交给技术员执行。结论在「已完成」后解锁。",
+  "set.statusHint":
+    "方案就绪后将状态从「草稿」改为「实验中」以交给技术员执行。结论在「已完成」后解锁。",
   "set.participants": "参与人员",
   "set.creator": "创建人",
   "set.remove": "移除",
@@ -1084,7 +1178,8 @@ export const zh: Record<TKey, string> = {
   "set.autoLabels": "自动生成的标签",
   "set.autoLabelsHint": "根据实验所用的工艺、设备、材料和变量自动生成。",
   "set.campaign": "专题 / 实验组",
-  "set.campaignHint": "可选——将相关实验归入同一个大专题，如「Q3 退火优化」。可在看板中搜索。",
+  "set.campaignHint":
+    "可选——将相关实验归入同一个大专题，如「Q3 退火优化」。可在看板中搜索。",
   "set.delete": "删除实验",
   "set.deleteQ": "确定删除本实验及其全部数据？",
   "set.deleteYes": "删除",
@@ -1097,7 +1192,8 @@ export const zh: Record<TKey, string> = {
   "lib.equipmentFor": "设备：",
   "lib.materialsFor": "材料：",
   "lib.paramsFor": "工艺参数：",
-  "lib.paramsHint": "该工艺每个步骤记录的参数。每项参数在数据库中均标记为工艺参数。新步骤以此为初始参数；选择设备后由设备参数覆盖。",
+  "lib.paramsHint":
+    "该工艺每个步骤记录的参数。每项参数在数据库中均标记为工艺参数。新步骤以此为初始参数；选择设备后由设备参数覆盖。",
   "lib.noEquipment": "该工艺下暂无设备。",
   "lib.noMaterials": "该工艺下暂无材料。",
   "lib.addEquipment": "添加设备",
@@ -1119,13 +1215,15 @@ export const zh: Record<TKey, string> = {
   "lib.removePhoto": "移除",
   "lib.uploading": "上传中…",
   "lib.envDetails": "环境说明",
-  "lib.envDetailsHint": "描述环境本体——品牌、型号、腔体配置。上方的条件是每次实验需要记录的读数。",
+  "lib.envDetailsHint":
+    "描述环境本体——品牌、型号、腔体配置。上方的条件是每次实验需要记录的读数。",
   "lib.specSheets": "设备资料",
   "lib.specSheetsHint": "该设备的厂家原始文件——说明书、规格书、验收报告等。",
   "lib.addSpecSheet": "添加文件",
   "lib.noSpecSheets": "暂无附件",
   "lib.machineParams": "设备参数",
-  "lib.machineParamsHint": "这些参数属于该设备。工艺步骤选择该设备后，将自动填入这些参数定义。",
+  "lib.machineParamsHint":
+    "这些参数属于该设备。工艺步骤选择该设备后，将自动填入这些参数定义。",
   "lib.materialName": "材料名称",
   "lib.composition": "成分 / 配方",
   "lib.supplier": "供应商",
@@ -1143,7 +1241,8 @@ export const zh: Record<TKey, string> = {
   "lib.environmentsHint": "实验室的环境类型及各环境记录的条件",
   "lib.envName": "环境名称",
   "lib.conditions": "记录条件",
-  "lib.conditionsHint": "该环境需记录的条件——如手套箱的 O₂/H₂O 含量（ppm）与温度，或洁净室的洁净度与湿度。",
+  "lib.conditionsHint":
+    "该环境需记录的条件——如手套箱的 O₂/H₂O 含量（ppm）与温度，或洁净室的洁净度与湿度。",
   "lib.addEnvironment": "添加环境",
   "lib.locations": "位置",
   "lib.locationsHint": "机构位置很少变动——设置一次，处处可选",
@@ -1219,7 +1318,8 @@ export const zh: Record<TKey, string> = {
   "fb.bug": "问题报告",
   "fb.feedback": "功能反馈",
   "fb.message": "发生了什么？或有什么可以改进？",
-  "fb.messagePh": "请描述问题或建议。若是 Bug：您预期的行为是什么？实际发生了什么？",
+  "fb.messagePh":
+    "请描述问题或建议。若是 Bug：您预期的行为是什么？实际发生了什么？",
   "fb.screenshot": "截图（可选）",
   "fb.attach": "附加截图",
   "fb.attached": "截图已附加",
@@ -1260,7 +1360,8 @@ export const zh: Record<TKey, string> = {
   "cap.addMetric": "添加指标",
   "cap.saveResult": "保存结果",
   "cap.resultSaved": "结果已保存",
-  "cap.notInLab": "本实验尚未进入实验阶段。将状态设为「实验中」后即可开始采集数据。",
+  "cap.notInLab":
+    "本实验尚未进入实验阶段。将状态设为「实验中」后即可开始采集数据。",
   "cap.open": "打开采集页面",
   "cap.allDone": "该样品的所有步骤均已采集。",
   "cap.doneOf": "已采集",
@@ -1271,13 +1372,15 @@ export const zh: Record<TKey, string> = {
   "cap.swipeHint": "左右滑动切换步骤 · 点击圆点跳转",
   "cap.run": "批次",
   "cap.newRun": "开始新批次",
-  "cap.newRunHint": "使用同一方案再次执行，记录全新的实际值与结果（如重复性验证批次）。",
+  "cap.newRunHint":
+    "使用同一方案再次执行，记录全新的实际值与结果（如重复性验证批次）。",
 
   "portal.title": "实验录入门户",
   "portal.subtitle": "可进行数据采集的实验",
   "portal.captureNow": "点击开始采集",
   "portal.progress": "已采集",
-  "portal.empty": "当前没有进行中的实验。实验状态设为「实验中」后会显示在这里。",
+  "portal.empty":
+    "当前没有进行中的实验。实验状态设为「实验中」后会显示在这里。",
   "portal.toDesktop": "切换到完整工作台",
   "portal.install": "安装此应用",
   "portal.toPortal": "录入门户",
@@ -1286,7 +1389,8 @@ export const zh: Record<TKey, string> = {
   "cap.batchAll": "全部样品",
   "cap.batchGroup": "组",
   "cap.batchOne": "单个样品",
-  "cap.batchHint": "点击组或单个样品选择记录范围——确认一次即应用到所选样品。含被测变量的步骤按组分别采集。",
+  "cap.batchHint":
+    "点击组或单个样品选择记录范围——确认一次即应用到所选样品。含被测变量的步骤按组分别采集。",
   "cap.pickScope": "请在上方选择一个组或样品开始记录。",
   "cap.complete": "完成实验",
   "cap.completeHint": "数据已全部采集——将实验标记为已完成。",
@@ -1299,7 +1403,8 @@ export const zh: Record<TKey, string> = {
   "cap.clear": "清除采集",
   "cap.clearQ": "确认清除采集？",
   "users.add": "添加成员",
-  "users.addHint": "直接创建登录账号——在验证码邮件尚未配置时尤其有用。请将账号密码告知同事，他们可在个人资料中自行修改密码。",
+  "users.addHint":
+    "直接创建登录账号——在验证码邮件尚未配置时尤其有用。请将账号密码告知同事，他们可在个人资料中自行修改密码。",
   "users.password": "密码",
   "users.generate": "生成密码",
   "users.create": "创建账号",
@@ -1310,7 +1415,8 @@ export const zh: Record<TKey, string> = {
   "mat.title": "材料库",
   "mat.subtitle": "实验室材料百科——由材料管理员维护",
   "mat.search": "搜索材料（名称、分子式、CAS）…",
-  "mat.readonlyHint": "只读——材料管理员负责根据实验室实际到货维护本库（供应商、批次、特性）。",
+  "mat.readonlyHint":
+    "只读——材料管理员负责根据实验室实际到货维护本库（供应商、批次、特性）。",
   "mat.add": "添加",
   "mat.new": "新材料",
   "mat.name": "名称",
@@ -1356,7 +1462,8 @@ export const zh: Record<TKey, string> = {
   "rec.solvents": "溶剂体系",
   "rec.concentration": "浓度",
   "rec.procedure": "配制步骤",
-  "rec.lockedHint": "您可以在实验规划中选用这些配方；配方内容仅对拥有配方权限的成员可见。",
+  "rec.lockedHint":
+    "您可以在实验规划中选用这些配方；配方内容仅对拥有配方权限的成员可见。",
   "rec.hidden": "内容已隐藏——需要配方权限",
   "rec.empty": "暂无配方。",
   "users.perms": "附加权限",
@@ -1364,12 +1471,14 @@ export const zh: Record<TKey, string> = {
   "users.permRecipes": "配方权限",
   "insp.searchMaterial": "输入以搜索材料…",
   "insp.createMaterial": "创建材料",
-  "insp.materialSearchHint": "搜索支持模糊匹配，拼写略有出入也能找到。新材料由材料管理员在资源库中添加。",
+  "insp.materialSearchHint":
+    "搜索支持模糊匹配，拼写略有出入也能找到。新材料由材料管理员在资源库中添加。",
   "insp.recipe": "配方",
   "insp.noRecipe": "无配方",
   "insp.recipeHidden": "已选择配方——内容仅配方权限成员可见。",
   "wf.assignee": "指派技术员",
-  "wf.assigneeHint": "被指派者负责在实验室执行本实验并采集数据。移交实验室前必须指派。",
+  "wf.assigneeHint":
+    "被指派者负责在实验室执行本实验并采集数据。移交实验室前必须指派。",
   "wf.unassigned": "尚未指派",
   "wf.startLab": "移交实验室",
   "wf.needAssignee": "请先指派负责人，再将实验移交实验室。",
@@ -1381,7 +1490,8 @@ export const zh: Record<TKey, string> = {
   "wf.submittedBy": "提交于",
   "wf.awaiting": "等待您审批",
   "wf.reviewTitle": "主管审核",
-  "wf.reviewHint": "批准后将封存证据包——方案、采集数据、照片与结果——并结束实验。",
+  "wf.reviewHint":
+    "批准后将封存证据包——方案、采集数据、照片与结果——并结束实验。",
   "wf.reviewNote": "结论备注 / 实验思考",
   "wf.approve": "批准并结束",
   "wf.approveQ": "确认批准并结束？",
@@ -1395,19 +1505,22 @@ export const zh: Record<TKey, string> = {
   "dash.newTest": "测试",
   "test.title": "测试数据",
   "test.subtitle": "以测试模式创建的实验——不会出现在任何正式视图中",
-  "test.explain": "测试实验不会出现在实验看板、数据表、实验室端或个人统计中。它们用于试用系统，并可一次性全部清除。",
+  "test.explain":
+    "测试实验不会出现在实验看板、数据表、实验室端或个人统计中。它们用于试用系统，并可一次性全部清除。",
   "test.badge": "测试",
   "test.experiments": "个测试实验",
   "test.empty": "暂无测试实验。",
   "test.clear": "清除所有测试数据",
   "test.clearNow": "删除",
-  "test.confirm": "确认永久删除 {n} 个测试实验及其全部样品、运行与结果？请输入 DELETE 确认。",
+  "test.confirm":
+    "确认永久删除 {n} 个测试实验及其全部样品、运行与结果？请输入 DELETE 确认。",
   "test.cleared": "已删除 {n} 个测试实验。",
   "test.promote": "标记为正式",
   "test.promoteHint": "将该实验移入正式数据库",
   "test.nav": "测试数据",
   "sum.dataPoints": "数据点",
-  "sum.dataPointsHint": "每一个已记录的数值：工艺参数、表征指标、采集实测值与材料属性。",
+  "sum.dataPointsHint":
+    "每一个已记录的数值：工艺参数、表征指标、采集实测值与材料属性。",
   "sum.experiments": "实验",
   "sum.samples": "样品",
   "sum.results": "测量记录",
@@ -1471,7 +1584,8 @@ export const zh: Record<TKey, string> = {
   "ing.title": "数据接入",
   "ing.subtitle": "审核并发布从文档与历史数据中提取的信息",
   "ing.howTitle": "使用方式",
-  "ing.howBody": "把文件（配方表、材料说明书、设备手册、历史实验记录）交给智能体，它会提取信息并暂存在此——不会自动进入正式库。请逐条审核、修正后发布或拒绝。",
+  "ing.howBody":
+    "把文件（配方表、材料说明书、设备手册、历史实验记录）交给智能体，它会提取信息并暂存在此——不会自动进入正式库。请逐条审核、修正后发布或拒绝。",
   "ing.pending": "待审核",
   "ing.reviewed": "已审核",
   "ing.emptyPending": "暂无待审核条目。",
@@ -1520,7 +1634,8 @@ export const zh: Record<TKey, string> = {
   "ing.unknownCount": "个组分不在材料库中——发布该配方不会自动创建它们。",
   "ing.dupFormula": "已存在同名配方——发布将直接覆盖更新该配方。",
   "ing.dupTitle": "库中已存在",
-  "ing.dupBody": "该条目与库中已有记录重复。请选择：更新已有记录、跳过该条目，或确认另建一条新记录。",
+  "ing.dupBody":
+    "该条目与库中已有记录重复。请选择：更新已有记录、跳过该条目，或确认另建一条新记录。",
   "ing.dupMatchedOn": "匹配依据：",
   "ing.dupIdentical": "完全相同——没有新增信息",
   "ing.dupUpdate": "更新这条",
@@ -1555,7 +1670,8 @@ export const zh: Record<TKey, string> = {
   "plan.noLayer": "与层无关",
   "insp.layer": "器件层",
   "insp.noLayer": "与层无关",
-  "insp.layerHint": "该步骤所构建的器件层——显示在流程卡片上，并用于归类实验方案。",
+  "insp.layerHint":
+    "该步骤所构建的器件层——显示在流程卡片上，并用于归类实验方案。",
   "lib.defaultLayer": "默认器件层",
   "team.owner": "负责人（创建者）",
   "team.team": "团队",
@@ -1573,7 +1689,8 @@ export const zh: Record<TKey, string> = {
   "org.number": "机构编号",
   "org.numberHint": "用于所有实验编号——不可更改",
   "org.responsible": "负责人",
-  "org.responsibleHint": "指定各部分资源库的维护人。同一职责可由多人共同承担；管理员始终拥有全部职责。",
+  "org.responsibleHint":
+    "指定各部分资源库的维护人。同一职责可由多人共同承担；管理员始终拥有全部职责。",
   "org.stewMaterials": "材料",
   "org.stewMaterialsHint": "添加与编辑材料、类别及供应商/批次信息",
   "org.stewEquipment": "设备",
@@ -1601,7 +1718,8 @@ export const zh: Record<TKey, string> = {
   "orgs.rejectQ": "确认拒绝并移除？",
   "orgs.editDomains": "点击编辑域名",
   "orgs.invite": "邀请机构入驻",
-  "orgs.inviteHint": "生成一次性链接并发送给对方机构代表。对方登记机构信息及其管理员账号后，将显示在上方列表中等待您批准。",
+  "orgs.inviteHint":
+    "生成一次性链接并发送给对方机构代表。对方登记机构信息及其管理员账号后，将显示在上方列表中等待您批准。",
   "orgs.generateLink": "生成邀请链接",
   "orgs.copy": "复制",
   "orgs.copied": "已复制 ✓",
@@ -1615,7 +1733,8 @@ export const zh: Record<TKey, string> = {
   "onboard.adminEmail": "管理员邮箱（须属于上方域名之一）",
   "onboard.submit": "提交审批",
   "onboard.done": "已提交。您的机构正在等待审批——平台管理员批准后即可登录。",
-  "onboard.badToken": "邀请链接无效、已过期或已被使用。请向平台管理员索取新链接。",
+  "onboard.badToken":
+    "邀请链接无效、已过期或已被使用。请向平台管理员索取新链接。",
   "onboard.emailDomain": "管理员邮箱必须属于所列域名之一。",
   "onboard.badInput": "请检查机构名称、域名与邮箱，密码至少 8 位。",
   "cap.confirmFor": "确认",
@@ -1661,8 +1780,10 @@ export const zh: Record<TKey, string> = {
   "reg.subtitle": "注册使用发送到机构邮箱的一次性验证码。",
   "reg.email": "机构邮箱",
   "reg.request": "发送验证码",
-  "reg.codeSent": "一次性验证码已生成。请在下方输入——如未收到，请联系管理员（管理员可在「用户 → 待注册」中查看验证码）。",
-  "reg.codeEmailed": "一次性验证码已发送至您的邮箱。请在下方输入——若一分钟内未收到，请检查垃圾邮件文件夹。",
+  "reg.codeSent":
+    "一次性验证码已生成。请在下方输入——如未收到，请联系管理员（管理员可在「用户 → 待注册」中查看验证码）。",
+  "reg.codeEmailed":
+    "一次性验证码已发送至您的邮箱。请在下方输入——若一分钟内未收到，请检查垃圾邮件文件夹。",
   "reg.code": "一次性验证码",
   "reg.name": "您的姓名",
   "reg.password": "设置密码",
@@ -1685,10 +1806,12 @@ export const zh: Record<TKey, string> = {
   "users.deactivate": "停用",
   "users.activate": "启用",
   "users.domains": "允许注册的邮箱域名",
-  "users.domainsHint": "仅这些域名的邮箱可注册到本机构。逗号分隔，如 ultiprice.com, pheno.lab",
+  "users.domainsHint":
+    "仅这些域名的邮箱可注册到本机构。逗号分隔，如 ultiprice.com, pheno.lab",
   "users.saveDomains": "保存域名",
   "users.pending": "待注册",
-  "users.pendingHint": "有效的一次性验证码——如未配置邮件发送，请将验证码告知注册者。",
+  "users.pendingHint":
+    "有效的一次性验证码——如未配置邮件发送，请将验证码告知注册者。",
   "users.noPending": "暂无待注册。",
   "users.expires": "过期时间",
   "users.manage": "用户管理（管理员）",
@@ -1707,9 +1830,12 @@ export const zh: Record<TKey, string> = {
   "sys.backupNow": "立即备份",
   "sys.backupDone": "备份已创建。",
   "sys.noBackups": "暂无备份。",
-  "sys.backupHint": "备份为 pg_dump 快照，保存在 backups/ 目录并自动轮换（保留最近 30 份）。本机已安装每日定时备份。",
-  "sys.backupExternalHint": "数据库备份和恢复由外部 PostgreSQL 服务器统一管理。",
-  "sys.migrateHint": "将来迁移存储（NAS/云）时，只需将 DATABASE_URL 指向新的 PostgreSQL 主机并恢复最新备份——应用无需改动。",
+  "sys.backupHint":
+    "备份为 pg_dump 快照，保存在 backups/ 目录并自动轮换（保留最近 30 份）。本机已安装每日定时备份。",
+  "sys.backupExternalHint":
+    "数据库备份和恢复由外部 PostgreSQL 服务器统一管理。",
+  "sys.migrateHint":
+    "将来迁移存储（NAS/云）时，只需将 DATABASE_URL 指向新的 PostgreSQL 主机并恢复最新备份——应用无需改动。",
   "sys.manage": "系统与存储（管理员）",
 
   // 设备数据（J-V 自动接入）
@@ -1726,6 +1852,11 @@ export const zh: Record<TKey, string> = {
   "inst.host": "电脑",
   "inst.watching": "监控目录",
   "inst.inbox": "接收到的测试数据",
+  "inst.ownedBy": "指派给",
+  "inst.selectAll": "全选",
+  "inst.nSelected": "已选 {n} 条",
+  "inst.handTo": "转交给…",
+  "inst.handedOver": "已将 {n} 条测量转交给 {name}",
   "inst.matched": "已匹配",
   "inst.unmatched": "待处理",
   "inst.ignored": "已忽略",
@@ -1743,7 +1874,8 @@ export const zh: Record<TKey, string> = {
   "inst.detach": "取消归属",
   "inst.ignore": "忽略",
   "inst.pickSample": "选择样品",
-  "inst.autoHint": "数据会自动上传——每台模拟器电脑上的采集程序会推送新测试文件。未匹配的数据每隔几分钟自动重试，因为测试数据常常先于实验记录到达。",
+  "inst.autoHint":
+    "数据会自动上传——每台模拟器电脑上的采集程序会推送新测试文件。未匹配的数据每隔几分钟自动重试，因为测试数据常常先于实验记录到达。",
 
   "jv.title": "J-V 数据文件",
   "jv.pull": "拉取 J-V 文件",
@@ -1759,9 +1891,11 @@ export const zh: Record<TKey, string> = {
   "jv.candidatesHint": "若操作员填错编号，可在此手动归入正确样品。",
   "jv.attach": "归入",
   "jv.attached": "已关联文件",
-  "jv.hint": "操作员需在设备中填写样品编号（例如 {example}），匹配成功的数据会自动出现在这里。",
+  "jv.hint":
+    "操作员需在设备中填写样品编号（例如 {example}），匹配成功的数据会自动出现在这里。",
   "jv.serials": "设备中填写的编号",
-  "jv.serialsHint": "在设备的 Serial NO. / Sample name 栏填写该编号；像素号写在后面，例如 {example}-2。",
+  "jv.serialsHint":
+    "在设备的 Serial NO. / Sample name 栏填写该编号；像素号写在后面，例如 {example}-2。",
   "jv.copyAll": "复制全部",
   "jv.copied": "已复制",
   "jv.alias": "同时匹配",
@@ -1772,8 +1906,13 @@ export const zh: Record<TKey, string> = {
 export type Lang = "en" | "zh";
 export const dictionaries: Record<Lang, Record<TKey, string>> = { en, zh };
 
-export function translate(lang: Lang, key: TKey, vars?: Record<string, string>): string {
+export function translate(
+  lang: Lang,
+  key: TKey,
+  vars?: Record<string, string>,
+): string {
   let s: string = dictionaries[lang][key] ?? en[key] ?? key;
-  if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+  if (vars)
+    for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
   return s;
 }

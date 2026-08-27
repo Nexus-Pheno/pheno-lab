@@ -28,6 +28,7 @@ export default async function InstrumentsPage() {
           matched={data.matched}
           unmatched={data.unmatched}
           samples={data.samples}
+          people={data.people}
           canManage={session.role !== "TECHNICIAN"}
         />
       </div>

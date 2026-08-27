@@ -1,7 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/infrastructure/db/client";
-import { experimentVisibilityScope } from "@/modules/authorization/scope";
+import {
+  experimentVisibilityScope,
+  measurementVisibilityScope,
+} from "@/modules/authorization/scope";
 import { recordUserAudit } from "@/modules/audit/writer";
 
 const rollback = new Error("ROLLBACK_TEST_TRANSACTION");
@@ -147,5 +150,139 @@ describe("organization isolation against PostgreSQL", () => {
 
     expect(await db.auditEvent.count({ where: { entityId } })).toBe(0);
     expect(await db.experiment.count({ where: { id: entityId } })).toBe(0);
+  });
+});
+
+describe("instrument measurement visibility against PostgreSQL", () => {
+  it("routes each scan to the sample's experiment, its owner, or the manager queue", async () => {
+    await withRollback(async (transaction) => {
+      const suffix = crypto.randomUUID();
+      const org = await transaction.organization.create({
+        data: { name: "Scope Org", slug: `scope-${suffix}`, orgNumber: 301 },
+      });
+      const person = (name: string, role: "ADMIN" | "MANAGER" | "TECHNICIAN") =>
+        transaction.user.create({
+          data: {
+            organizationId: org.id,
+            email: `${name}-${suffix}@example.test`,
+            name,
+            passwordHash: "test-only",
+            role,
+          },
+        });
+      const [admin, manager, otherManager, tech, otherTech] = await Promise.all(
+        [
+          person("Admin", "ADMIN"),
+          person("Manager", "MANAGER"),
+          person("OtherManager", "MANAGER"),
+          person("Tech", "TECHNICIAN"),
+          person("OtherTech", "TECHNICIAN"),
+        ],
+      );
+
+      // One experiment, owned by `manager`, with `tech` as its only member.
+      const experiment = await transaction.experiment.create({
+        data: {
+          organizationId: org.id,
+          code: `SCOPE-${suffix.slice(0, 8)}`,
+          title: "Scoped batch",
+          createdById: manager.id,
+          samples: { create: [{ code: "S1" }] },
+          members: { create: [{ userId: tech.id }] },
+        },
+        include: { samples: true },
+      });
+      const instrument = await transaction.instrument.create({
+        data: {
+          organizationId: org.id,
+          name: `rig-${suffix}`,
+          kind: "GIANTFORCE_IV",
+          apiKeyHash: `hash-${suffix}`,
+        },
+      });
+      const upload = await transaction.instrumentUpload.create({
+        data: {
+          instrumentId: instrument.id,
+          fileName: "f.csv",
+          storedPath: `k-${suffix}`,
+          sha256: `sha-${suffix}`,
+          size: 1,
+          status: "PARSED",
+        },
+      });
+      const scan = (
+        label: string,
+        extra: Prisma.JvMeasurementUncheckedCreateInput extends never
+          ? never
+          : Record<string, unknown>,
+      ) =>
+        transaction.jvMeasurement.create({
+          data: {
+            organizationId: org.id,
+            instrumentId: instrument.id,
+            uploadId: upload.id,
+            serial: label,
+            serialKey: label,
+            scanKey: `${label}-${suffix}`,
+            metrics: {},
+            curve: [],
+            status: "UNMATCHED",
+            ...extra,
+          },
+        });
+
+      const attached = await scan("attached", {
+        status: "MATCHED",
+        experimentId: experiment.id,
+        sampleId: experiment.samples[0].id,
+      });
+      const ownedByTech = await scan("owned", { assignedToId: tech.id });
+      const orphan = await scan("orphan", {});
+
+      const visibleTo = async (actor: {
+        uid: string;
+        role: "ADMIN" | "MANAGER" | "TECHNICIAN";
+      }) => {
+        const rows = await transaction.jvMeasurement.findMany({
+          where: measurementVisibilityScope({ ...actor, org: org.id }),
+          select: { id: true },
+        });
+        return new Set(rows.map((r) => r.id));
+      };
+
+      // Admin: everything.
+      const forAdmin = await visibleTo({ uid: admin.id, role: "ADMIN" });
+      expect(forAdmin).toEqual(
+        new Set([attached.id, ownedByTech.id, orphan.id]),
+      );
+
+      // The experiment's manager: their batch plus the unowned queue. NOT the
+      // scan already handed to the technician.
+      const forManager = await visibleTo({ uid: manager.id, role: "MANAGER" });
+      expect(forManager.has(attached.id)).toBe(true);
+      expect(forManager.has(orphan.id)).toBe(true);
+      expect(forManager.has(ownedByTech.id)).toBe(false);
+
+      // A manager who is not on the experiment must not read its results —
+      // this is the leak that existed when the page filtered on org alone.
+      const forOtherManager = await visibleTo({
+        uid: otherManager.id,
+        role: "MANAGER",
+      });
+      expect(forOtherManager.has(attached.id)).toBe(false);
+      expect(forOtherManager.has(orphan.id)).toBe(true);
+
+      // The member technician: their experiment and their own handed-over scan,
+      // but never the shared orphan queue.
+      const forTech = await visibleTo({ uid: tech.id, role: "TECHNICIAN" });
+      expect(forTech).toEqual(new Set([attached.id, ownedByTech.id]));
+
+      // An unrelated technician sees nothing at all.
+      const forOtherTech = await visibleTo({
+        uid: otherTech.id,
+        role: "TECHNICIAN",
+      });
+      expect(forOtherTech.size).toBe(0);
+    });
   });
 });
