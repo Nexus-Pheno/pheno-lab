@@ -25,6 +25,7 @@ export default async function ExperimentPage({
       orgUsers={data.orgUsers}
       recipes={data.recipes}
       layers={data.layers}
+      categoryLayers={data.categoryLayers}
       canManageMaterials={data.canManageMaterials}
       canEdit={data.canEdit}
       canManageMembers={data.canEdit}

@@ -63,6 +63,7 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     recipes,
     canManageMaterials,
     layers,
+    categoryLayers,
   ] = await Promise.all([
     db.experiment.findFirst({
       where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
@@ -104,6 +105,10 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
       orderBy: { position: "asc" },
       select: { code: true, name: true, nameZh: true },
     }),
+    db.materialCategoryDef.findMany({
+      where: { organizationId: actor.org },
+      select: { code: true, layers: true },
+    }),
   ]);
   if (!experiment) return null;
   const involved =
@@ -122,6 +127,7 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     recipes,
     canManageMaterials,
     layers,
+    categoryLayers,
     canEdit,
   };
 }

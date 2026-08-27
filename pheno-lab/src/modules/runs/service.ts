@@ -409,10 +409,11 @@ export async function regroupSampleService(
   actor: Actor,
   sampleId: string,
   zone: string,
+  note?: string,
 ) {
   const sample = await db.sample.findUniqueOrThrow({
     where: { id: sampleId },
-    select: { id: true, code: true, experimentId: true },
+    select: { id: true, code: true, experimentId: true, note: true },
   });
   await requireExperimentPermission(actor, sample.experimentId, "capture");
   const experiment = await db.experiment.findUniqueOrThrow({
@@ -435,9 +436,19 @@ export async function regroupSampleService(
       : null;
 
   await db.$transaction(async (transaction) => {
+    const trashNote = clean === "ERROR" && note?.trim() ? note.trim() : "";
     await transaction.sample.update({
       where: { id: sample.id },
-      data: { variationGroup },
+      data: {
+        variationGroup,
+        ...(trashNote
+          ? {
+              note: sample.note
+                ? `${sample.note}\n[trash] ${trashNote}`
+                : `[trash] ${trashNote}`,
+            }
+          : {}),
+      },
     });
     if (plan) {
       plan.assignments = { ...(plan.assignments ?? {}), [sample.code]: clean };
@@ -451,7 +462,11 @@ export async function regroupSampleService(
       action: "sample.regroup",
       entityType: "Sample",
       entityId: sample.id,
-      changes: { code: sample.code, zone: clean },
+      changes: {
+        code: sample.code,
+        zone: clean,
+        ...(note?.trim() ? { note: note.trim() } : {}),
+      },
     });
   });
 }

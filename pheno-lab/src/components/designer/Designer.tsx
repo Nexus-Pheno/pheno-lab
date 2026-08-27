@@ -35,6 +35,7 @@ export default function Designer({
   orgUsers,
   recipes,
   layers,
+  categoryLayers = [],
   canManageMaterials,
   canEdit,
   canManageMembers,
@@ -48,6 +49,7 @@ export default function Designer({
   orgUsers: { id: string; name: string; email: string; role: string }[];
   recipes: { id: string; name: string; summary: string }[];
   layers: { code: string; name: string }[];
+  categoryLayers?: { code: string; layers: string[] }[];
   canManageMaterials: boolean;
   canEdit: boolean;
   canManageMembers: boolean;
@@ -374,6 +376,7 @@ export default function Designer({
             equipment={equipment}
             materials={materials}
             layers={layers}
+            categoryLayers={categoryLayers}
             sampleCount={exp.samples.length}
             canEdit={canEdit}
             onApply={handleApplyTestPlan}

@@ -137,7 +137,12 @@ export async function setJvDisplayPolicy(resultId: string, policy: string) {
   return setJvMetricPolicy(actor, String(resultId), String(policy));
 }
 
-export async function regroupSample(sampleId: string, zone: string) {
+export async function regroupSample(sampleId: string, zone: string, note?: string) {
   const actor = await requireSession();
-  return regroupSampleService(actor, String(sampleId), String(zone));
+  return regroupSampleService(
+    actor,
+    String(sampleId),
+    String(zone),
+    note === undefined ? undefined : String(note),
+  );
 }
