@@ -75,11 +75,9 @@ export function SubstrateBoard({
     },
     onTap: selection
       ? (sample) => {
-          // Extras/Trash hold no plan values, so they are drag-only.
-          const zone = assignments[sample];
-          if (zone !== EXTRA_GROUP && zone !== ERROR_GROUP) {
-            selection.onToggleSample(sample);
-          }
+          // Extras/Trash still need capture notes and photos after a sample
+          // is moved there, so every chip remains tappable.
+          selection.onToggleSample(sample);
         }
       : undefined,
   });
@@ -104,11 +102,12 @@ export function SubstrateBoard({
     return (
       <span
         key={code}
+        data-substrate-sample={code}
         data-substrate-zone={zone}
         onPointerDown={disabled ? undefined : startDrag(code)}
         onContextMenu={(e) => e.preventDefault()}
         className={
-          "w-[4.6rem] h-9 shrink-0 rounded-[5px] border flex flex-col items-center justify-center leading-none gap-0.5 select-none [-webkit-touch-callout:none] transition-opacity " +
+          "w-[3.75rem] h-8 shrink-0 rounded-[5px] border flex flex-col items-center justify-center leading-none gap-0.5 select-none [-webkit-touch-callout:none] transition-opacity " +
           (disabled ? "opacity-60 " : "cursor-grab [touch-action:pan-y] active:cursor-grabbing ") +
           (lifted ? "opacity-30 " : "") +
           (isSelected
@@ -118,7 +117,7 @@ export function SubstrateBoard({
               : "bg-surface text-charcoal border-line")
         }
       >
-        <span className="mono text-[11.5px] font-semibold flex items-center gap-0.5">
+        <span className="mono text-[11px] font-semibold flex items-center gap-0.5">
           <Icon
             name="GripVertical"
             size={9}
@@ -128,7 +127,7 @@ export function SubstrateBoard({
           {isCaptured && <span className={isSelected ? "text-brand" : ""}>✓</span>}
         </span>
         {simCodes[code] && (
-          <span className={"mono text-[8.5px] " + (isSelected ? "text-white/60" : "text-muted")}>
+          <span className={"mono text-[8px] " + (isSelected ? "text-white/60" : "text-muted")}>
             {simCodes[code]}
           </span>
         )}
@@ -213,7 +212,7 @@ export function SubstrateBoard({
           <span className="mono ml-1 font-normal text-muted">{members.length}</span>
         </span>
         <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-          {members.map((code) => chip(code, key, false))}
+          {members.map((code) => chip(code, key, true))}
           {members.length === 0 && (
             <span className="text-[10px] text-muted pt-1.5">{t("plan.dropHere")}</span>
           )}

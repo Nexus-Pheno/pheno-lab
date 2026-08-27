@@ -59,11 +59,21 @@ const experimentInclude = {
       process: true,
       equipment: true,
       environment: true,
-      results: true,
+      results: {
+        where: {
+          OR: [
+            { runId: null },
+            { run: { is: { status: { not: "CANCELLED" } } } },
+          ],
+        },
+      },
     },
   },
   labels: { include: { label: true } },
-  runs: { include: { executions: true } },
+  runs: {
+    where: { status: { not: "CANCELLED" } },
+    include: { executions: true },
+  },
 } satisfies Prisma.ExperimentInclude;
 
 type FullExperiment = Prisma.ExperimentGetPayload<{

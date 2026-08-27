@@ -429,6 +429,10 @@ export const en = {
   "cap.newRun": "Start new run",
   "cap.newRunHint":
     "Execute the same plan again with a fresh set of actuals and results (e.g. a reproducibility batch).",
+  "cap.deleteRun": "Delete current run",
+  "cap.deleteRunQ": "Delete Run {run}?",
+  "cap.confirmDeleteRun": "Confirm delete run",
+  "cap.keepOneRun": "At least one run must remain",
 
   // Mobile input portal
   "portal.title": "Lab input portal",
@@ -840,6 +844,8 @@ export const en = {
   "cap.photos": "Photos",
   "cap.noPhotos": "No photos yet — add one from the camera or gallery.",
   "cap.photoOf": "Photo",
+  "cap.deletePhotoQ": "Delete photo?",
+  "cap.confirmDeletePhoto": "Confirm delete photo",
 
   // Results comparison
   "res.title": "Results",
@@ -1402,6 +1408,10 @@ export const zh: Record<TKey, string> = {
   "cap.newRun": "开始新批次",
   "cap.newRunHint":
     "使用同一方案再次执行，记录全新的实际值与结果（如重复性验证批次）。",
+  "cap.deleteRun": "删除当前批次",
+  "cap.deleteRunQ": "删除批次 {run}？",
+  "cap.confirmDeleteRun": "确认删除批次",
+  "cap.keepOneRun": "至少保留一个批次",
 
   "portal.title": "实验录入门户",
   "portal.subtitle": "可进行数据采集的实验",
@@ -1786,6 +1796,8 @@ export const zh: Record<TKey, string> = {
   "cap.photos": "照片",
   "cap.noPhotos": "暂无照片——可从相机或相册添加。",
   "cap.photoOf": "照片",
+  "cap.deletePhotoQ": "删除照片？",
+  "cap.confirmDeletePhoto": "确认删除照片",
 
   "res.title": "结果",
   "res.compare": "结果对比",

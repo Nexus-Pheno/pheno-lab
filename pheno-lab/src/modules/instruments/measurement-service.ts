@@ -229,7 +229,10 @@ export async function assignMeasurement(
   }
 
   const run = await db.run.findFirst({
-    where: { experimentId: sample.experimentId },
+    where: {
+      experimentId: sample.experimentId,
+      status: { not: "CANCELLED" },
+    },
     orderBy: { runNo: "desc" },
     select: { id: true },
   });

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentFull, StepFull, SampleRow } from "@/lib/types";
-import { saveExecutionBatch, saveCharResult, createNewRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
+import { saveExecutionBatch, saveCharResult, createNewRun, deleteRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
 import { submitForReview } from "@/lib/actions/workflow";
 import { regroupSample } from "@/lib/actions/runs";
 import { SubstrateBoard } from "@/components/designer/SubstrateBoard";
@@ -81,10 +81,11 @@ export function CaptureView({
 }) {
   const t = useT();
   const router = useRouter();
-  void runNo;
   const [executions, setExecutions] = useState<Execution[]>(initialExecutions);
   const [results, setResults] = useState<CharResult[]>(initialResults);
   const [slide, setSlide] = useState(0);
+  const [runDeleteAsk, setRunDeleteAsk] = useState(false);
+  const [runBusy, setRunBusy] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
   // Capture owns the whole screen: hide the app chrome header while mounted.
@@ -120,6 +121,7 @@ export function CaptureView({
   const moveSubstrate = async (code: string, zone: string) => {
     const sample = exp.samples.find((s) => s.code === code);
     if (!sample) return;
+    const previousZone = assignments[code] ?? "EXTRA";
     // Trashing a substrate records why; photos can be added on the step card.
     let note: string | undefined;
     if (zone === "ERROR") {
@@ -132,7 +134,7 @@ export function CaptureView({
       await regroupSample(sample.id, zone, note);
       router.refresh();
     } catch {
-      setAssignments((a) => ({ ...a, [code]: sample.variationGroup ?? "EXTRA" }));
+      setAssignments((a) => ({ ...a, [code]: previousZone }));
     }
   };
 
@@ -226,7 +228,9 @@ export function CaptureView({
             className="shrink-0 h-9 border border-line rounded-full px-2 text-[11px] bg-surface mono max-w-24"
             value={runId}
             title={t("cap.newRunHint")}
+            disabled={runBusy}
             onChange={async (e) => {
+              setRunDeleteAsk(false);
               if (e.target.value === "__new__") {
                 const r = await createNewRun(exp.id);
                 router.push(`/experiments/${exp.id}/capture?run=${r.id}`);
@@ -240,6 +244,56 @@ export function CaptureView({
             ))}
             <option value="__new__">＋ {t("cap.newRun")}</option>
           </select>
+          {runDeleteAsk ? (
+            <span className="shrink-0 h-9 flex items-center gap-1 bg-warn-soft border border-warn-line rounded-full pl-2.5 pr-1.5">
+              <span className="text-[10.5px] font-semibold text-warn whitespace-nowrap">
+                {t("cap.deleteRunQ", { run: String(runNo) })}
+              </span>
+              <button
+                type="button"
+                disabled={runBusy}
+                onClick={async () => {
+                  setRunBusy(true);
+                  try {
+                    const result = await deleteRun(runId);
+                    router.replace(
+                      `/experiments/${exp.id}/capture?run=${result.nextRunId}`,
+                    );
+                  } finally {
+                    setRunBusy(false);
+                  }
+                }}
+                className="w-6 h-6 rounded-full text-danger bg-surface flex items-center justify-center disabled:opacity-50"
+                title={t("cap.confirmDeleteRun")}
+                aria-label={t("cap.confirmDeleteRun")}
+              >
+                <Icon name="Check" size={12} />
+              </button>
+              <button
+                type="button"
+                disabled={runBusy}
+                onClick={() => setRunDeleteAsk(false)}
+                className="w-6 h-6 rounded-full text-muted bg-surface flex items-center justify-center disabled:opacity-50"
+                title={t("plan.cancel")}
+                aria-label={t("plan.cancel")}
+              >
+                <Icon name="X" size={12} />
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              disabled={runs.length <= 1 || runBusy}
+              onClick={() => setRunDeleteAsk(true)}
+              className="shrink-0 w-9 h-9 rounded-full border border-line bg-surface text-muted flex items-center justify-center hover:bg-warn-soft hover:text-danger disabled:opacity-35 disabled:hover:bg-surface disabled:hover:text-muted"
+              title={
+                runs.length <= 1 ? t("cap.keepOneRun") : t("cap.deleteRun")
+              }
+              aria-label={t("cap.deleteRun")}
+            >
+              <Icon name="Trash2" size={14} />
+            </button>
+          )}
           <span className="shrink-0 w-px h-5 bg-line mx-0.5" />
           {orderedSteps.map((st, i) => {
             const captured = execsFor(st.id).length;
@@ -489,8 +543,8 @@ function BatchStepCapture({
   const capturedIds = useMemo(() => new Set(executions.map((x) => x.sampleId)), [executions]);
 
   // Selection is a set of samples, toggled per group or per sample; multiple
-  // groups can be combined. Varied steps stay one group at a time (planned
-  // values differ per group, so one form can't cover two groups).
+  // groups can be combined, and Extras/Trash remain selectable for notes and
+  // photos after regrouping.
   // Only the first sample starts selected — the user widens the scope
   // deliberately by tapping groups or "All samples".
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
@@ -502,8 +556,8 @@ function BatchStepCapture({
   const allSelected = samples.length > 0 && selectedIds.size === samples.length;
 
   const grouped = useMemo(
-    () => samples.filter((s) => s.variationGroup && s.variationGroup !== "ERROR"),
-    [samples],
+    () => samples.filter((s) => groups.includes(assignments[s.code])),
+    [assignments, groups, samples],
   );
   const allGroupedSelected =
     grouped.length > 0 && grouped.every((s) => selectedIds.has(s.id));
@@ -513,7 +567,9 @@ function BatchStepCapture({
     );
 
   const toggleGroup = (g: string) => {
-    const ids = samples.filter((s) => s.variationGroup === g).map((s) => s.id);
+    const ids = samples
+      .filter((s) => assignments[s.code] === g)
+      .map((s) => s.id);
     setSelectedIds((prev) => {
       const has = ids.every((id) => prev.has(id));
       const next = new Set(prev);
@@ -532,9 +588,12 @@ function BatchStepCapture({
   };
 
   // Planned values resolve per group when the selection sits in one group.
+  const targetZones = targets.map((s) => assignments[s.code]);
   const scopeGroup =
-    targets.length > 0 && targets.every((s) => s.variationGroup === targets[0].variationGroup)
-      ? targets[0].variationGroup ?? null
+    targetZones.length > 0 &&
+    targetZones.every((zone) => zone === targetZones[0]) &&
+    groups.includes(targetZones[0])
+      ? targetZones[0]
       : null;
 
   const planned = useMemo(() => plannedFor(step, scopeGroup), [step, scopeGroup]);
@@ -549,6 +608,7 @@ function BatchStepCapture({
   const [flagged, setFlagged] = useState(existing?.flagged ?? false);
   const [existingPhotos, setExistingPhotos] = useState<{ id: string; path: string }[]>(existing?.photos ?? []);
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
+  const [pendingPhotoDelete, setPendingPhotoDelete] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -571,6 +631,7 @@ function BatchStepCapture({
     setFlagged(false);
     setExistingPhotos([]);
     setNewPhotos([]);
+    setPendingPhotoDelete(null);
     setOverwriteAsk(false);
     onCleared(ids);
   };
@@ -611,6 +672,7 @@ function BatchStepCapture({
     setFlagged(ex?.flagged ?? false);
     setExistingPhotos(ex?.photos ?? []);
     setNewPhotos([]);
+    setPendingPhotoDelete(null);
     setOverwriteAsk(false);
     setClearAsk(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -642,6 +704,7 @@ function BatchStepCapture({
     setEditing(false);
     setExistingPhotos(saved[0]?.attachments.map((a) => ({ id: a.id, path: a.storedPath })) ?? existingPhotos);
     setNewPhotos([]);
+    setPendingPhotoDelete(null);
     onSaved(saved.map((x) => ({
       stepId: step.id,
       sampleId: x.sampleId,
@@ -661,17 +724,17 @@ function BatchStepCapture({
   const selectionLabel = useMemo(() => {
     if (allSelected) return t("cap.batchAll");
     const fullGroups = groups.filter((g) => {
-      const ids = samples.filter((s) => s.variationGroup === g);
+      const ids = samples.filter((s) => assignments[s.code] === g);
       return ids.length > 0 && ids.every((s) => selectedIds.has(s.id));
     });
     const leftover = targets.filter(
-      (s) => !s.variationGroup || !fullGroups.includes(s.variationGroup)
+      (s) => !fullGroups.includes(assignments[s.code])
     );
     return [
       ...fullGroups.map((g) => `${t("cap.batchGroup")} ${g}`),
       ...leftover.map((s) => s.code),
     ].join(", ");
-  }, [allSelected, groups, samples, selectedIds, targets, t]);
+  }, [allSelected, assignments, groups, samples, selectedIds, targets, t]);
 
   // One segment of a group control. Tapping toggles that sample in/out of
   // the selection; selected segments go dark.
@@ -879,14 +942,47 @@ function BatchStepCapture({
                   <span key={ph} className="relative shrink-0">
                     <button onClick={() => setGalleryOpen(true)}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/files/${ph}`} alt="" className="h-14 w-14 object-cover rounded-[4px] border border-brand/50" />
+                      <img
+                        src={`/api/files/${ph}`}
+                        alt=""
+                        className="h-14 w-14 object-cover rounded-[4px] border border-brand/50"
+                      />
                     </button>
-                    <button
-                      onClick={() => setNewPhotos((p) => p.filter((x) => x !== ph))}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center"
-                    >
-                      <Icon name="X" size={11} />
-                    </button>
+                    {pendingPhotoDelete === ph ? (
+                      <span className="absolute -top-2 -right-2 flex items-center gap-0.5 rounded-full bg-surface border border-warn-line p-0.5 shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewPhotos((p) => p.filter((x) => x !== ph));
+                            setPendingPhotoDelete(null);
+                          }}
+                          className="w-5 h-5 rounded-full text-danger flex items-center justify-center"
+                          title={t("cap.confirmDeletePhoto")}
+                          aria-label={t("cap.confirmDeletePhoto")}
+                        >
+                          <Icon name="Check" size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingPhotoDelete(null)}
+                          className="w-5 h-5 rounded-full text-muted flex items-center justify-center"
+                          title={t("plan.cancel")}
+                          aria-label={t("plan.cancel")}
+                        >
+                          <Icon name="X" size={11} />
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPendingPhotoDelete(ph)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-ink text-white flex items-center justify-center"
+                        title={t("cap.deletePhotoQ")}
+                        aria-label={t("cap.deletePhotoQ")}
+                      >
+                        <Icon name="X" size={11} />
+                      </button>
+                    )}
                   </span>
                 ))}
               </div>
@@ -1030,7 +1126,12 @@ function PhotoGallery({
         <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
           <Icon name="Camera" size={15} className="text-charcoal" />
           <h3 className="text-[14px] font-bold flex-1">{t("cap.photos")} ({photos.length})</h3>
-          <button onClick={onClose} className="p-1.5 rounded-[3px] text-muted hover:bg-subtle">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-[3px] text-muted hover:bg-subtle"
+            title={t("lib.close")}
+            aria-label={t("lib.close")}
+          >
             <Icon name="X" size={16} />
           </button>
         </div>
@@ -1048,20 +1149,30 @@ function PhotoGallery({
                   </button>
                   {confirming === ph.path ? (
                     <span className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-center gap-1 bg-surface/95 border border-warn-line rounded-[4px] py-1">
-                      <span className="text-[10px] font-semibold text-warn">{t("card.deleteQ")}</span>
+                      <span className="text-[10px] font-semibold text-warn">{t("cap.deletePhotoQ")}</span>
                       <button
                         disabled={busy}
                         onClick={async () => {
                           setBusy(true);
-                          await onDelete(ph);
-                          setBusy(false);
-                          setConfirming(null);
+                          try {
+                            await onDelete(ph);
+                            setConfirming(null);
+                          } finally {
+                            setBusy(false);
+                          }
                         }}
                         className="p-0.5 text-danger"
+                        title={t("cap.confirmDeletePhoto")}
+                        aria-label={t("cap.confirmDeletePhoto")}
                       >
                         <Icon name="Check" size={13} />
                       </button>
-                      <button onClick={() => setConfirming(null)} className="p-0.5 text-muted">
+                      <button
+                        onClick={() => setConfirming(null)}
+                        className="p-0.5 text-muted"
+                        title={t("plan.cancel")}
+                        aria-label={t("plan.cancel")}
+                      >
                         <Icon name="X" size={13} />
                       </button>
                     </span>
@@ -1069,6 +1180,8 @@ function PhotoGallery({
                     <button
                       onClick={() => setConfirming(ph.path)}
                       className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-ink/70 text-white flex items-center justify-center"
+                      title={t("cap.deletePhotoQ")}
+                      aria-label={t("cap.deletePhotoQ")}
                     >
                       <Icon name="Trash2" size={13} />
                     </button>
