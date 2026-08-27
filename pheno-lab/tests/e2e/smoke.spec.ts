@@ -217,7 +217,7 @@ test("capture controls keep chips dense, select Trash, confirm photo deletion, a
                     position: 2,
                     name: "Material",
                     value: material.name,
-                    source: "material",
+                    source: "custom",
                   },
                 ],
               },

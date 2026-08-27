@@ -25,6 +25,11 @@ const categoricalFieldPatterns = [
   /(?:工艺|溶剂|配方|添加剂|钝化剂|处理方式|气体|材料)$/u,
 ];
 
+// Historical imported plans can carry a material slot as source="custom".
+// Its semantic name still makes it a Material-card field; a concentration or
+// other measured parameter merely mentioning material remains free text.
+const materialFieldPattern = /(?:^|\s)material$|材料$/iu;
+
 const uniqueNonEmpty = (values: string[]) => {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -108,6 +113,9 @@ export function captureFieldKind(
   parameter: Pick<CaptureFieldParameter, "name" | "unit" | "source">,
 ): CaptureFieldKind {
   if (parameter.source === "material") return "material";
+  if (!parameter.unit.trim() && materialFieldPattern.test(parameter.name)) {
+    return "material";
+  }
   if (parameter.unit.trim()) return "text";
   return categoricalFieldPatterns.some((pattern) =>
     pattern.test(parameter.name),
