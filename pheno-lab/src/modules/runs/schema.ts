@@ -15,6 +15,13 @@ export const objectKeySchema = z
 
 export const executionDataSchema = z.object({
   actuals: stringMapSchema,
+  materialSelections: z
+    .record(
+      z.string().trim().min(1).max(200),
+      z.string().trim().min(1).max(128),
+    )
+    .refine((value) => Object.keys(value).length <= 200, "Too many fields")
+    .default({}),
   environmentConditions: stringMapSchema,
   note: z.string().max(10_000),
   flagged: z.boolean(),

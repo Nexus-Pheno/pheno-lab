@@ -120,6 +120,106 @@ describe("capture relational integrity", () => {
       await db.organization.delete({ where: { id: org.id } });
     }
   });
+
+  it("requires material actuals to reference an active organization material card", async () => {
+    const suffix = crypto.randomUUID();
+    const org = await db.organization.create({
+      data: {
+        name: "Material Capture Org",
+        slug: `capture-material-${suffix}`,
+      },
+    });
+    const user = await db.user.create({
+      data: {
+        organizationId: org.id,
+        email: `capture-material-${suffix}@example.test`,
+        name: "Material Capture Owner",
+        passwordHash: "test-only",
+        role: "MANAGER",
+      },
+    });
+    const process = await db.process.create({
+      data: {
+        organizationId: org.id,
+        name: `Blade coat ${suffix}`,
+        kind: "PROCESSING",
+      },
+    });
+    const material = await db.material.create({
+      data: {
+        organizationId: org.id,
+        processId: process.id,
+        name: "Linked SAM card",
+      },
+    });
+    const experiment = await db.experiment.create({
+      data: {
+        organizationId: org.id,
+        code: `CAP-MAT-${suffix}`,
+        title: "Material capture",
+        createdById: user.id,
+        samples: { create: { code: "S1" } },
+        steps: {
+          create: {
+            position: 0,
+            processId: process.id,
+            name: "Blade coat",
+            parameters: {
+              create: {
+                position: 0,
+                name: "Material",
+                value: material.name,
+                source: "material",
+              },
+            },
+          },
+        },
+        runs: { create: { runNo: 1, status: "IN_PROGRESS" } },
+      },
+      include: { samples: true, steps: true, runs: true },
+    });
+    const actor = { uid: user.id, org: org.id, role: "MANAGER" } as const;
+    const input = (actual: string, materialId?: string) =>
+      executionBatchSchema.parse({
+        runId: experiment.runs[0].id,
+        stepId: experiment.steps[0].id,
+        sampleIds: [experiment.samples[0].id],
+        data: {
+          actuals: { Material: actual },
+          materialSelections: materialId ? { Material: materialId } : {},
+          environmentConditions: {},
+          note: "",
+          flagged: false,
+        },
+      });
+
+    try {
+      await expect(
+        saveExecutionBatchService(actor, input("unlinked free text")),
+      ).rejects.toThrow(/material card/i);
+      await expect(
+        saveExecutionBatchService(actor, input("Wrong label", material.id)),
+      ).rejects.toThrow(/does not match/i);
+
+      const [saved] = await saveExecutionBatchService(
+        actor,
+        input(material.name, material.id),
+      );
+      expect(saved.materialSelections).toEqual([
+        expect.objectContaining({
+          materialId: material.id,
+          parameterName: "Material",
+        }),
+      ]);
+    } finally {
+      await db.auditEvent.deleteMany({ where: { organizationId: org.id } });
+      await db.experiment.deleteMany({ where: { organizationId: org.id } });
+      await db.material.deleteMany({ where: { organizationId: org.id } });
+      await db.process.deleteMany({ where: { organizationId: org.id } });
+      await db.user.deleteMany({ where: { organizationId: org.id } });
+      await db.organization.delete({ where: { id: org.id } });
+    }
+  });
 });
 
 describe("run cancellation", () => {

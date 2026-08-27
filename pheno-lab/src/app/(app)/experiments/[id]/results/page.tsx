@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { getT, getTerm } from "@/lib/i18n/server";
 import type { TestPlan } from "@/lib/library";
+import { isScientificSample, resultGroupLabels } from "@/lib/results";
 import { Icon } from "@/components/ui";
 import { SmartBack } from "@/components/SmartBack";
 import { getResultsExperiment } from "@/modules/experiments/query";
@@ -24,10 +25,11 @@ export default async function ResultsPage({
   if (!exp) notFound();
 
   const plan = (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan;
-  const groups = [
-    ...new Set(exp.samples.map((s) => s.variationGroup).filter(Boolean)),
-  ].sort() as string[];
+  const groups = resultGroupLabels(plan?.groups, exp.samples);
   const controlGroup = plan?.groups.find((g) => g.isControl)?.label;
+  const scientificSampleIds = new Set(
+    exp.samples.filter(isScientificSample).map((sample) => sample.id),
+  );
 
   // Tested variables with per-group values, from the steps' variations.
   const variables = exp.steps.flatMap((st) =>
@@ -44,10 +46,13 @@ export default async function ResultsPage({
   );
 
   const hasAnyResult = exp.characterizations.some((c) =>
-    c.results.some((r) =>
-      Object.values((r.metrics ?? {}) as Record<string, string>).some(
-        (v) => v !== "",
-      ),
+    c.results.some(
+      (r) =>
+        r.sampleId !== null &&
+        scientificSampleIds.has(r.sampleId) &&
+        Object.values((r.metrics ?? {}) as Record<string, string>).some(
+          (v) => v !== "",
+        ),
     ),
   );
 
@@ -103,34 +108,44 @@ export default async function ResultsPage({
                 </tr>
               </thead>
               <tbody>
-                {groups.map((g) => (
-                  <tr key={g} className="border-t border-line">
-                    <td className="pr-4 py-1.5">
-                      <span
-                        className={
-                          "mono font-bold " +
-                          (g === controlGroup ? "" : "text-brand-deep")
-                        }
-                      >
-                        {g}
-                      </span>
-                      {g === controlGroup && (
-                        <span className="text-[10px] text-muted">
-                          {" "}
-                          ({t("plan.controlWord")})
+                {groups.map((g) => {
+                  const sampleCount = exp.samples.filter(
+                    (sample) => sample.variationGroup === g,
+                  ).length;
+                  return (
+                    <tr
+                      key={g}
+                      className="border-t border-line"
+                      data-result-group={g}
+                      data-empty-group={sampleCount === 0 ? "true" : undefined}
+                    >
+                      <td className="pr-4 py-1.5">
+                        <span
+                          className={
+                            "mono font-bold " +
+                            (g === controlGroup ? "" : "text-brand-deep")
+                          }
+                        >
+                          {g}
                         </span>
-                      )}
-                    </td>
-                    {variables.map((v, i) => (
-                      <td key={i} className="pr-4 py-1.5 mono">
-                        {v.values[g] ?? "—"}
+                        {g === controlGroup && (
+                          <span className="text-[10px] text-muted">
+                            {" "}
+                            ({t("plan.controlWord")})
+                          </span>
+                        )}
                       </td>
-                    ))}
-                    <td className="py-1.5 mono text-right">
-                      {exp.samples.filter((s) => s.variationGroup === g).length}
-                    </td>
-                  </tr>
-                ))}
+                      {variables.map((v, i) => (
+                        <td key={i} className="pr-4 py-1.5 mono">
+                          {sampleCount > 0 ? (v.values[g] ?? "—") : "—"}
+                        </td>
+                      ))}
+                      <td className="py-1.5 mono text-right">
+                        {sampleCount > 0 ? sampleCount : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </section>
@@ -146,11 +161,17 @@ export default async function ResultsPage({
         {exp.characterizations.map((c) => {
           const metricNames = [
             ...new Set(
-              c.results.flatMap((r) =>
-                Object.entries((r.metrics ?? {}) as Record<string, string>)
-                  .filter(([, v]) => v !== "")
-                  .map(([k]) => k),
-              ),
+              c.results
+                .filter(
+                  (result) =>
+                    result.sampleId !== null &&
+                    scientificSampleIds.has(result.sampleId),
+                )
+                .flatMap((r) =>
+                  Object.entries((r.metrics ?? {}) as Record<string, string>)
+                    .filter(([, v]) => v !== "")
+                    .map(([k]) => k),
+                ),
             ),
           ];
           if (metricNames.length === 0) return null;
@@ -186,8 +207,31 @@ export default async function ResultsPage({
                 <tbody>
                   {(groups.length > 0 ? groups : [null]).map((g) => {
                     const samples = exp.samples.filter((s) =>
-                      g === null ? true : s.variationGroup === g,
+                      g === null
+                        ? isScientificSample(s)
+                        : s.variationGroup === g,
                     );
+                    if (g !== null && samples.length === 0) {
+                      return (
+                        <tr
+                          key={`${g}-empty`}
+                          className="border-t border-line"
+                          data-result-group={g}
+                          data-empty-group="true"
+                        >
+                          <td className="pr-4 py-1.5 mono">—</td>
+                          <td className="pr-4 py-1.5 mono">{g}</td>
+                          {metricNames.map((metric) => (
+                            <td
+                              key={metric}
+                              className="pr-4 py-1.5 mono text-right"
+                            >
+                              —
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    }
                     const withData = samples.filter((s) =>
                       metricNames.some(
                         (m) => (resultFor(s.id)[m] ?? "") !== "",
@@ -199,7 +243,7 @@ export default async function ResultsPage({
                         <tr key={s.id} className="border-t border-line">
                           <td className="pr-4 py-1.5 mono">{s.code}</td>
                           <td className="pr-4 py-1.5 mono">
-                            {s.variationGroup}
+                            {s.variationGroup ?? "—"}
                             {s.variationGroup === controlGroup && (
                               <span className="text-[10px] text-muted">
                                 {" "}

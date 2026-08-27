@@ -409,26 +409,27 @@ model LabEnvironment {
 // Materials are categorized under a process: under PVD you only see PVD
 // materials, not inks that belong to spin coating.
 model Material {
-  id              String         @id @default(cuid())
+  id              String              @id @default(cuid())
   organizationId  String
-  organization    Organization   @relation(fields: [organizationId], references: [id])
+  organization    Organization        @relation(fields: [organizationId], references: [id])
   processId       String?
-  process         Process?       @relation(fields: [processId], references: [id])
+  process         Process?            @relation(fields: [processId], references: [id])
   name            String
   // Wiki card: managed by material administrators only.
-  category        String         @default("OTHER") // SAM | PRECURSOR | EVAPORATION | SPUTTER | ALD | SOLVENT | OTHER
-  composition     String         @default("") // molecular/structural formula
-  smiles          String         @default("") // SMILES — renders the 2D structure for organics
-  casNumber       String         @default("")
-  molecularWeight String         @default("") // g/mol
-  purity          String         @default("")
-  supplier        String         @default("") // vendor
-  lot             String         @default("") // batch number
+  category        String              @default("OTHER") // SAM | PRECURSOR | EVAPORATION | SPUTTER | ALD | SOLVENT | OTHER
+  composition     String              @default("") // molecular/structural formula
+  smiles          String              @default("") // SMILES — renders the 2D structure for organics
+  casNumber       String              @default("")
+  molecularWeight String              @default("") // g/mol
+  purity          String              @default("")
+  supplier        String              @default("") // vendor
+  lot             String              @default("") // batch number
   properties      Json? // characteristics: HOMO/LUMO, band gap, bp, density, storage…
-  notes           String         @default("")
-  archived        Boolean        @default(false)
-  createdAt       DateTime       @default(now())
+  notes           String              @default("")
+  archived        Boolean             @default(false)
+  createdAt       DateTime            @default(now())
   stepMaterials   StepMaterial[]
+  executions      ExecutionMaterial[]
 }
 
 // Material categories are org-defined: the lab adds, renames and reorders
@@ -588,21 +589,36 @@ model Run {
 }
 
 model StepExecution {
-  id                    String       @id @default(cuid())
+  id                    String              @id @default(cuid())
   runId                 String
-  run                   Run          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run                   Run                 @relation(fields: [runId], references: [id], onDelete: Cascade)
   stepId                String
-  step                  ProcessStep  @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  step                  ProcessStep         @relation(fields: [stepId], references: [id], onDelete: Cascade)
   sampleId              String
-  sample                Sample       @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  sample                Sample              @relation(fields: [sampleId], references: [id], onDelete: Cascade)
   actuals               Json // { paramName: value, ... }
   environmentConditions Json? // measured conditions at capture time
-  note                  String       @default("")
-  flagged               Boolean      @default(false)
-  capturedAt            DateTime     @default(now())
+  note                  String              @default("")
+  flagged               Boolean             @default(false)
+  capturedAt            DateTime            @default(now())
   attachments           Attachment[]
+  materialSelections    ExecutionMaterial[]
 
   @@unique([runId, stepId, sampleId])
+}
+
+// A material-valued actual is both human-readable in StepExecution.actuals
+// and relationally tied to the canonical Material card selected in capture.
+model ExecutionMaterial {
+  id            String        @id @default(cuid())
+  executionId   String
+  execution     StepExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  parameterName String
+  materialId    String
+  material      Material      @relation(fields: [materialId], references: [id])
+
+  @@unique([executionId, parameterName])
+  @@index([materialId])
 }
 
 model CharacterizationResult {

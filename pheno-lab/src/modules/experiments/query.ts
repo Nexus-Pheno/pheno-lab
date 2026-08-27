@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/infrastructure/db/client";
+import { buildCaptureChoiceCatalog } from "@/lib/capture-fields";
 import { experimentInclude } from "@/lib/types";
 import type { Actor } from "@/modules/authorization/actor";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
@@ -148,23 +149,57 @@ export async function getCaptureRunData(
 ) {
   const experimentId = experimentIdSchema.parse(rawExperimentId);
   const runId = rawRunId ? experimentIdSchema.parse(rawRunId) : undefined;
-  const [runs, layers] = await Promise.all([
-    db.run.findMany({
-      where: { experimentId, status: { not: "CANCELLED" } },
-      orderBy: { runNo: "asc" },
-    }),
-    db.deviceLayer.findMany({
-      where: { organizationId: actor.org },
-      orderBy: { position: "asc" },
-      select: { code: true, name: true },
-    }),
-  ]);
+  const [runs, layers, materials, categoryLayers, captureProcesses] =
+    await Promise.all([
+      db.run.findMany({
+        where: { experimentId, status: { not: "CANCELLED" } },
+        orderBy: { runNo: "asc" },
+      }),
+      db.deviceLayer.findMany({
+        where: { organizationId: actor.org },
+        orderBy: { position: "asc" },
+        select: { code: true, name: true },
+      }),
+      db.material.findMany({
+        where: { organizationId: actor.org, archived: false },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          processId: true,
+          category: true,
+        },
+      }),
+      db.materialCategoryDef.findMany({
+        where: { organizationId: actor.org },
+        select: { code: true, layers: true },
+      }),
+      db.process.findMany({
+        where: {
+          organizationId: actor.org,
+          archived: false,
+          kind: "PROCESSING",
+        },
+        select: {
+          id: true,
+          parameters: true,
+          equipment: {
+            where: { archived: false },
+            select: { parameters: true },
+          },
+          presets: {
+            where: { kind: "STEP" },
+            select: { payload: true },
+          },
+        },
+      }),
+    ]);
   const run = runs.find((row) => row.id === runId) ?? runs.at(-1);
   if (!run) throw new Error("Experiment has no capture run.");
   const [executions, results] = await Promise.all([
     db.stepExecution.findMany({
       where: { runId: run.id },
-      include: { attachments: true },
+      include: { attachments: true, materialSelections: true },
     }),
     db.characterizationResult.findMany({
       where: {
@@ -173,7 +208,16 @@ export async function getCaptureRunData(
       },
     }),
   ]);
-  return { runs, run, executions, results, layers };
+  return {
+    runs,
+    run,
+    executions,
+    results,
+    layers,
+    materials,
+    categoryLayers,
+    captureChoiceCatalog: buildCaptureChoiceCatalog(captureProcesses),
+  };
 }
 
 export async function getResultsExperiment(actor: Actor, rawId: unknown) {

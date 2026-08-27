@@ -42,11 +42,16 @@ export default async function CapturePage({
   }
 
   await getOrCreateRunService(session, experiment.id);
-  const { runs, run, executions, results, layers } = await getCaptureRunData(
-    session,
-    experiment.id,
-    runParam,
-  );
+  const {
+    runs,
+    run,
+    executions,
+    results,
+    layers,
+    materials,
+    categoryLayers,
+    captureChoiceCatalog,
+  } = await getCaptureRunData(session, experiment.id, runParam);
 
   // In portal mode, Back returns to the portal home, not the desktop designer.
   const backHref =
@@ -61,6 +66,9 @@ export default async function CapturePage({
       exp={experiment}
       backHref={backHref}
       layers={layers}
+      materials={materials}
+      categoryLayers={categoryLayers}
+      captureChoiceCatalog={captureChoiceCatalog}
       runId={run.id}
       runNo={run.runNo}
       runs={runs.map((r) => ({ id: r.id, runNo: r.runNo }))}
@@ -68,6 +76,12 @@ export default async function CapturePage({
         stepId: x.stepId,
         sampleId: x.sampleId,
         actuals: (x.actuals ?? {}) as Record<string, string>,
+        materialSelections: Object.fromEntries(
+          x.materialSelections.map((selection) => [
+            selection.parameterName,
+            selection.materialId,
+          ]),
+        ),
         environmentConditions: (x.environmentConditions ?? {}) as Record<
           string,
           string
