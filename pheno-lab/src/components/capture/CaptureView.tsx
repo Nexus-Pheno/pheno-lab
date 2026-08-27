@@ -201,7 +201,6 @@ export function CaptureView({
       {/* Compact header */}
       <div className="shrink-0 bg-surface border-b border-line px-3 pt-2.5 pb-2 space-y-2">
         <div className="flex items-center gap-2 whitespace-nowrap">
-          <Icon name="ClipboardPen" size={15} className="text-brand-deep shrink-0" />
           <Link href="/portal" title={t("portal.title")} className="shrink-0 -my-1 py-1 pr-1">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pheno-icon.png" alt="Pheno" className="w-6 h-6" />
@@ -217,8 +216,15 @@ export function CaptureView({
           </Link>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex-1 h-1 bg-subtle rounded-full overflow-hidden">
+            <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${totalNeeded ? (totalDone / totalNeeded) * 100 : 0}%` }} />
+          </div>
+        </div>
+
+        {/* Step dot navigation — run selector, then steps, then characterization */}
+        <div className="no-scrollbar flex items-center gap-1 overflow-x-auto -mx-3 px-3">
           <select
-            className="h-8 border border-line rounded-[4px] px-1.5 text-[12px] bg-surface mono max-w-44"
+            className="shrink-0 h-9 border border-line rounded-full px-2 text-[11px] bg-surface mono max-w-24"
             value={runId}
             title={t("cap.newRunHint")}
             onChange={async (e) => {
@@ -235,13 +241,7 @@ export function CaptureView({
             ))}
             <option value="__new__">＋ {t("cap.newRun")}</option>
           </select>
-          <div className="flex-1 h-1 bg-subtle rounded-full overflow-hidden">
-            <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${totalNeeded ? (totalDone / totalNeeded) * 100 : 0}%` }} />
-          </div>
-        </div>
-
-        {/* Step dot navigation — steps first, then characterization */}
-        <div className="no-scrollbar flex items-center gap-1 overflow-x-auto -mx-3 px-3">
+          <span className="shrink-0 w-px h-5 bg-line mx-0.5" />
           {orderedSteps.map((st, i) => {
             const captured = execsFor(st.id).length;
             const full = captured === exp.samples.length && exp.samples.length > 0;
@@ -252,7 +252,7 @@ export function CaptureView({
                 onClick={() => jumpTo(i)}
                 title={st.name}
                 className={
-                  "shrink-0 w-9 h-9 rounded-full text-[11px] font-bold border flex items-center justify-center " +
+                  "shrink-0 w-10 h-10 rounded-full font-bold border flex flex-col items-center justify-center leading-none gap-0.5 " +
                   (i === slide
                     ? "bg-ink text-white border-ink"
                     : flagged
@@ -264,7 +264,8 @@ export function CaptureView({
                           : "bg-surface text-muted border-line")
                 }
               >
-                {full && i !== slide ? "✓" : i + 1}
+                <Icon name={st.process.icon} size={13} />
+                <span className="text-[8.5px]">{full && i !== slide ? "✓" : i + 1}</span>
               </button>
             );
           })}
@@ -279,7 +280,7 @@ export function CaptureView({
                 onClick={() => jumpTo(i)}
                 title={c.name}
                 className={
-                  "shrink-0 w-9 h-9 rounded-full border flex items-center justify-center " +
+                  "shrink-0 w-10 h-10 rounded-full border flex flex-col items-center justify-center leading-none gap-0.5 " +
                   (i === slide
                     ? "bg-ink text-white border-ink"
                     : full
@@ -386,25 +387,6 @@ export function CaptureView({
           ))}
         </div>
 
-        {/* Prev / next bar */}
-        <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-t border-line bg-surface">
-          <button
-            onClick={() => jumpTo(slide - 1)}
-            disabled={slide === 0}
-            className="whitespace-nowrap flex items-center gap-1 text-[12.5px] font-semibold text-charcoal border border-line rounded-[5px] px-3.5 py-2 disabled:opacity-40"
-          >
-            <Icon name="ChevronLeft" size={14} /> {t("cap.prev")}
-          </button>
-          <span className="flex-1 text-center text-[10.5px] text-muted hidden sm:block">{t("cap.swipeHint")}</span>
-          <span className="flex-1 sm:hidden" />
-          <button
-            onClick={() => jumpTo(slide + 1)}
-            disabled={slide >= slideCount - 1}
-            className="whitespace-nowrap flex items-center gap-1 text-[12.5px] font-semibold text-charcoal border border-line rounded-[5px] px-3.5 py-2 disabled:opacity-40"
-          >
-            {t("cap.next")} <Icon name="ChevronRight" size={14} />
-          </button>
-        </div>
       </div>
     </main>
   );
@@ -994,23 +976,9 @@ function BatchStepCapture({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
               onChange={(e) => e.target.files?.length && upload(e.target.files)} />
-            <button onClick={() => fileRef.current?.click()} disabled={uploading}
-              className="whitespace-nowrap text-[11.5px] font-semibold border border-line rounded-[4px] px-3 py-2 hover:bg-subtle disabled:opacity-50 flex items-center gap-1.5">
-              <Icon name="Camera" size={13} />
-              {uploading ? t("lib.uploading") : t("cap.addPhoto")}
-              {newPhotos.length > 0 && <span className="mono">({newPhotos.length})</span>}
-            </button>
-            <button onClick={() => setFlagged(!flagged)}
-              className={"whitespace-nowrap text-[11.5px] font-semibold rounded-[4px] px-3 py-2 border flex items-center gap-1.5 " +
-                (flagged ? "bg-warn-soft text-warn border-warn-line" : "border-line text-muted hover:bg-subtle")}>
-              <Icon name="Flag" size={13} /> {t("cap.flag")}
-            </button>
-            {targets.some((sm) => capturedIds.has(sm.id)) && (
-              <span className="ml-auto">{clearControl}</span>
-            )}
             <button
               disabled={busy || targets.length === 0}
               onClick={() => {
@@ -1024,11 +992,30 @@ function BatchStepCapture({
                 }
                 void doSave();
               }}
-              className="ml-auto whitespace-nowrap bg-brand text-[#243000] rounded-[4px] px-4 py-2.5 text-[13px] font-bold disabled:opacity-50 flex items-center gap-1.5"
+              className="flex-1 min-w-0 h-11 whitespace-nowrap bg-brand text-[#243000] rounded-[6px] px-4 text-[13.5px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
-              <Icon name="Check" size={14} />
-              {t("cap.confirmFor")} {selectionLabel} ({targets.length})
+              <Icon name="Check" size={15} />
+              <span className="truncate">{t("cap.confirmFor")} {selectionLabel} ({targets.length})</span>
             </button>
+            <button onClick={() => fileRef.current?.click()} disabled={uploading}
+              title={t("cap.addPhoto")}
+              className="relative shrink-0 w-11 h-11 rounded-full border border-line bg-surface text-charcoal flex items-center justify-center hover:bg-subtle disabled:opacity-50">
+              <Icon name="Camera" size={17} />
+              {newPhotos.length > 0 && (
+                <span className="absolute -top-1 -right-1 mono text-[9px] font-bold bg-ink text-white rounded-full w-4 h-4 flex items-center justify-center">
+                  {newPhotos.length}
+                </span>
+              )}
+            </button>
+            <button onClick={() => setFlagged(!flagged)}
+              title={t("cap.flag")}
+              className={"shrink-0 w-11 h-11 rounded-full border flex items-center justify-center " +
+                (flagged ? "bg-warn-soft text-warn border-warn-line" : "border-line bg-surface text-muted hover:bg-subtle")}>
+              <Icon name="Flag" size={17} />
+            </button>
+            {targets.some((sm) => capturedIds.has(sm.id)) && (
+              <span className="shrink-0">{clearControl}</span>
+            )}
           </div>
         </>
       )}
