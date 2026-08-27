@@ -29,7 +29,17 @@ export const FIXED_COLUMNS = [
 
 const experimentInclude = {
   createdBy: { select: { name: true } },
-  samples: { orderBy: { code: "asc" } },
+  samples: {
+    orderBy: { code: "asc" },
+    include: {
+      // Every kept scan, so exports show each individual test run.
+      jvMeasurements: {
+        where: { status: "MATCHED" },
+        orderBy: { measuredAt: "asc" },
+        select: { metrics: true, direction: true },
+      },
+    },
+  },
   steps: {
     orderBy: { position: "asc" },
     include: {
@@ -199,6 +209,18 @@ function buildRows(experiments: FullExperiment[]): DataPage {
         )) {
           if (v !== "") row[col(`${prefix} · ${k} [result]`)] = String(v);
         }
+      }
+
+      if (sample.jvMeasurements.length > 0) {
+        row[col("J-V scans (all runs)")] = sample.jvMeasurements
+          .map((m, index) => {
+            const metrics = (m.metrics ?? {}) as Record<string, unknown>;
+            const fmt = (v: unknown) =>
+              typeof v === "number" && Number.isFinite(v) ? v.toFixed(2) : "-";
+            const dir = m.direction ? ` ${m.direction[0]}` : "";
+            return `#${index + 1}${dir}: PCE ${fmt(metrics.pce)}% Voc ${fmt(metrics.voc)} Jsc ${fmt(metrics.jsc)} FF ${fmt(metrics.ff)}`;
+          })
+          .join(" | ");
       }
 
       rows.push(row);

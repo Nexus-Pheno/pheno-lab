@@ -578,6 +578,7 @@ export function StepInspector({
         <p className="text-[10px] text-muted mt-1">{t("insp.layerHint")}</p>
       </div>
 
+      {draft.layer === "PEROVSKITE" && (
       <div>
         <FieldLabel>{t("insp.recipe")}</FieldLabel>
         <select
@@ -597,6 +598,7 @@ export function StepInspector({
           </p>
         )}
       </div>
+      )}
 
       <div>
         <FieldLabel>{t("insp.notes")}</FieldLabel>

@@ -121,6 +121,15 @@ export const presetUpdateSchema = z
 export const presetNameSchema = z.string().trim().min(1).max(500);
 
 export const testPlanSchema = z.object({
+  substrates: z
+    .object({
+      count: z.number().int().min(1).max(198),
+      materialName: z.string().max(300).optional(),
+    })
+    .optional(),
+  assignments: z
+    .record(z.string().max(10), z.string().trim().max(100))
+    .optional(),
   groups: z
     .array(
       z.object({

@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentFull, StepFull, SampleRow } from "@/lib/types";
-import { saveExecutionBatch, saveCharResult, createNewRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions } from "@/lib/actions/runs";
+import { saveExecutionBatch, saveCharResult, createNewRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
 import { submitForReview } from "@/lib/actions/workflow";
+import { regroupSample } from "@/lib/actions/runs";
+import { SubstrateBoard } from "@/components/designer/SubstrateBoard";
+import type { TKey } from "@/lib/i18n/dict";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
 
@@ -23,10 +26,13 @@ type Execution = {
 type PhotoRef = { id?: string; path: string };
 
 type CharResult = {
+  id?: string;
   characterizationId: string;
   sampleId: string;
   metrics: Record<string, string>;
   note: string;
+  source?: string;
+  metricPolicy?: string;
 };
 
 // Default metric suggestions per characterization process name.
@@ -98,6 +104,31 @@ export function CaptureView({
     [exp.samples]
   );
   const slideCount = orderedSteps.length + orderedChars.length;
+
+  // Substrate regrouping: membership mirrors sample.variationGroup, updated
+  // optimistically while the server action persists the swap.
+  const plan = (exp.metadata as { testPlan?: { groups?: { label: string }[] } } | null)?.testPlan;
+  const planGroups = plan?.groups?.map((g) => g.label) ?? groups;
+  const [showRegroup, setShowRegroup] = useState(false);
+  const [assignments, setAssignments] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      exp.samples.map((s) => [
+        s.code,
+        s.variationGroup === "ERROR" ? "ERROR" : (s.variationGroup ?? "EXTRA"),
+      ]),
+    ),
+  );
+  const moveSubstrate = async (code: string, zone: string) => {
+    setAssignments((a) => ({ ...a, [code]: zone }));
+    const sample = exp.samples.find((s) => s.code === code);
+    if (!sample) return;
+    try {
+      await regroupSample(sample.id, zone);
+      router.refresh();
+    } catch {
+      setAssignments((a) => ({ ...a, [code]: sample.variationGroup ?? "EXTRA" }));
+    }
+  };
 
   const execsFor = (stepId: string) => executions.filter((x) => x.stepId === stepId);
   const resultsFor = (charId: string) =>
@@ -253,6 +284,29 @@ export function CaptureView({
           })}
         </div>
       </div>
+
+      {/* Substrate regrouping: swap substrates between groups mid-experiment */}
+      {planGroups.length > 0 && (
+        <div className="shrink-0 border-b border-line bg-surface px-3 py-1.5">
+          <button
+            onClick={() => setShowRegroup((v) => !v)}
+            className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"
+          >
+            <Icon name={showRegroup ? "ChevronUp" : "ChevronDown"} size={12} />
+            {t("plan.regroup")}
+          </button>
+          {showRegroup && (
+            <div className="pt-1.5 pb-1">
+              <SubstrateBoard
+                groups={planGroups}
+                assignments={assignments}
+                simCodes={Object.fromEntries(exp.samples.map((s) => [s.code, s.simCode]))}
+                onMove={moveSubstrate}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Swipeable card track: one card per step / characterization */}
       <div className="flex-1 min-h-0 flex flex-col">
@@ -1171,6 +1225,27 @@ function PerSampleCharCapture({
   );
   const [busy, setBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [policyBusy, setPolicyBusy] = useState(false);
+
+  const changePolicy = async (policy: string) => {
+    if (!activeResult?.id) return;
+    setPolicyBusy(true);
+    try {
+      const r = await setJvDisplayPolicy(activeResult.id, policy);
+      onSaved({
+        id: r.id,
+        characterizationId: r.characterizationId,
+        sampleId: r.sampleId ?? "",
+        metrics: (r.metrics ?? {}) as Record<string, string>,
+        note: r.note,
+        source: r.source,
+        metricPolicy: r.metricPolicy,
+      });
+      setMetrics(Object.entries((r.metrics ?? {}) as Record<string, string>));
+    } finally {
+      setPolicyBusy(false);
+    }
+  };
 
   // Re-seed metrics when the active sample changes.
   const lastSample = useRef(activeSampleId);
@@ -1241,10 +1316,43 @@ function PerSampleCharCapture({
       </div>
 
       {activeSample && (
-        <p className="mono text-[11px] text-charcoal mb-2">
-          <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
-          {expCode}-{activeSample.code}
-        </p>
+        <div className="mb-2">
+          <p className="mono text-[11px] text-charcoal">
+            <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
+            {expCode}-{activeSample.code}
+          </p>
+          {activeSample.simCode && (
+            <div className="mt-1.5 inline-flex items-baseline gap-2 bg-ink text-white rounded-[6px] px-3 py-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                {t("cap.simCode")}
+              </span>
+              <span className="mono text-[20px] font-bold tracking-widest">
+                {activeSample.simCode}
+              </span>
+            </div>
+          )}
+          {activeResult?.source === "INSTRUMENT" && activeResult.id && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-muted">{t("cap.scanPolicy")}</span>
+              {(["BEST", "MIN", "AVERAGE", "MEDIAN"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={policyBusy}
+                  onClick={() => changePolicy(p)}
+                  className={
+                    "h-6 px-2 text-[10.5px] font-semibold rounded-[4px] border disabled:opacity-50 " +
+                    ((activeResult.metricPolicy ?? "BEST") === p
+                      ? "bg-ink text-white border-ink"
+                      : "bg-surface text-charcoal border-line")
+                  }
+                >
+                  {t(`cap.policy.${p}` as TKey)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <div className="space-y-1.5">

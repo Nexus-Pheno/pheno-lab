@@ -398,3 +398,60 @@ export async function saveCharacterizationResultService(
     return result;
   });
 }
+
+/**
+ * Mid-experiment substrate swap: the technician drags a sample into another
+ * variable group, back to the Extras pool, or into Error when it is scrapped.
+ * Codes and sim codes never change — only group membership does. The stored
+ * test plan's assignments follow so the designer shows the same picture.
+ */
+export async function regroupSampleService(
+  actor: Actor,
+  sampleId: string,
+  zone: string,
+) {
+  const sample = await db.sample.findUniqueOrThrow({
+    where: { id: sampleId },
+    select: { id: true, code: true, experimentId: true },
+  });
+  await requireExperimentPermission(actor, sample.experimentId, "capture");
+  const experiment = await db.experiment.findUniqueOrThrow({
+    where: { id: sample.experimentId },
+    select: { metadata: true },
+  });
+  const metadata = (experiment.metadata ?? {}) as Record<string, unknown>;
+  const plan = metadata.testPlan as
+    | { groups?: { label: string }[]; assignments?: Record<string, string> }
+    | undefined;
+  const labels = new Set((plan?.groups ?? []).map((g) => g.label));
+  const clean = zone.trim();
+  if (!labels.has(clean) && clean !== "EXTRA" && clean !== "ERROR") {
+    throw new Error("Unknown group.");
+  }
+  const variationGroup = labels.has(clean)
+    ? clean
+    : clean === "ERROR"
+      ? "ERROR"
+      : null;
+
+  await db.$transaction(async (transaction) => {
+    await transaction.sample.update({
+      where: { id: sample.id },
+      data: { variationGroup },
+    });
+    if (plan) {
+      plan.assignments = { ...(plan.assignments ?? {}), [sample.code]: clean };
+      await transaction.experiment.update({
+        where: { id: sample.experimentId },
+        data: { metadata: metadata as Prisma.InputJsonValue },
+      });
+    }
+    await recordUserAudit(transaction, {
+      actor,
+      action: "sample.regroup",
+      entityType: "Sample",
+      entityId: sample.id,
+      changes: { code: sample.code, zone: clean },
+    });
+  });
+}

@@ -211,6 +211,9 @@ model Experiment {
   // Short enough to type on a lab keyboard; unique within the organization.
   // Nullable so pre-existing experiments can be backfilled one at a time.
   shortCode         String?
+  // Letter that makes this experiment's simCodes unique among the assignee's
+  // concurrent experiments (the A in 01A05). Reassigned with the assignee.
+  codeLetter        String?
   title             String
   campaign          String             @default("") // optional larger experiment group / campaign
   status            ExperimentStatus   @default(DRAFT)
@@ -263,6 +266,9 @@ model Sample {
   experimentId    String
   experiment      Experiment               @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   code            String // S1, S2, ... full ID is <experiment.code>-<code>
+  // 5-char solar-simulator code: <2-digit assignee number><experiment letter><2-digit sample no>,
+  // e.g. 01A05. Typed into the simulator; also present in instrumentCodes for scan matching.
+  simCode         String?
   variationGroup  String? // "A", "B", "C" — null = no group
   note            String                   @default("")
   // Serials this sample answers to on the instrument, normalized and uppercase.
@@ -612,6 +618,9 @@ model CharacterizationResult {
   // JvMeasurement. Auto-fill never overwrites a MANUAL row.
   source              String           @default("MANUAL")
   sourceMeasurementId String?
+  // Which of the sample's scans this row displays: BEST (highest PCE,
+  // default), MIN, AVERAGE or MEDIAN. Raw scans are always kept.
+  metricPolicy        String           @default("BEST")
 }
 
 model Attachment {

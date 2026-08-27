@@ -78,10 +78,13 @@ export default async function CapturePage({
         photos: x.attachments.map((a) => ({ id: a.id, path: a.storedPath })),
       }))}
       initialResults={results.map((r) => ({
+        id: r.id,
         characterizationId: r.characterizationId,
         sampleId: r.sampleId ?? "",
         metrics: (r.metrics ?? {}) as Record<string, string>,
         note: r.note,
+        source: r.source,
+        metricPolicy: r.metricPolicy,
       }))}
     />
   );
