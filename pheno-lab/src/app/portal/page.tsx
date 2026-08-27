@@ -66,7 +66,7 @@ export default async function PortalPage() {
               return (
                 <Link
                   key={e.id}
-                  href={`/experiments/${e.id}/capture`}
+                  href={`/experiments/${e.id}/capture?from=portal`}
                   className="block bg-surface border-2 border-brand/60 rounded-[8px] p-4 active:bg-brand-soft"
                 >
                   <div className="flex items-center gap-2 mb-1">

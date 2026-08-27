@@ -15,10 +15,10 @@ export default async function CapturePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ run?: string }>;
+  searchParams: Promise<{ run?: string; from?: string }>;
 }) {
   const { id } = await params;
-  const { run: runParam } = await searchParams;
+  const { run: runParam, from: fromParam } = await searchParams;
   const session = await requireSession();
   const t = await getT();
 
@@ -50,7 +50,7 @@ export default async function CapturePage({
 
   // In portal mode, Back returns to the portal home, not the desktop designer.
   const backHref =
-    (await preferredView()) === "portal"
+    fromParam === "portal" || (await preferredView()) === "portal"
       ? "/portal"
       : `/experiments/${experiment.id}`;
   return (

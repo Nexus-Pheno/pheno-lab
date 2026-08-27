@@ -202,6 +202,10 @@ export function CaptureView({
       <div className="shrink-0 bg-surface border-b border-line px-3 pt-2.5 pb-2 space-y-2">
         <div className="flex items-center gap-2 whitespace-nowrap">
           <Icon name="ClipboardPen" size={15} className="text-brand-deep shrink-0" />
+          <Link href="/portal" title={t("portal.title")} className="shrink-0 -my-1 py-1 pr-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/pheno-icon.png" alt="Pheno" className="w-6 h-6" />
+          </Link>
           <span className="mono text-[12.5px] font-bold truncate min-w-0 flex-1">{exp.code}</span>
           <span className="hidden sm:inline text-[11px] text-muted shrink-0">{t("cap.title")}</span>
           <span className="mono text-[10.5px] text-muted shrink-0">{totalDone}/{totalNeeded}</span>
@@ -297,10 +301,11 @@ export function CaptureView({
         <div className="shrink-0 border-b border-line bg-surface px-3 py-1.5">
           <button
             onClick={() => setShowRegroup((v) => !v)}
-            className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"
+            className="w-full h-11 flex items-center justify-center gap-2 rounded-[6px] border border-brand/40 bg-brand-soft text-brand-deep text-[13px] font-semibold active:bg-brand/20"
           >
-            <Icon name={showRegroup ? "ChevronUp" : "ChevronDown"} size={12} />
+            <Icon name="Grid3x3" size={16} />
             {t("plan.regroup")}
+            <Icon name={showRegroup ? "ChevronUp" : "ChevronDown"} size={16} />
           </button>
           {showRegroup && (
             <div className="pt-1.5 pb-1">
