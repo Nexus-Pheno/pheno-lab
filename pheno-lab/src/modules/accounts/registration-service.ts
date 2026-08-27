@@ -1,8 +1,11 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
+
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { db } from "@/infrastructure/db/client";
+import { nameKey } from "@/lib/name-match";
 import {
   isMailConfigured,
   sendMail,
@@ -79,6 +82,28 @@ export async function requestRegistration(
   return { ok: true, emailed: false };
 }
 
+/**
+ * The inactive placeholder account the legacy import created for this
+ * person's folder name, if one matches. Claiming it (instead of creating a
+ * fresh user) makes all their imported experiments theirs the moment the
+ * account exists — no ownership rewriting.
+ */
+async function claimableLegacyUser(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  name: string,
+) {
+  const placeholders = await tx.user.findMany({
+    where: {
+      organizationId,
+      active: false,
+      passwordHash: "",
+      email: { contains: "@imported." },
+    },
+  });
+  return placeholders.find((u) => nameKey(u.name) === nameKey(name)) ?? null;
+}
+
 export async function verifyRegistration(data: {
   email: string;
   code: string;
@@ -115,18 +140,31 @@ export async function verifyRegistration(data: {
       _max: { userNumber: true },
     });
     const isFirstUser = max._max.userNumber === null;
-    const user = await tx.user.create({
-      data: {
-        organizationId: otp.organizationId,
-        email,
-        name: clean.name || email.split("@")[0],
-        passwordHash,
-        userNumber: (max._max.userNumber ?? 0) + 1,
-        // First member of an organization becomes its designated admin;
-        // everyone after starts as technician and is promoted by the admin.
-        role: isFirstUser ? "ADMIN" : "TECHNICIAN",
-      },
-    });
+    const registeredName = clean.name || email.split("@")[0];
+    const legacy = await claimableLegacyUser(
+      tx,
+      otp.organizationId,
+      registeredName,
+    );
+    const user = legacy
+      ? // Claim the imported placeholder: its userNumber and every
+        // experiment it owns carry over untouched.
+        await tx.user.update({
+          where: { id: legacy.id },
+          data: { email, name: registeredName, passwordHash, active: true },
+        })
+      : await tx.user.create({
+          data: {
+            organizationId: otp.organizationId,
+            email,
+            name: registeredName,
+            passwordHash,
+            userNumber: (max._max.userNumber ?? 0) + 1,
+            // First member of an organization becomes its designated admin;
+            // everyone after starts as technician and is promoted by the admin.
+            role: isFirstUser ? "ADMIN" : "TECHNICIAN",
+          },
+        });
     await tx.auditEvent.create({
       data: {
         organizationId: otp.organizationId,
@@ -134,7 +172,13 @@ export async function verifyRegistration(data: {
         action: "user.register",
         entityType: "User",
         entityId: user.id,
-        metadata: { role: user.role },
+        metadata: legacy
+          ? {
+              role: user.role,
+              claimedLegacyUser: legacy.id,
+              legacyName: legacy.name,
+            }
+          : { role: user.role },
       },
     });
   });
@@ -168,22 +212,37 @@ export async function createUserAccount(
       where: { organizationId: actor.org },
       _max: { userNumber: true },
     });
-    const user = await tx.user.create({
-      data: {
-        organizationId: actor.org,
-        email,
-        name: clean.name || email.split("@")[0],
-        passwordHash,
-        userNumber: (max._max.userNumber ?? 0) + 1,
-        role: clean.role,
-      },
-    });
+    const createdName = clean.name || email.split("@")[0];
+    const legacy = await claimableLegacyUser(tx, actor.org, createdName);
+    const user = legacy
+      ? await tx.user.update({
+          where: { id: legacy.id },
+          data: {
+            email,
+            name: createdName,
+            passwordHash,
+            active: true,
+            role: clean.role,
+          },
+        })
+      : await tx.user.create({
+          data: {
+            organizationId: actor.org,
+            email,
+            name: createdName,
+            passwordHash,
+            userNumber: (max._max.userNumber ?? 0) + 1,
+            role: clean.role,
+          },
+        });
     await recordUserAudit(tx, {
       actor,
       action: "user.create",
       entityType: "User",
       entityId: user.id,
-      changes: { email, role: clean.role },
+      changes: legacy
+        ? { email, role: clean.role, claimedLegacyUser: legacy.id }
+        : { email, role: clean.role },
     });
   });
   return { ok: true };
