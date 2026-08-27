@@ -1,5 +1,6 @@
 import "server-only";
 
+import { syncSampleSerials } from "@/modules/instruments/sample-serial-engine";
 import { db } from "@/infrastructure/db/client";
 import { assertExperimentPermission } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
@@ -57,6 +58,9 @@ export async function assignExperiment(actor: Actor, raw: unknown) {
       where: { id },
       data: { assigneeId: userId },
     });
+    // Sim codes carry the responsible person's employee number, so a new
+    // assignee means new codes (only while no measurement data depends on them).
+    await syncSampleSerials(transaction, id);
     await recordUserAudit(transaction, {
       actor,
       action: "experiment.assign",
