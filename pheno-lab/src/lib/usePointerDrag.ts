@@ -40,39 +40,57 @@ export function usePointerDrag({
 
   const startDrag = useCallback(
     (dragged: string) => (e: ReactPointerEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      try {
-        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      } catch {
-        // Capture is a nicety — window listeners below do the real work.
-      }
+      // No preventDefault here: a quick swipe must stay a native scroll.
+      let armed = false;
       let last: string | null = null;
       let edgeX = 0;
       let edgeY = 0;
       const startX = e.clientX;
       const startY = e.clientY;
       let maxDistance = 0;
+      const el = e.currentTarget as HTMLElement;
 
       const EDGE = 56;
       const SPEED = 14;
+      const HOLD_MS = 220;
+      const SCROLL_SLOP = 10;
       const containers = cbs.current.scrollEls?.().filter(Boolean) ?? [];
       const tick = window.setInterval(() => {
-        if (!edgeX && !edgeY) return;
-        for (const el of containers) {
-          if (edgeX) el!.scrollLeft += edgeX * SPEED;
-          if (edgeY) el!.scrollTop += edgeY * SPEED;
+        if (!armed || (!edgeX && !edgeY)) return;
+        for (const c of containers) {
+          if (edgeX) c!.scrollLeft += edgeX * SPEED;
+          if (edgeY) c!.scrollTop += edgeY * SPEED;
         }
       }, 16);
 
+      // Once armed, swallow touch scrolling so the drag owns the gesture.
+      const blockScroll = (ev: TouchEvent) => {
+        if (armed) ev.preventDefault();
+      };
+
+      const hold = window.setTimeout(() => {
+        armed = true;
+        try {
+          el.setPointerCapture?.(e.pointerId);
+        } catch {
+          // Capture is a nicety — window listeners do the real work.
+        }
+        document.addEventListener("touchmove", blockScroll, { passive: false });
+        cbs.current.onDragStart?.(dragged);
+      }, HOLD_MS);
+
       const move = (ev: PointerEvent) => {
-        const wasTap = maxDistance < 8;
         maxDistance = Math.max(
           maxDistance,
           Math.hypot(ev.clientX - startX, ev.clientY - startY),
         );
-        if (wasTap && maxDistance >= 8) cbs.current.onDragStart?.(dragged);
-        if (maxDistance >= 8) cbs.current.onPoint?.(ev.clientX, ev.clientY);
+        if (!armed) {
+          // Real movement before the hold elapsed: this is a scroll, not a
+          // pickup. Bow out entirely and let the browser have the gesture.
+          if (maxDistance > SCROLL_SLOP) finish(false);
+          return;
+        }
+        cbs.current.onPoint?.(ev.clientX, ev.clientY);
         edgeX =
           ev.clientX > window.innerWidth - EDGE
             ? 1
@@ -96,15 +114,17 @@ export function usePointerDrag({
         }
       };
       const finish = (drop: boolean) => {
+        window.clearTimeout(hold);
         window.clearInterval(tick);
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", cancel);
+        document.removeEventListener("touchmove", blockScroll);
         cbs.current.onHover(null);
-        cbs.current.onDragEnd?.(dragged);
-        if (drop && maxDistance < 8 && cbs.current.onTap) {
+        if (armed) cbs.current.onDragEnd?.(dragged);
+        if (drop && !armed && maxDistance < 8 && cbs.current.onTap) {
           cbs.current.onTap(dragged);
-        } else if (drop && last) {
+        } else if (drop && armed && last) {
           cbs.current.onDrop(dragged, last);
         }
       };

@@ -55,7 +55,7 @@ export function SubstrateBoard({
       draggingRef.current = sample;
       setDragging(sample);
       // A short tick tells fingers the chip is picked up (Android; iOS ignores).
-      navigator.vibrate?.(30);
+      navigator.vibrate?.([60, 40, 60]);
     },
     onPoint: (x, y) => {
       const ghost = ghostRef.current;
@@ -103,7 +103,7 @@ export function SubstrateBoard({
         onPointerDown={disabled ? undefined : startDrag(code)}
         className={
           "mono text-[11.5px] font-semibold px-2 flex items-center gap-0.5 select-none transition-opacity " +
-          (disabled ? "opacity-60 " : "cursor-grab touch-none active:cursor-grabbing ") +
+          (disabled ? "opacity-60 " : "cursor-grab [touch-action:pan-y] active:cursor-grabbing ") +
           (lifted ? "opacity-30 " : "") +
           (isSelected
             ? "bg-ink text-white"
@@ -119,6 +119,11 @@ export function SubstrateBoard({
         />
         {code}
         {isCaptured && <span className={isSelected ? "text-brand" : ""}>✓</span>}
+        {simCodes[code] && (
+          <span className={"text-[9px] " + (isSelected ? "text-white/60" : "text-muted")}>
+            {simCodes[code]}
+          </span>
+        )}
       </span>
     );
   };
@@ -133,7 +138,7 @@ export function SubstrateBoard({
         onPointerDown={disabled ? undefined : startDrag(code)}
         className={
           "mono text-[11px] font-semibold rounded-[5px] border border-line bg-surface px-1.5 py-1 select-none flex items-center gap-0.5 " +
-          (disabled ? "opacity-60" : "cursor-grab touch-none active:cursor-grabbing") +
+          (disabled ? "opacity-60" : "cursor-grab [touch-action:pan-y] active:cursor-grabbing") +
           (lifted ? " opacity-30" : "")
         }
       >
@@ -234,7 +239,7 @@ export function SubstrateBoard({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
         {groups.map((g) => groupRow(g))}
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">

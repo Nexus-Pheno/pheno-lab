@@ -485,7 +485,6 @@ function BatchStepCapture({
 }) {
   const t = useT();
   const tt = useTerm();
-  const hasVariations = step.parameters.some((p) => p.variations.length > 0);
 
   const capturedIds = useMemo(() => new Set(executions.map((x) => x.sampleId)), [executions]);
 
@@ -502,14 +501,21 @@ function BatchStepCapture({
   const targets = useMemo(() => samples.filter((s) => selectedIds.has(s.id)), [selectedIds, samples]);
   const allSelected = samples.length > 0 && selectedIds.size === samples.length;
 
+  const grouped = useMemo(
+    () => samples.filter((s) => s.variationGroup && s.variationGroup !== "ERROR"),
+    [samples],
+  );
+  const allGroupedSelected =
+    grouped.length > 0 && grouped.every((s) => selectedIds.has(s.id));
   const toggleAll = () =>
-    setSelectedIds(allSelected ? new Set() : new Set(samples.map((s) => s.id)));
+    setSelectedIds(
+      allGroupedSelected ? new Set() : new Set(grouped.map((s) => s.id)),
+    );
 
   const toggleGroup = (g: string) => {
     const ids = samples.filter((s) => s.variationGroup === g).map((s) => s.id);
     setSelectedIds((prev) => {
       const has = ids.every((id) => prev.has(id));
-      if (hasVariations) return has && prev.size === ids.length ? new Set() : new Set(ids);
       const next = new Set(prev);
       ids.forEach((id) => (has ? next.delete(id) : next.add(id)));
       return next;
@@ -518,10 +524,7 @@ function BatchStepCapture({
 
   const toggleSample = (s: SampleRow) => {
     setSelectedIds((prev) => {
-      // Varied steps: drop samples from other groups before toggling.
-      const next = hasVariations
-        ? new Set([...prev].filter((id) => samples.find((x) => x.id === id)?.variationGroup === s.variationGroup))
-        : new Set(prev);
+      const next = new Set(prev);
       if (prev.has(s.id)) next.delete(s.id);
       else next.add(s.id);
       return next;
@@ -695,21 +698,18 @@ function BatchStepCapture({
           (Edit capture brings it back). Captured turns green with a check. */}
       {!(allCaptured && !editing && targets.length > 0) && (
         <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <FieldLabel>{t("cap.applyTo")}</FieldLabel>
-            {!hasVariations && (
-              <button
-                onClick={toggleAll}
-                className={
-                  "h-7 text-[11px] font-bold px-2.5 rounded-[5px] border " +
-                  (allSelected
-                    ? "bg-ink text-white border-ink"
-                    : "bg-surface text-charcoal border-line")
-                }
-              >
-                {t("cap.batchAll")} ({samples.length})
-              </button>
-            )}
+          <div className="mb-1">
+            <button
+              onClick={toggleAll}
+              className={
+                "h-7 text-[11px] font-bold px-2.5 rounded-[5px] border " +
+                (allGroupedSelected
+                  ? "bg-ink text-white border-ink"
+                  : "bg-surface text-charcoal border-line")
+              }
+            >
+              {t("cap.applyToAll")} ({grouped.length})
+            </button>
           </div>
           <SubstrateBoard
             groups={groups}
