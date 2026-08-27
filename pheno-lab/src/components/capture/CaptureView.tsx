@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import type { ExperimentFull, StepFull, SampleRow } from "@/lib/types";
 import { saveExecutionBatch, saveCharResult, createNewRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
 import { submitForReview } from "@/lib/actions/workflow";
+import { regroupSample } from "@/lib/actions/runs";
+import { SubstrateBoard } from "@/components/designer/SubstrateBoard";
 import type { TKey } from "@/lib/i18n/dict";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
@@ -102,6 +104,31 @@ export function CaptureView({
     [exp.samples]
   );
   const slideCount = orderedSteps.length + orderedChars.length;
+
+  // Substrate regrouping: membership mirrors sample.variationGroup, updated
+  // optimistically while the server action persists the swap.
+  const plan = (exp.metadata as { testPlan?: { groups?: { label: string }[] } } | null)?.testPlan;
+  const planGroups = plan?.groups?.map((g) => g.label) ?? groups;
+  const [showRegroup, setShowRegroup] = useState(false);
+  const [assignments, setAssignments] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      exp.samples.map((s) => [
+        s.code,
+        s.variationGroup === "ERROR" ? "ERROR" : (s.variationGroup ?? "EXTRA"),
+      ]),
+    ),
+  );
+  const moveSubstrate = async (code: string, zone: string) => {
+    setAssignments((a) => ({ ...a, [code]: zone }));
+    const sample = exp.samples.find((s) => s.code === code);
+    if (!sample) return;
+    try {
+      await regroupSample(sample.id, zone);
+      router.refresh();
+    } catch {
+      setAssignments((a) => ({ ...a, [code]: sample.variationGroup ?? "EXTRA" }));
+    }
+  };
 
   const execsFor = (stepId: string) => executions.filter((x) => x.stepId === stepId);
   const resultsFor = (charId: string) =>
@@ -257,6 +284,29 @@ export function CaptureView({
           })}
         </div>
       </div>
+
+      {/* Substrate regrouping: swap substrates between groups mid-experiment */}
+      {planGroups.length > 0 && (
+        <div className="shrink-0 border-b border-line bg-surface px-3 py-1.5">
+          <button
+            onClick={() => setShowRegroup((v) => !v)}
+            className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"
+          >
+            <Icon name={showRegroup ? "ChevronUp" : "ChevronDown"} size={12} />
+            {t("plan.regroup")}
+          </button>
+          {showRegroup && (
+            <div className="pt-1.5 pb-1">
+              <SubstrateBoard
+                groups={planGroups}
+                assignments={assignments}
+                simCodes={Object.fromEntries(exp.samples.map((s) => [s.code, s.simCode]))}
+                onMove={moveSubstrate}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Swipeable card track: one card per step / characterization */}
       <div className="flex-1 min-h-0 flex flex-col">

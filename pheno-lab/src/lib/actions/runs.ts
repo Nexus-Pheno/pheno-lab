@@ -18,6 +18,7 @@ import {
   getOrCreateRunService,
   saveCharacterizationResultService,
   saveExecutionBatchService,
+  regroupSampleService,
 } from "@/modules/runs/service";
 
 export async function getOrCreateRun(experimentId: string) {
@@ -134,4 +135,9 @@ export async function saveCharResult(
 export async function setJvDisplayPolicy(resultId: string, policy: string) {
   const actor = await requireSession();
   return setJvMetricPolicy(actor, String(resultId), String(policy));
+}
+
+export async function regroupSample(sampleId: string, zone: string) {
+  const actor = await requireSession();
+  return regroupSampleService(actor, String(sampleId), String(zone));
 }

@@ -19,7 +19,15 @@ export type TestPlanVariable = {
   unit: string;
   values: Record<string, string>; // group label -> value
 };
-export type TestPlan = { groups: TestPlanGroup[]; variables: TestPlanVariable[] };
+export type TestPlanSubstrates = { count: number; materialName?: string };
+export type TestPlan = {
+  groups: TestPlanGroup[];
+  variables: TestPlanVariable[];
+  /** Substrate batch prepared up front; chips are dragged between groups. */
+  substrates?: TestPlanSubstrates;
+  /** sample code (S1) → group label, EXTRA or ERROR */
+  assignments?: Record<string, string>;
+};
 
 export const STATUS_META: Record<string, { label: string; tone: "muted" | "warning" | "brand" | "danger" }> = {
   DRAFT: { label: "Draft", tone: "warning" },
@@ -42,4 +50,4 @@ export const PROCESS_ICONS = [
   "Activity", "Search", "Waves", "BarChart3", "Lightbulb", "TrendingUp", "Microscope", "Droplets",
 ];
 
-export const GROUP_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+export const GROUP_LABELS = [..."ABCDEFGHIJKLMNOPQRST"]; // up to 20 variable groups

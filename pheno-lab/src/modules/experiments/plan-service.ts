@@ -521,7 +521,9 @@ export async function applyTestPlan(
   const experimentId = experimentIdSchema.parse(rawExperimentId);
   const plan = testPlanSchema.parse(rawPlan) as TestPlan;
   await assertEdit(actor, experimentId);
-  const groups = plan.groups.filter((g) => g.label.trim() && g.samples > 0);
+  const groups = plan.groups.filter(
+    (g) => g.label.trim() && (plan.substrates ? true : g.samples > 0),
+  );
   if (groups.length === 0)
     throw new Error("The test plan needs at least one group.");
   const variables = plan.variables.filter(
@@ -586,15 +588,37 @@ export async function applyTestPlan(
       }
     }
 
-    // 2. Regenerate samples: replicates per group, sequential codes.
+    // 2. Regenerate samples. With a substrate batch the technician drags
+    //    chips between groups, so membership comes from plan.assignments
+    //    (EXTRA → ungrouped spare, ERROR → scrapped); otherwise the legacy
+    //    replicates-per-group generation applies.
     await tx.sample.deleteMany({ where: { experimentId } });
-    let n = 0;
-    for (const g of groups) {
-      for (let i = 0; i < g.samples; i++) {
-        n += 1;
+    if (plan.substrates?.count) {
+      const labels = new Set(groups.map((g) => g.label));
+      for (let i = 1; i <= plan.substrates.count; i++) {
+        const code = `S${i}`;
+        const zone = plan.assignments?.[code] ?? "EXTRA";
         await tx.sample.create({
-          data: { experimentId, code: `S${n}`, variationGroup: g.label },
+          data: {
+            experimentId,
+            code,
+            variationGroup: labels.has(zone)
+              ? zone
+              : zone === "ERROR"
+                ? "ERROR"
+                : null,
+          },
         });
+      }
+    } else {
+      let n = 0;
+      for (const g of groups) {
+        for (let i = 0; i < g.samples; i++) {
+          n += 1;
+          await tx.sample.create({
+            data: { experimentId, code: `S${n}`, variationGroup: g.label },
+          });
+        }
       }
     }
     await syncSampleSerials(tx, experimentId);
