@@ -109,7 +109,6 @@ export function CaptureView({
   // optimistically while the server action persists the swap.
   const plan = (exp.metadata as { testPlan?: { groups?: { label: string }[] } } | null)?.testPlan;
   const planGroups = plan?.groups?.map((g) => g.label) ?? groups;
-  const [showRegroup, setShowRegroup] = useState(false);
   const [assignments, setAssignments] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       exp.samples.map((s) => [
@@ -297,30 +296,6 @@ export function CaptureView({
         </div>
       </div>
 
-      {/* Substrate regrouping: swap substrates between groups mid-experiment */}
-      {planGroups.length > 0 && (
-        <div className="shrink-0 border-b border-line bg-surface px-3 py-1.5">
-          <button
-            onClick={() => setShowRegroup((v) => !v)}
-            className="w-full h-11 flex items-center justify-center gap-2 rounded-[6px] border border-brand/40 bg-brand-soft text-brand-deep text-[13px] font-semibold active:bg-brand/20"
-          >
-            <Icon name="Grid3x3" size={16} />
-            {t("plan.regroup")}
-            <Icon name={showRegroup ? "ChevronUp" : "ChevronDown"} size={16} />
-          </button>
-          {showRegroup && (
-            <div className="pt-1.5 pb-1">
-              <SubstrateBoard
-                groups={planGroups}
-                assignments={assignments}
-                simCodes={Object.fromEntries(exp.samples.map((s) => [s.code, s.simCode]))}
-                onMove={moveSubstrate}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Swipeable card track: one card per step / characterization */}
       <div className="flex-1 min-h-0 flex flex-col">
         <div
@@ -338,7 +313,10 @@ export function CaptureView({
                   layerName={layers.find((l) => l.code === step.layer)?.name}
                   expCode={exp.code}
                   samples={exp.samples}
-                  groups={groups}
+                  groups={planGroups}
+                  assignments={assignments}
+                  simCodes={Object.fromEntries(exp.samples.map((s) => [s.code, s.simCode]))}
+                  onMoveSubstrate={moveSubstrate}
                   runId={runId}
                   executions={execsFor(step.id)}
                   onSaved={(list) => {
@@ -484,6 +462,9 @@ function BatchStepCapture({
   expCode,
   samples,
   groups,
+  assignments,
+  simCodes,
+  onMoveSubstrate,
   runId,
   executions,
   onSaved,
@@ -494,6 +475,9 @@ function BatchStepCapture({
   expCode: string;
   samples: SampleRow[];
   groups: string[];
+  assignments: Record<string, string>;
+  simCodes: Record<string, string | null>;
+  onMoveSubstrate: (code: string, zone: string) => void;
   runId: string;
   executions: Execution[];
   onSaved: (list: Execution[]) => void;
@@ -668,11 +652,6 @@ function BatchStepCapture({
   };
 
   // The scope selector IS the sample map: tap All, a group, or one sample.
-  const groupBuckets = useMemo(
-    () => groups.map((g) => ({ label: g, items: samples.filter((s) => s.variationGroup === g) })),
-    [groups, samples]
-  );
-  const looseSamples = useMemo(() => samples.filter((s) => !s.variationGroup), [samples]);
   const allCaptured = samples.length > 0 && samples.every((s) => capturedIds.has(s.id));
 
   // Human label for the confirm button: All / whole groups / leftover codes.
@@ -693,27 +672,6 @@ function BatchStepCapture({
 
   // One segment of a group control. Tapping toggles that sample in/out of
   // the selection; selected segments go dark.
-  const sampleSeg = (s: SampleRow) => {
-    const selected = selectedIds.has(s.id);
-    const captured = capturedIds.has(s.id);
-    return (
-      <button
-        key={s.id}
-        onClick={() => toggleSample(s)}
-        className={
-          "mono text-[11.5px] font-semibold px-2.5 flex items-center gap-1 " +
-          (selected
-            ? "bg-ink text-white"
-            : captured
-              ? "bg-brand-soft text-brand-deep"
-              : "bg-surface text-charcoal")
-        }
-      >
-        {s.code}
-        {captured && <span className={selected ? "text-brand" : ""}>✓</span>}
-      </button>
-    );
-  };
 
   return (
     <div className="bg-surface border-2 border-line rounded-[6px] p-3.5">
@@ -737,63 +695,49 @@ function BatchStepCapture({
           (Edit capture brings it back). Captured turns green with a check. */}
       {!(allCaptured && !editing && targets.length > 0) && (
         <div className="mb-3">
-          <FieldLabel>{t("cap.applyTo")}</FieldLabel>
-          <div className="flex flex-wrap items-stretch gap-1.5">
+          <div className="flex items-center justify-between mb-1">
+            <FieldLabel>{t("cap.applyTo")}</FieldLabel>
             {!hasVariations && (
               <button
                 onClick={toggleAll}
                 className={
-                  "h-9 text-[12px] font-bold px-3 rounded-[6px] border flex items-center gap-1 " +
+                  "h-7 text-[11px] font-bold px-2.5 rounded-[5px] border " +
                   (allSelected
                     ? "bg-ink text-white border-ink"
-                    : allCaptured
-                      ? "bg-brand-soft text-brand-deep border-brand/40"
-                      : "bg-surface text-charcoal border-line")
+                    : "bg-surface text-charcoal border-line")
                 }
               >
                 {t("cap.batchAll")} ({samples.length})
-                {allCaptured && <span className={allSelected ? "text-brand" : ""}>✓</span>}
               </button>
             )}
-            {groupBuckets.map((b) => {
-              const groupDone = b.items.length > 0 && b.items.every((s) => capturedIds.has(s.id));
-              const groupSelected = b.items.length > 0 && b.items.every((s) => selectedIds.has(s.id));
-              return (
-                <div
-                  key={b.label}
-                  className={
-                    "flex items-stretch h-9 rounded-[6px] border overflow-hidden divide-x " +
-                    (groupSelected
-                      ? "border-ink divide-white/20"
-                      : groupDone
-                        ? "border-brand/40 divide-brand/30"
-                        : "border-line divide-line")
-                  }
-                >
-                  <button
-                    onClick={() => toggleGroup(b.label)}
-                    className={
-                      "text-[11px] font-bold whitespace-nowrap px-2.5 flex items-center gap-1 " +
-                      (groupSelected
-                        ? "bg-ink text-white"
-                        : groupDone
-                          ? "bg-brand-soft text-brand-deep"
-                          : "bg-subtle text-charcoal")
-                    }
-                  >
-                    {t("cap.batchGroup")} {b.label}
-                    {groupDone && <span className={groupSelected ? "text-brand" : ""}>✓</span>}
-                  </button>
-                  {b.items.map(sampleSeg)}
-                </div>
-              );
-            })}
-            {looseSamples.length > 0 && (
-              <div className="flex items-stretch h-9 rounded-[6px] border border-line overflow-hidden divide-x divide-line">
-                {looseSamples.map(sampleSeg)}
-              </div>
-            )}
           </div>
+          <SubstrateBoard
+            groups={groups}
+            assignments={assignments}
+            simCodes={simCodes}
+            selection={{
+              selected: new Set(targets.map((sm) => sm.code)),
+              captured: new Set(samples.filter((sm) => capturedIds.has(sm.id)).map((sm) => sm.code)),
+              onToggleSample: (code) => {
+                const sm = samples.find((x) => x.code === code);
+                if (sm) toggleSample(sm);
+              },
+              onToggleGroup: toggleGroup,
+            }}
+            onMove={(code, zone) => {
+              // Moving a substrate out of the variable groups also drops it
+              // from the capture scope.
+              const sm = samples.find((x) => x.code === code);
+              if (sm && (zone === "EXTRA" || zone === "ERROR")) {
+                setSelectedIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(sm.id);
+                  return next;
+                });
+              }
+              onMoveSubstrate(code, zone);
+            }}
+          />
           {targets.length === 1 && (
           <p className="mono text-[11px] text-charcoal mt-1.5">
             <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
