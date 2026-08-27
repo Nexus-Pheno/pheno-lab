@@ -57,7 +57,13 @@ export function parseLightSky(
     );
 
   // ---- summary table: a later row whose second cell is "Name" ----
-  const summary = new Map<string, Record<string, string>>();
+  //
+  // A session routinely holds SEVERAL scans of one cell in one direction, so
+  // the trace name is NOT unique — "0820-15-8-Rev" can appear three times.
+  // Keep every row per name, in file order, and pair the Nth curve block with
+  // the Nth summary row of that name. Keying by name alone silently gave every
+  // repeat the last row's Voc/PCE and discarded the others.
+  const summary = new Map<string, Record<string, string>[]>();
   let summaryRow = -1;
   for (let r = 1; r < grid.length; r++) {
     if (cell(grid, r, 1).toLowerCase() === "name") {
@@ -74,7 +80,9 @@ export function parseLightSky(
       keys.forEach((k, i) => {
         if (k) row[k] = cell(grid, r, i);
       });
-      summary.set(name, row);
+      const forName = summary.get(name);
+      if (forName) forName.push(row);
+      else summary.set(name, [row]);
     }
   } else {
     warnings.push(
@@ -85,6 +93,8 @@ export function parseLightSky(
   const { year, month, day } = wallClockParts(fileDate, tzOffsetMinutes);
 
   const scans: JvScan[] = [];
+  // How many blocks of each name have already claimed a summary row.
+  const claimed = new Map<string, number>();
   for (const c of blockCols) {
     const name = cell(grid, 0, c + 2);
     if (!name) {
@@ -121,7 +131,9 @@ export function parseLightSky(
       return { v, i: ii, j: jj, p: v * ii };
     });
 
-    const s = summary.get(name);
+    const nth = claimed.get(name) ?? 0;
+    claimed.set(name, nth + 1);
+    const s = summary.get(name)?.[nth];
     const metrics: JvMetrics = s
       ? {
           voc: num(s.voc),
@@ -139,7 +151,9 @@ export function parseLightSky(
       : {};
     if (!s)
       warnings.push(
-        `"${name}" has a curve but no summary row — it was probably not ticked before saving.`,
+        nth > 0
+          ? `"${name}" appears ${nth + 1} times but the summary table lists it ${summary.get(name)?.length ?? 0} time(s), so this repeat has no Voc/PCE.`
+          : `"${name}" has a curve but no summary row — it was probably not ticked before saving.`,
       );
 
     let measuredAt: Date | null = null;
