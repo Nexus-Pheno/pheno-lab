@@ -14,6 +14,9 @@ export function usePointerDrag({
   onHover,
   onDrop,
   onTap,
+  onDragStart,
+  onDragEnd,
+  onPoint,
   scrollEls,
 }: {
   attr: string;
@@ -21,13 +24,19 @@ export function usePointerDrag({
   onDrop: (dragged: string, target: string) => void;
   /** A press released without real movement — lets one handle both select and drag. */
   onTap?: (dragged: string) => void;
+  /** Movement crossed the tap threshold: the element is really being dragged. */
+  onDragStart?: (dragged: string) => void;
+  /** The gesture ended, dropped or not. */
+  onDragEnd?: (dragged: string) => void;
+  /** Streams pointer coordinates during a real drag (for a ghost element). */
+  onPoint?: (x: number, y: number) => void;
   /** Containers to auto-scroll while dragging near the viewport edges. */
   scrollEls?: () => (HTMLElement | null)[];
 }) {
-  const cbs = useRef({ onHover, onDrop, onTap, scrollEls });
+  const cbs = useRef({ onHover, onDrop, onTap, onDragStart, onDragEnd, onPoint, scrollEls });
   useEffect(() => {
-    cbs.current = { onHover, onDrop, onTap, scrollEls };
-  }, [onDrop, onHover, onTap, scrollEls]);
+    cbs.current = { onHover, onDrop, onTap, onDragStart, onDragEnd, onPoint, scrollEls };
+  }, [onDrop, onHover, onTap, onDragStart, onDragEnd, onPoint, scrollEls]);
 
   const startDrag = useCallback(
     (dragged: string) => (e: ReactPointerEvent) => {
@@ -57,10 +66,13 @@ export function usePointerDrag({
       }, 16);
 
       const move = (ev: PointerEvent) => {
+        const wasTap = maxDistance < 8;
         maxDistance = Math.max(
           maxDistance,
           Math.hypot(ev.clientX - startX, ev.clientY - startY),
         );
+        if (wasTap && maxDistance >= 8) cbs.current.onDragStart?.(dragged);
+        if (maxDistance >= 8) cbs.current.onPoint?.(ev.clientX, ev.clientY);
         edgeX =
           ev.clientX > window.innerWidth - EDGE
             ? 1
@@ -89,6 +101,7 @@ export function usePointerDrag({
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", cancel);
         cbs.current.onHover(null);
+        cbs.current.onDragEnd?.(dragged);
         if (drop && maxDistance < 8 && cbs.current.onTap) {
           cbs.current.onTap(dragged);
         } else if (drop && last) {
