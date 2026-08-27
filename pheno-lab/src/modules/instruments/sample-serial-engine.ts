@@ -51,8 +51,15 @@ async function ensureSimCodePrefix(
       codeLetter: true,
       assigneeId: true,
       createdById: true,
+      status: true,
     },
   });
+  // Closed experiments never sit at the simulator; keeping their codes out
+  // of the serial index stops them from shadowing an active experiment that
+  // reuses the same letter.
+  if (experiment.status === "COMPLETE" || experiment.status === "ARCHIVED") {
+    return null;
+  }
   const ownerId = experiment.assigneeId ?? experiment.createdById;
   const owner = await client.user.findUnique({
     where: { id: ownerId },
