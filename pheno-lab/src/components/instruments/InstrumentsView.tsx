@@ -154,6 +154,8 @@ export function InstrumentsView({
                     {f.instrument}
                     {f.measuredAt ? ` · ${f.measuredAt.slice(0, 16).replace("T", " ")}` : ""}
                     {f.direction ? ` · ${f.direction.toLowerCase()}` : ""}
+                    {/* Only the GiantForce rig records who ran the scan. */}
+                    {f.operator ? ` · ${f.operator}` : ""}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1">

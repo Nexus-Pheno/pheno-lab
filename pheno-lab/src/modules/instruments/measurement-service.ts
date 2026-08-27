@@ -34,6 +34,9 @@ export type JvFileRow = {
   sampleCode: string | null;
   direction: string | null;
   instrument: string;
+  /** Who ran the scan, when the instrument records it. GiantForce puts it in
+   *  the file name; the LIGHTSKY rig has no operator field, so this is "". */
+  operator: string;
   measuredAt: string | null;
   pce: number | null;
   voc: number | null;
@@ -48,6 +51,7 @@ export const toJvFileRow = (m: {
   id: string;
   serial: string;
   direction: string | null;
+  operator: string;
   measuredAt: Date | null;
   metrics: unknown;
   status: string;
@@ -65,6 +69,7 @@ export const toJvFileRow = (m: {
     sampleCode: m.sample?.code ?? null,
     direction: m.direction,
     instrument: m.instrument.name,
+    operator: m.operator,
     measuredAt: m.measuredAt ? m.measuredAt.toISOString() : null,
     pce: n(metrics.pce),
     voc: n(metrics.voc),
@@ -80,6 +85,7 @@ const ROW_SELECT = {
   id: true,
   serial: true,
   direction: true,
+  operator: true,
   measuredAt: true,
   metrics: true,
   status: true,

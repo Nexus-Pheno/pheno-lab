@@ -8,6 +8,7 @@ const ROW_SELECT = {
   id: true,
   serial: true,
   direction: true,
+  operator: true,
   measuredAt: true,
   metrics: true,
   status: true,
