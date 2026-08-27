@@ -13,18 +13,21 @@ export function usePointerDrag({
   attr,
   onHover,
   onDrop,
+  onTap,
   scrollEls,
 }: {
   attr: string;
   onHover: (target: string | null) => void;
   onDrop: (dragged: string, target: string) => void;
+  /** A press released without real movement — lets one handle both select and drag. */
+  onTap?: (dragged: string) => void;
   /** Containers to auto-scroll while dragging near the viewport edges. */
   scrollEls?: () => (HTMLElement | null)[];
 }) {
-  const cbs = useRef({ onHover, onDrop, scrollEls });
+  const cbs = useRef({ onHover, onDrop, onTap, scrollEls });
   useEffect(() => {
-    cbs.current = { onHover, onDrop, scrollEls };
-  }, [onDrop, onHover, scrollEls]);
+    cbs.current = { onHover, onDrop, onTap, scrollEls };
+  }, [onDrop, onHover, onTap, scrollEls]);
 
   const startDrag = useCallback(
     (dragged: string) => (e: ReactPointerEvent) => {
@@ -38,6 +41,9 @@ export function usePointerDrag({
       let last: string | null = null;
       let edgeX = 0;
       let edgeY = 0;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let maxDistance = 0;
 
       const EDGE = 56;
       const SPEED = 14;
@@ -51,6 +57,10 @@ export function usePointerDrag({
       }, 16);
 
       const move = (ev: PointerEvent) => {
+        maxDistance = Math.max(
+          maxDistance,
+          Math.hypot(ev.clientX - startX, ev.clientY - startY),
+        );
         edgeX =
           ev.clientX > window.innerWidth - EDGE
             ? 1
@@ -79,7 +89,11 @@ export function usePointerDrag({
         window.removeEventListener("pointerup", up);
         window.removeEventListener("pointercancel", cancel);
         cbs.current.onHover(null);
-        if (drop && last) cbs.current.onDrop(dragged, last);
+        if (drop && maxDistance < 8 && cbs.current.onTap) {
+          cbs.current.onTap(dragged);
+        } else if (drop && last) {
+          cbs.current.onDrop(dragged, last);
+        }
       };
       const up = () => finish(true);
       const cancel = () => finish(false);
