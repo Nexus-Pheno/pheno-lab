@@ -22,6 +22,21 @@ describe("capture field controls", () => {
     );
   });
 
+  it("uses material cards for legacy custom material slots", () => {
+    expect(captureFieldKind(parameter("Material", "", "custom"))).toBe(
+      "material",
+    );
+    expect(
+      captureFieldKind(parameter("Substrate material", "", "custom")),
+    ).toBe("material");
+    expect(captureFieldKind(parameter("钙钛矿材料", "", "custom"))).toBe(
+      "material",
+    );
+    expect(
+      captureFieldKind(parameter("Material concentration", "mg/mL", "custom")),
+    ).toBe("text");
+  });
+
   it.each([
     "Treatment type",
     "Drying methods",

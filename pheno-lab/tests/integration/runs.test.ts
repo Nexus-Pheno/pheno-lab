@@ -169,7 +169,7 @@ describe("capture relational integrity", () => {
                 position: 0,
                 name: "Material",
                 value: material.name,
-                source: "material",
+                source: "custom",
               },
             },
           },

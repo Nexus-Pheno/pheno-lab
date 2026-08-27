@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
 import { objectStorage } from "@/infrastructure/storage";
+import { captureFieldKind } from "@/lib/capture-fields";
 import type { Actor } from "@/modules/authorization/actor";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import { recordUserAudit } from "@/modules/audit/writer";
@@ -71,10 +72,13 @@ async function resolveMaterialSelections(
   actor: Actor,
   input: ExecutionBatchInput,
 ): Promise<ResolvedMaterialSelection[]> {
-  const materialParameters = await db.stepParameter.findMany({
-    where: { stepId: input.stepId, source: "material" },
-    select: { name: true },
+  const stepParameters = await db.stepParameter.findMany({
+    where: { stepId: input.stepId },
+    select: { name: true, unit: true, source: true },
   });
+  const materialParameters = stepParameters.filter(
+    (parameter) => captureFieldKind(parameter) === "material",
+  );
   const materialParameterNames = new Set(
     materialParameters.map((parameter) => parameter.name),
   );
