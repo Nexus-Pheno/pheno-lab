@@ -96,8 +96,11 @@ export function TestPlanCard({
       : materials;
   })();
   // The material slot name is derived, not typed: "<layer> Material".
-  const autoSlotName = (layer?: string) =>
-    layer ? `${layerName(layer)} Material` : "Material";
+  const autoSlotName = (layer?: string) => {
+    if (!layer) return "Material";
+    const plain = layerName(layer).replace(/\s*[（(].*?[)）]/g, "").trim();
+    return `${plain} Material`;
+  };
   const equipmentFor = (processId: string) => equipment.filter((e) => e.processId === processId && !e.archived);
   const layerName = (code?: string) => layers.find((l) => l.code === code)?.name ?? "";
   const equipmentName = (id?: string) => equipment.find((e) => e.id === id)?.name ?? "";
