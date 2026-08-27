@@ -3,12 +3,15 @@ import "server-only";
 import { db } from "@/infrastructure/db/client";
 import { recordSystemAudit } from "@/modules/audit/writer";
 import { matchSerial, refreshSampleJvResult } from "./matching-service";
+import { matchOperatorToUser } from "./operator-match";
 
 export type RematchSummary = {
   considered: number;
   matched: number;
   stillUnmatched: number;
   samplesUpdated: number;
+  /** Scans no sample explained, handed to the operator who ran them. */
+  assignedByOperator: number;
 };
 
 /**
@@ -62,31 +65,55 @@ export async function rematchMeasurements(opts: {
         ? { OR: prefixes.map((p) => ({ serialKey: { startsWith: p } })) }
         : {}),
     },
-    select: { id: true, serial: true },
+    select: { id: true, serial: true, operator: true, assignedToId: true },
     orderBy: { createdAt: "asc" },
     take: limit,
   });
 
+  // Loaded once: a scan the serial cannot explain may still name its operator,
+  // and that operator is the person who should be sorting it out.
+  const staff = await db.user.findMany({
+    where: { organizationId, active: true },
+    select: { id: true, name: true, active: true },
+  });
+
   const touched = new Set<string>();
   let matched = 0;
+  let assignedByOperator = 0;
 
   for (const m of pending) {
     const result = await matchSerial(organizationId, m.serial);
     if (result.status !== "MATCHED") {
+      // No sample explains this scan. If the rig recorded an operator and that
+      // name resolves to exactly one active account, hand it to them rather
+      // than leaving it in the shared orphan pile. An existing owner is never
+      // overwritten — a manager's decision outranks a name on a file.
+      const owner = m.assignedToId
+        ? null
+        : matchOperatorToUser(m.operator, staff);
       // Refresh the reason — the experiment may exist now but the sample not.
       await db.$transaction(async (transaction) => {
         await transaction.jvMeasurement.update({
           where: { id: m.id },
-          data: { matchNote: result.matchNote },
+          data: {
+            matchNote: result.matchNote,
+            ...(owner ? { assignedToId: owner.id } : {}),
+          },
         });
         await recordSystemAudit(transaction, {
           organizationId,
-          action: "instrument.measurement.rematch_failed",
+          action: owner
+            ? "instrument.measurement.assigned_by_operator"
+            : "instrument.measurement.rematch_failed",
           entityType: "JvMeasurement",
           entityId: m.id,
-          metadata: { reason: result.matchNote },
+          metadata: owner
+            ? { reason: result.matchNote, operator: m.operator }
+            : { reason: result.matchNote },
+          ...(owner ? { changes: { assignedToId: owner.id } } : {}),
         });
       });
+      if (owner) assignedByOperator++;
       continue;
     }
     await db.$transaction(async (transaction) => {
@@ -123,6 +150,7 @@ export async function rematchMeasurements(opts: {
     matched,
     stillUnmatched: pending.length - matched,
     samplesUpdated: touched.size,
+    assignedByOperator,
   };
 }
 

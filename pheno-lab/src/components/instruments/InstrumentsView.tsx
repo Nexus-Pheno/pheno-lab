@@ -3,7 +3,13 @@
 import { useState, useTransition } from "react";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon } from "@/components/ui";
-import { rematchNow, assignMeasurement, unassignMeasurement, type JvFileRow } from "@/lib/actions/instruments";
+import {
+  rematchNow,
+  assignMeasurement,
+  unassignMeasurement,
+  handOverMeasurements,
+  type JvFileRow,
+} from "@/lib/actions/instruments";
 
 export type RigRow = {
   id: string;
@@ -20,8 +26,10 @@ export type RigRow = {
 };
 
 export type SampleOption = { id: string; label: string };
+export type PersonOption = { id: string; name: string };
 
-const fmt = (v: number | null, digits = 2) => (v == null ? "—" : v.toFixed(digits));
+const fmt = (v: number | null, digits = 2) =>
+  v == null ? "—" : v.toFixed(digits);
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
@@ -36,38 +44,67 @@ export function InstrumentsView({
   matched,
   unmatched,
   samples,
+  people,
   canManage,
 }: {
   rigs: RigRow[];
   matched: JvFileRow[];
   unmatched: JvFileRow[];
   samples: SampleOption[];
+  people: PersonOption[];
   canManage: boolean;
 }) {
   const t = useT();
   const [pending, start] = useTransition();
   const [note, setNote] = useState("");
-  const [tab, setTab] = useState<"unmatched" | "matched">(unmatched.length ? "unmatched" : "matched");
+  const [tab, setTab] = useState<"unmatched" | "matched">(
+    unmatched.length ? "unmatched" : "matched",
+  );
   const [assigning, setAssigning] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const rows = tab === "unmatched" ? unmatched : matched;
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  // Only scans nobody owns yet can be handed on; an owned one already has a
+  // person responsible for it.
+  const handable = rows.filter((r) => !r.owner && !r.sampleCode);
 
   return (
     <div className="space-y-5">
       {/* ── rigs ────────────────────────────────────────────────────────── */}
       <section>
-        <h2 className="text-[12px] font-bold text-charcoal mb-2">{t("inst.rigs")}</h2>
+        <h2 className="text-[12px] font-bold text-charcoal mb-2">
+          {t("inst.rigs")}
+        </h2>
         {rigs.length === 0 ? (
-          <p className="text-xs text-muted border border-dashed border-line rounded-[6px] p-4 bg-surface">{t("inst.none")}</p>
+          <p className="text-xs text-muted border border-dashed border-line rounded-[6px] p-4 bg-surface">
+            {t("inst.none")}
+          </p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {rigs.map((r) => {
               const fresh = r.fresh;
               return (
-                <div key={r.id} className="border border-line rounded-[6px] p-3 bg-surface">
+                <div
+                  key={r.id}
+                  className="border border-line rounded-[6px] p-3 bg-surface"
+                >
                   <div className="flex items-center gap-2">
-                    <span className={"w-2 h-2 rounded-full shrink-0 " + (fresh ? "bg-brand" : "bg-line")} />
-                    <h3 className="text-[12.5px] font-bold text-charcoal truncate">{r.name}</h3>
+                    <span
+                      className={
+                        "w-2 h-2 rounded-full shrink-0 " +
+                        (fresh ? "bg-brand" : "bg-line")
+                      }
+                    />
+                    <h3 className="text-[12.5px] font-bold text-charcoal truncate">
+                      {r.name}
+                    </h3>
                     <span className="ml-auto text-[10px] text-muted shrink-0">
                       {fresh ? t("inst.online") : t("inst.offline")}
                     </span>
@@ -75,23 +112,35 @@ export function InstrumentsView({
                   <dl className="mt-2 space-y-0.5 text-[11px] text-muted">
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0">{t("inst.lastSeen")}</dt>
-                      <dd className="mono text-charcoal">{r.lastSeenLabel ?? t("inst.never")}</dd>
+                      <dd className="mono text-charcoal">
+                        {r.lastSeenLabel ?? t("inst.never")}
+                      </dd>
                     </div>
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0">{t("inst.host")}</dt>
-                      <dd className="mono text-charcoal truncate">{r.hostname || "—"}</dd>
+                      <dd className="mono text-charcoal truncate">
+                        {r.hostname || "—"}
+                      </dd>
                     </div>
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0">{t("inst.watching")}</dt>
-                      <dd className="mono text-charcoal truncate">{r.watchDirs.join("; ") || "—"}</dd>
+                      <dd className="mono text-charcoal truncate">
+                        {r.watchDirs.join("; ") || "—"}
+                      </dd>
                     </div>
                   </dl>
                   <div className="mt-2 flex flex-wrap gap-1">
                     <Metric label="files" value={String(r.uploads)} />
                     <Metric label="scans" value={String(r.measurements)} />
-                    {r.agentVersion && <Metric label="agent" value={r.agentVersion} />}
+                    {r.agentVersion && (
+                      <Metric label="agent" value={r.agentVersion} />
+                    )}
                   </div>
-                  {r.lastError && <p className="mt-2 text-[10.5px] text-warn">{r.lastError}</p>}
+                  {r.lastError && (
+                    <p className="mt-2 text-[10.5px] text-warn">
+                      {r.lastError}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -102,7 +151,9 @@ export function InstrumentsView({
       {/* ── inbox ───────────────────────────────────────────────────────── */}
       <section>
         <div className="flex items-center gap-2 mb-2">
-          <h2 className="text-[12px] font-bold text-charcoal">{t("inst.inbox")}</h2>
+          <h2 className="text-[12px] font-bold text-charcoal">
+            {t("inst.inbox")}
+          </h2>
           <div className="ml-auto flex items-center gap-1.5">
             {note && <span className="text-[10.5px] text-muted">{note}</span>}
             {canManage && (
@@ -110,13 +161,19 @@ export function InstrumentsView({
                 onClick={() =>
                   start(async () => {
                     const s = await rematchNow();
-                    setNote(t("inst.rematchDone", { matched: String(s.matched), considered: String(s.considered) }));
+                    setNote(
+                      t("inst.rematchDone", {
+                        matched: String(s.matched),
+                        considered: String(s.considered),
+                      }),
+                    );
                   })
                 }
                 disabled={pending}
                 className="h-8 flex items-center gap-1 px-2.5 text-[11.5px] font-bold text-brand-deep border border-brand/40 bg-brand-soft rounded-[4px] disabled:opacity-50"
               >
-                <Icon name="RefreshCw" size={13} /> {pending ? t("inst.rematching") : t("inst.rematch")}
+                <Icon name="RefreshCw" size={13} />{" "}
+                {pending ? t("inst.rematching") : t("inst.rematch")}
               </button>
             )}
           </div>
@@ -129,33 +186,107 @@ export function InstrumentsView({
               onClick={() => setTab(k)}
               className={
                 "h-8 px-2.5 text-[11.5px] font-bold rounded-[4px] border " +
-                (tab === k ? "bg-ink text-white border-ink" : "bg-surface text-muted border-line hover:border-charcoal/40")
+                (tab === k
+                  ? "bg-ink text-white border-ink"
+                  : "bg-surface text-muted border-line hover:border-charcoal/40")
               }
             >
               {k === "unmatched" ? t("inst.unmatched") : t("inst.matched")}
-              <span className="ml-1.5 opacity-70">{k === "unmatched" ? unmatched.length : matched.length}</span>
+              <span className="ml-1.5 opacity-70">
+                {k === "unmatched" ? unmatched.length : matched.length}
+              </span>
             </button>
           ))}
         </div>
 
         <p className="text-[10.5px] text-muted mb-2">{t("inst.autoHint")}</p>
 
+        {canManage && handable.length > 0 && (
+          <div className="mb-2 flex flex-wrap items-center gap-2 border border-line rounded-[6px] bg-surface p-2">
+            <label className="flex items-center gap-1.5 text-[11.5px] text-charcoal">
+              <input
+                type="checkbox"
+                checked={picked.size > 0 && picked.size === handable.length}
+                onChange={() =>
+                  setPicked(
+                    picked.size === handable.length
+                      ? new Set()
+                      : new Set(handable.map((r) => r.id)),
+                  )
+                }
+              />
+              {t("inst.selectAll")}
+            </label>
+            <span className="text-[11px] text-muted">
+              {t("inst.nSelected").replace("{n}", String(picked.size))}
+            </span>
+            <select
+              disabled={picked.size === 0 || pending}
+              value=""
+              onChange={(e) => {
+                const to = e.target.value;
+                if (!to) return;
+                const ids = [...picked];
+                start(async () => {
+                  const count = await handOverMeasurements(ids, to);
+                  setPicked(new Set());
+                  setNote(
+                    t("inst.handedOver")
+                      .replace("{n}", String(count))
+                      .replace(
+                        "{name}",
+                        people.find((p) => p.id === to)?.name ?? "",
+                      ),
+                  );
+                });
+              }}
+              className="ml-auto h-7 border border-line rounded-[4px] px-2 text-[11.5px] bg-surface disabled:opacity-50"
+            >
+              <option value="">{t("inst.handTo")}</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <p className="text-xs text-muted border border-dashed border-line rounded-[6px] p-4 bg-surface">
-            {tab === "unmatched" ? t("inst.emptyUnmatched") : t("inst.emptyInbox")}
+            {tab === "unmatched"
+              ? t("inst.emptyUnmatched")
+              : t("inst.emptyInbox")}
           </p>
         ) : (
           <div className="border border-line rounded-[6px] bg-surface divide-y divide-line">
             {rows.map((f) => (
-              <div key={f.id} className="p-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <div
+                key={f.id}
+                className="p-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5"
+              >
+                {canManage && !f.owner && !f.sampleCode && (
+                  <input
+                    type="checkbox"
+                    aria-label={f.serial}
+                    checked={picked.has(f.id)}
+                    onChange={() => togglePick(f.id)}
+                    className="shrink-0"
+                  />
+                )}
                 <div className="min-w-0">
-                  <div className="text-[12px] font-bold text-charcoal mono truncate">{f.serial}</div>
+                  <div className="text-[12px] font-bold text-charcoal mono truncate">
+                    {f.serial}
+                  </div>
                   <div className="text-[10.5px] text-muted truncate">
                     {f.instrument}
-                    {f.measuredAt ? ` · ${f.measuredAt.slice(0, 16).replace("T", " ")}` : ""}
+                    {f.measuredAt
+                      ? ` · ${f.measuredAt.slice(0, 16).replace("T", " ")}`
+                      : ""}
                     {f.direction ? ` · ${f.direction.toLowerCase()}` : ""}
                     {/* Only the GiantForce rig records who ran the scan. */}
                     {f.operator ? ` · ${f.operator}` : ""}
+                    {f.owner ? ` · ${t("inst.ownedBy")} ${f.owner.name}` : ""}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -169,7 +300,10 @@ export function InstrumentsView({
                     {f.sampleCode}
                   </span>
                 ) : (
-                  <span className="text-[10.5px] text-warn max-w-full sm:max-w-80 truncate" title={f.matchNote}>
+                  <span
+                    className="text-[10.5px] text-warn max-w-full sm:max-w-80 truncate"
+                    title={f.matchNote}
+                  >
                     {f.matchNote}
                   </span>
                 )}
@@ -210,10 +344,12 @@ export function InstrumentsView({
                         </button>
                         {f.sampleCode && (
                           <button
-                            onClick={() => start(async () => {
-                              await unassignMeasurement(f.id);
-                              setNote(`${f.serial} → detached`);
-                            })}
+                            onClick={() =>
+                              start(async () => {
+                                await unassignMeasurement(f.id);
+                                setNote(`${f.serial} → detached`);
+                              })
+                            }
                             disabled={pending}
                             className="h-8 px-2 text-[11px] text-muted border border-line rounded-[4px] hover:border-charcoal/40 disabled:opacity-50"
                           >

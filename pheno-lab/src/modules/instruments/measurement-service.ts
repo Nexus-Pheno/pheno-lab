@@ -9,11 +9,13 @@ import {
 import { sampleSerial, serialsFor } from "@/lib/instruments/serial";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import type { Actor } from "@/modules/authorization/actor";
-import { assertStaff } from "@/modules/authorization/policy";
+import { assertStaff, isStaff } from "@/modules/authorization/policy";
+import { measurementVisibilityScope } from "@/modules/authorization/scope";
 import { recordUserAudit } from "@/modules/audit/writer";
 import {
   instrumentEntityIdSchema,
   measurementAssignmentSchema,
+  measurementHandoverSchema,
   measurementUnassignmentSchema,
   sampleAliasesSchema,
   serialExplanationSchema,
@@ -37,6 +39,8 @@ export type JvFileRow = {
   /** Who ran the scan, when the instrument records it. GiantForce puts it in
    *  the file name; the LIGHTSKY rig has no operator field, so this is "". */
   operator: string;
+  /** Who owns this scan while no sample explains it. Null means nobody does. */
+  owner: { id: string; name: string } | null;
   measuredAt: string | null;
   pce: number | null;
   voc: number | null;
@@ -52,6 +56,7 @@ export const toJvFileRow = (m: {
   serial: string;
   direction: string | null;
   operator: string;
+  assignedTo: { id: string; name: string } | null;
   measuredAt: Date | null;
   metrics: unknown;
   status: string;
@@ -70,6 +75,7 @@ export const toJvFileRow = (m: {
     direction: m.direction,
     instrument: m.instrument.name,
     operator: m.operator,
+    owner: m.assignedTo,
     measuredAt: m.measuredAt ? m.measuredAt.toISOString() : null,
     pce: n(metrics.pce),
     voc: n(metrics.voc),
@@ -86,6 +92,7 @@ const ROW_SELECT = {
   serial: true,
   direction: true,
   operator: true,
+  assignedTo: { select: { id: true, name: true } },
   measuredAt: true,
   metrics: true,
   status: true,
@@ -266,13 +273,19 @@ export async function unassignMeasurement(
       organizationId: true,
       sampleId: true,
       experimentId: true,
+      assignedToId: true,
       serial: true,
     },
   });
   if (measurement.organizationId !== actor.org)
     throw new Error("That measurement belongs to another organization.");
-  if (measurement.experimentId)
+  if (measurement.experimentId) {
     await assertCapture(actor, measurement.experimentId);
+  } else if (!isStaff(actor) && measurement.assignedToId !== actor.uid) {
+    // An unattached scan has no experiment to authorize against, so without
+    // this any member of the lab could archive an orphan they cannot even see.
+    throw new Error("That measurement is not yours to change.");
+  }
 
   const previous = measurement.sampleId;
   await db.$transaction(async (tx) => {
@@ -303,6 +316,56 @@ export async function unassignMeasurement(
 }
 
 /** Org-wide sweep, triggered from the instruments page. */
+/**
+ * Hand a batch of scans to an operator to sort, organize or archive.
+ *
+ * Only staff may do this, and only for scans they can actually see — the
+ * visibility scope is re-applied to the requested ids so a manager cannot
+ * reassign a measurement belonging to an experiment they are not on by
+ * guessing its id. The recipient must be an active member of the organization.
+ */
+export async function handOverMeasurements(
+  actor: Actor,
+  raw: unknown,
+): Promise<number> {
+  assertStaff(actor);
+  const { measurementIds, assignedToId } = measurementHandoverSchema.parse(raw);
+
+  if (assignedToId) {
+    const recipient = await db.user.findFirst({
+      where: { id: assignedToId, organizationId: actor.org, active: true },
+      select: { id: true },
+    });
+    if (!recipient)
+      throw new Error("That person is not an active member of this lab.");
+  }
+
+  const visible = await db.jvMeasurement.findMany({
+    where: {
+      AND: [measurementVisibilityScope(actor), { id: { in: measurementIds } }],
+    },
+    select: { id: true },
+  });
+  if (visible.length === 0) return 0;
+
+  return db.$transaction(async (tx) => {
+    const result = await tx.jvMeasurement.updateMany({
+      where: { id: { in: visible.map((m) => m.id) } },
+      data: { assignedToId },
+    });
+    await recordUserAudit(tx, {
+      actor,
+      action: assignedToId
+        ? "instrument.measurements.handed_over"
+        : "instrument.measurements.returned",
+      entityType: "Organization",
+      entityId: actor.org,
+      changes: { assignedToId, count: result.count },
+    });
+    return result.count;
+  });
+}
+
 export async function rematchNow(actor: Actor): Promise<RematchSummary> {
   assertStaff(actor);
   const summary = await rematchMeasurements({ organizationId: actor.org });
