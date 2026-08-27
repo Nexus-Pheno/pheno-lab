@@ -1744,3 +1744,46 @@ measuredAt / settings / scanKey。修复后 4 行各自持有正确数值、4 �
 
 **仍未做**：大太阳的样品序列号 `0820-15-8` 不是平台的样品编号，4 条测量仍是 UNMATCHED——这是
 命名约定问题，不是缺陷。数据库服务器侧备份/异机副本/恢复演练依旧未完成。
+
+### 17.5 release `20260827-002` 与 `20260827-003`（2026-08-27）
+
+**`-002`**（PR #15）：仪器测量行新增 operator 显示。`operator` 一直被解析并入库（30 条
+GiantForce 扫描全部是 "River"），但两处 `ROW_SELECT` 都没 select 这一列，所以从未到达浏览器。
+无 migration。
+
+**`-003`**（PR #16）：测量数据可见性按 sample / operator / owner 分级。
+
+**修掉的真实越权**：`getInstrumentsPageData` 之前只按 `organizationId` 过滤，任何登录用户
+都能读取全实验室的 J-V 结果。而实验本身是分级的（manager 只看自己创建或参与的）。生产上
+那 30 条已匹配扫描属于一个 **成员数为 0** 的实验，因此四位 manager 当时都能在
+`/instruments` 上读到自己无权打开的实验结果。这是已经发生的越权，不是理论风险；只是因为
+16 个 technician 账号全部 inactive，尚未扩散到 technician。
+
+**新规则**（`measurementVisibilityScope`）：挂到 sample 的按该实验既有规则；有
+`assignedToId` 的只给该人（和 admin）；两者皆无的孤儿只给 manager 和 admin。
+
+**operator 匹配**（Michael 2026-08-27 决定）：归一化精确匹配，其次仅在**恰好一个 active
+账号**相差一个字符时接受近似匹配；歧义、未知、已停用一律返回 null 并留在 manager 队列。
+停用账号被排除，因为 16 个历史导入 operator 都是 inactive 占位账号。rematch 不覆盖既有
+owner。
+
+**顺带修掉的第二个写入漏洞**：`unassignMeasurement` 只在测量已挂实验时校验 capture 权限，
+孤儿测量没有实验可校验，因此**任何组织成员都能归档一条孤儿数据**。现在要求 staff 或被指派人。
+
+**数据前后对照**：
+
+| 指标 | 迁移前 | 迁移后 |
+| --- | --- | --- |
+| `JvMeasurement` 行数 | 90 | 90 |
+| `assignedToId` 列 | absent | `text`, nullable |
+| 有 owner 的行 | — | 0 |
+
+按新规则，当前 90 条的归属为：30 条挂在 sample 上（走实验规则），60 条为孤儿（仅
+manager/admin 可见）。
+
+**验收**：`current` → `20260827-003`；带 token 的 readiness 返回
+`version: 20260827-003`、`database: ready`、`storage: ready (cos)`；公网 liveness 正常。
+
+**待办**：仪器上实际写的 operator 名字目前不对应任何 active 账号（GiantForce 全部写
+"River"，但没有 River 账号），所以第二级匹配暂时不会命中。需要先给操作者开账号，并让账号
+名与他们在仪器上输入的名字一致。
