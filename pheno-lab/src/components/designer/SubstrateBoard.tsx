@@ -91,61 +91,46 @@ export function SubstrateBoard({
   const dropTarget =
     dragging && hover && hover !== assignments[dragging] ? hover : null;
 
-  /** One segment of a group row (the old Apply-to look). */
-  const segment = (code: string, zone: string) => {
-    const isSelected = selection?.selected.has(code) ?? false;
-    const isCaptured = selection?.captured.has(code) ?? false;
+  /**
+   * Fixed-size chip: the whole surface is one press target (hold to drag,
+   * tap to select). Context-menu / text-callout suppression matters on
+   * phones — without it a long-press on the label pops the OS menu instead
+   * of picking the chip up.
+   */
+  const chip = (code: string, zone: string, selectable: boolean) => {
+    const isSelected = selectable && (selection?.selected.has(code) ?? false);
+    const isCaptured = selectable && (selection?.captured.has(code) ?? false);
     const lifted = dragging === code;
     return (
       <span
         key={code}
         data-substrate-zone={zone}
         onPointerDown={disabled ? undefined : startDrag(code)}
+        onContextMenu={(e) => e.preventDefault()}
         className={
-          "mono text-[11.5px] font-semibold px-2 flex items-center gap-0.5 select-none transition-opacity " +
+          "w-[4.6rem] h-9 shrink-0 rounded-[5px] border flex flex-col items-center justify-center leading-none gap-0.5 select-none [-webkit-touch-callout:none] transition-opacity " +
           (disabled ? "opacity-60 " : "cursor-grab [touch-action:pan-y] active:cursor-grabbing ") +
           (lifted ? "opacity-30 " : "") +
           (isSelected
-            ? "bg-ink text-white"
+            ? "bg-ink text-white border-ink"
             : isCaptured
-              ? "bg-brand-soft text-brand-deep"
-              : "bg-surface text-charcoal")
+              ? "bg-brand-soft text-brand-deep border-brand/40"
+              : "bg-surface text-charcoal border-line")
         }
       >
-        <Icon
-          name="GripVertical"
-          size={9}
-          className={isSelected ? "text-white/50" : "text-line"}
-        />
-        {code}
-        {isCaptured && <span className={isSelected ? "text-brand" : ""}>✓</span>}
+        <span className="mono text-[11.5px] font-semibold flex items-center gap-0.5">
+          <Icon
+            name="GripVertical"
+            size={9}
+            className={isSelected ? "text-white/50" : "text-line"}
+          />
+          {code}
+          {isCaptured && <span className={isSelected ? "text-brand" : ""}>✓</span>}
+        </span>
         {simCodes[code] && (
-          <span className={"text-[9px] " + (isSelected ? "text-white/60" : "text-muted")}>
+          <span className={"mono text-[8.5px] " + (isSelected ? "text-white/60" : "text-muted")}>
             {simCodes[code]}
           </span>
-        )}
-      </span>
-    );
-  };
-
-  /** Loose chip for the Extras / Trash pools. */
-  const poolChip = (code: string, zone: string) => {
-    const lifted = dragging === code;
-    return (
-      <span
-        key={code}
-        data-substrate-zone={zone}
-        onPointerDown={disabled ? undefined : startDrag(code)}
-        className={
-          "mono text-[11px] font-semibold rounded-[5px] border border-line bg-surface px-1.5 py-1 select-none flex items-center gap-0.5 " +
-          (disabled ? "opacity-60" : "cursor-grab [touch-action:pan-y] active:cursor-grabbing") +
-          (lifted ? " opacity-30" : "")
-        }
-      >
-        <Icon name="GripVertical" size={9} className="text-line" />
-        {code}
-        {simCodes[code] && (
-          <span className="text-[9px] text-muted ml-0.5">{simCodes[code]}</span>
         )}
       </span>
     );
@@ -167,37 +152,37 @@ export function SubstrateBoard({
         key={label}
         data-substrate-zone={label}
         className={
-          "flex items-stretch h-9 rounded-[6px] border overflow-hidden divide-x transition-colors " +
+          "flex items-stretch min-h-11 rounded-[6px] border overflow-hidden transition-colors " +
           (active
-            ? "border-brand ring-2 ring-brand/40 divide-line"
+            ? "border-brand ring-2 ring-brand/40"
             : groupSelected
-              ? "border-ink divide-white/20"
+              ? "border-ink"
               : groupCaptured
-                ? "border-brand/40 divide-brand/30"
-                : "border-line divide-line")
+                ? "border-brand/40"
+                : "border-line")
         }
       >
         <button
           onClick={selection ? () => selection.onToggleGroup(label) : undefined}
           data-substrate-zone={label}
           className={
-            "text-[11px] font-bold whitespace-nowrap px-2.5 flex items-center gap-1 " +
+            "text-[11px] font-bold whitespace-nowrap px-2.5 flex items-center gap-1 shrink-0 border-r " +
             (groupSelected
-              ? "bg-ink text-white"
+              ? "bg-ink text-white border-ink"
               : groupCaptured
-                ? "bg-brand-soft text-brand-deep"
-                : "bg-subtle text-charcoal")
+                ? "bg-brand-soft text-brand-deep border-brand/30"
+                : "bg-subtle text-charcoal border-line")
           }
         >
           {t("plan.group")} {label}
           {groupCaptured && <span className={groupSelected ? "text-brand" : ""}>✓</span>}
         </button>
-        {members.map((code) => segment(code, label))}
-        {members.length === 0 && (
-          <span className="text-[10px] text-muted flex items-center px-2 flex-1">
-            {t("plan.dropHere")}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-1 p-1 flex-1 min-w-0">
+          {members.map((code) => chip(code, label, true))}
+          {members.length === 0 && (
+            <span className="text-[10px] text-muted px-1">{t("plan.dropHere")}</span>
+          )}
+        </div>
       </div>
     );
   };
@@ -228,7 +213,7 @@ export function SubstrateBoard({
           <span className="mono ml-1 font-normal text-muted">{members.length}</span>
         </span>
         <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-          {members.map((code) => poolChip(code, key))}
+          {members.map((code) => chip(code, key, false))}
           {members.length === 0 && (
             <span className="text-[10px] text-muted pt-1.5">{t("plan.dropHere")}</span>
           )}
