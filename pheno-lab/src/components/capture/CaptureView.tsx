@@ -869,7 +869,8 @@ function BatchStepCapture({
         <span className="text-[13px] font-bold flex-1 min-w-0 truncate">
           {String(step.position + 1).padStart(2, "0")} {tt(step.name)}
         </span>
-        {step.equipment && <span className="mono text-[10.5px] text-muted shrink-0">{step.equipment.nickname || step.equipment.assetTag || step.equipment.model}</span>}
+        {/* Colleagues know machines by nickname; the model is the fallback. */}
+        {step.equipment && <span className="mono text-[10.5px] text-muted shrink-0">{step.equipment.nickname || step.equipment.model || step.equipment.assetTag}</span>}
       </div>
       {layerName && (
         <div className="mb-2">

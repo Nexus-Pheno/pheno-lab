@@ -136,7 +136,9 @@ export function StepCard({
         {step.equipment ? (
           <>
             {step.equipment.name.split("—")[0].trim()} ·{" "}
-            <span className="mono text-muted">{step.equipment.model || step.equipment.name.split("—")[1]?.trim()}</span>
+            <span className="mono text-muted">
+              {step.equipment.nickname || step.equipment.model || step.equipment.name.split("—")[1]?.trim()}
+            </span>
           </>
         ) : (
           <span className="text-warn">{t("card.noEquipment")}</span>
@@ -222,7 +224,7 @@ export function CharCard({
         {char.equipment ? (
           <>
             {char.equipment.name.split("—")[0].trim()} ·{" "}
-            <span className="mono text-muted">{char.equipment.model}</span>
+            <span className="mono text-muted">{char.equipment.nickname || char.equipment.model}</span>
           </>
         ) : (
           <span className="text-warn">{t("card.noInstrument")}</span>
