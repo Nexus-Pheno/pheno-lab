@@ -146,14 +146,19 @@ export function ScienceStrip({
                 {t("sci.aiSummary")}
               </span>
               {aiSummary ? (
-                // Same type treatment as the neighbouring rows; green marks
-                // the text as AI-generated.
-                <button
+                // A span, not a button: globals.css resets every button to
+                // `font: inherit` OUTSIDE the cascade layers, which beats all
+                // font utilities and rendered this line at 16px. As a span it
+                // matches the sibling rows exactly; green marks it AI-made.
+                <span
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setAiOpen((v) => !v)}
-                  className="font-sans text-[12.5px] font-normal leading-normal text-brand-deep truncate flex-1 text-left hover:underline"
+                  onKeyDown={(e) => e.key === "Enter" && setAiOpen((v) => !v)}
+                  className="text-[12.5px] text-brand-deep truncate flex-1 cursor-pointer hover:underline"
                 >
                   {aiSummary.text}
-                </button>
+                </span>
               ) : (
                 <span className="text-[12px] text-muted/70 truncate flex-1">
                   {t("sci.aiHint")}
@@ -187,7 +192,7 @@ export function ScienceStrip({
             )}
             {aiSummary && aiOpen && (
               <div className="mt-2 ml-6 border border-brand/30 bg-brand-soft/40 rounded-[6px] p-3">
-                <p className="font-sans text-[12.5px] font-normal leading-relaxed whitespace-pre-wrap text-brand-deep">
+                <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-brand-deep">
                   {aiSummary.text}
                 </p>
                 <p className="text-[10px] text-muted mt-2">
