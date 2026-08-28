@@ -203,21 +203,18 @@ export async function publishIngestItem(
           throw new Error(
             "Pick an existing process for this equipment before publishing.",
           );
-        let locationId: string | null = null;
+        // Environments double as locations now: match by name, never invent
+        // a new room from a typo in a spec sheet.
+        let environmentId: string | null = null;
         if (d.locationName?.trim()) {
-          const loc = await tx.location.findFirst({
-            where: { organizationId: actor.org, name: d.locationName.trim() },
+          const env = await tx.labEnvironment.findFirst({
+            where: {
+              organizationId: actor.org,
+              name: { contains: d.locationName.trim(), mode: "insensitive" },
+              archived: false,
+            },
           });
-          locationId =
-            loc?.id ??
-            (
-              await tx.location.create({
-                data: {
-                  organizationId: actor.org,
-                  name: d.locationName.trim(),
-                },
-              })
-            ).id;
+          environmentId = env?.id ?? null;
         }
         const equipData = {
           processId: process.id,
@@ -225,7 +222,7 @@ export async function publishIngestItem(
           make: d.make ?? "",
           model: d.model ?? "",
           assetTag: d.assetTag ?? "",
-          locationId,
+          environmentId,
           parameters: (d.parameters ?? []) as Prisma.InputJsonValue,
         };
         const existingEquip = updateTargetId

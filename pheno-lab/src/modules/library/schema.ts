@@ -49,7 +49,8 @@ const equipmentFields = z.object({
   make: shortText,
   model: shortText,
   assetTag: shortText,
-  locationId: idSchema.nullable(),
+  locationId: idSchema.nullable().optional().default(null), // legacy
+  environmentId: idSchema.nullable().optional().default(null),
   photoPath: z.string().max(1000),
   parameters: z.array(paramDefSchema).max(200),
 });

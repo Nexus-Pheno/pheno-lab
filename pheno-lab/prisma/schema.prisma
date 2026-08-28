@@ -379,8 +379,12 @@ model Equipment {
   make              String             @default("")
   model             String             @default("")
   assetTag          String             @default("")
-  locationId        String?
+  locationId        String? // legacy — superseded by environmentId, removed after contract
   location          Location?          @relation(fields: [locationId], references: [id])
+  // The environment IS the location: equipment lives in a room/enclosure whose
+  // conditions are recorded during runs (A2-201 超净间, glovebox, ...).
+  environmentId     String?
+  environment       LabEnvironment?    @relation(fields: [environmentId], references: [id])
   photoPath         String             @default("") // stored file name under uploads/
   parameters        Json               @default("[]") // [{ name, unit, defaultValue }]
   archived          Boolean            @default(false)
@@ -407,6 +411,7 @@ model LabEnvironment {
   steps             ProcessStep[]
   characterizations Characterization[]
   attachments       Attachment[]
+  equipment         Equipment[]
 }
 
 // Materials are categorized under a process: under PVD you only see PVD
