@@ -45,6 +45,7 @@ export const locationUpdateSchema = z.object({
 const equipmentFields = z.object({
   processId: idSchema,
   name: z.string().trim().min(1).max(200),
+  nickname: shortText,
   make: shortText,
   model: shortText,
   assetTag: shortText,

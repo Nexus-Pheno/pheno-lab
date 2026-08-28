@@ -100,12 +100,12 @@ function DefRows({
 // ---------------- Equipment editor ----------------
 
 type EquipmentForm = {
-  name: string; make: string; model: string; assetTag: string;
+  name: string; nickname: string; make: string; model: string; assetTag: string;
   locationId: string | null; photoPath: string; parameters: ParamDef[];
 };
 
 const emptyEquipment: EquipmentForm = {
-  name: "", make: "", model: "", assetTag: "", locationId: null, photoPath: "", parameters: [],
+  name: "", nickname: "", make: "", model: "", assetTag: "", locationId: null, photoPath: "", parameters: [],
 };
 
 function EquipmentEditor({
@@ -151,6 +151,11 @@ function EquipmentEditor({
           <FieldLabel>{t("lib.equipmentName")}</FieldLabel>
           <input className={inputCls} placeholder="e.g. Hotplate — IKA C-MAG HS 7"
             value={form.name} onChange={(e) => patch({ name: e.target.value })} />
+        </div>
+        <div className="col-span-2">
+          <FieldLabel>{t("lib.nickname")}</FieldLabel>
+          <input className={inputCls} placeholder={t("lib.nicknamePh")}
+            value={form.nickname} onChange={(e) => patch({ nickname: e.target.value })} />
         </div>
         <div>
           <FieldLabel>{t("lib.manufacturer")}</FieldLabel>
@@ -399,7 +404,7 @@ export function ProcessLibrary({
                       <div className="flex-1 min-w-0">
                         <div className="text-[12.5px] font-medium truncate">{e.name}</div>
                         <div className="text-[10.5px] text-muted truncate">
-                          {[e.make, e.model].filter(Boolean).join(" · ")}
+                          {[e.nickname, e.make, e.model].filter(Boolean).join(" · ")}
                           {e.assetTag && <span className="mono"> · {e.assetTag}</span>}
                           {e.locationId && ` · ${locationName(e.locationId)}`}
                         </div>
@@ -430,7 +435,7 @@ export function ProcessLibrary({
                       <EquipmentEditor
                         canAddLocation={canAddLocation}
                         value={{
-                          name: e.name, make: e.make, model: e.model, assetTag: e.assetTag,
+                          name: e.name, nickname: e.nickname, make: e.make, model: e.model, assetTag: e.assetTag,
                           locationId: e.locationId, photoPath: e.photoPath, parameters: paramDefs(e.parameters),
                         }}
                         locations={locations}
