@@ -264,10 +264,11 @@ function systemPrompt(lang: "en" | "zh"): string {
     "3. Results — the measured outcomes with exact numbers, best devices, and group-vs-control comparison.",
     "4. Data quality — deviations, flagged points, scrapped substrates, or missing measurements that qualify the results.",
     "5. Verdict — whether the data supports, contradicts, or cannot yet decide the hypothesis, with the reasoning.",
+    "6. Recommendations — what this result means for the team and what to do next: the most informative follow-up experiment, which process conditions or materials look worth pushing further, and what to fix in how data was recorded (e.g. missing measurements or unrecorded equipment). Ground every suggestion in the record above — no generic advice that would apply to any experiment.",
     "",
     lang === "zh"
-      ? "Write the summary in Simplified Chinese, at most about 800 characters. Keep sample codes, group labels, units and metric names (PCE, Voc, Jsc, FF) exactly as written."
-      : "Write the summary in English, at most about 500 words. Keep sample codes, group labels, units and metric names exactly as written.",
+      ? "Write the summary in Simplified Chinese, at most about 1000 characters. Keep sample codes, group labels, units and metric names (PCE, Voc, Jsc, FF) exactly as written."
+      : "Write the summary in English, at most about 600 words. Keep sample codes, group labels, units and metric names exactly as written.",
   ].join("\n");
 }
 
