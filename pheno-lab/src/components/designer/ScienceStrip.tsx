@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ExperimentFull } from "@/lib/types";
-import { generateAiSummary } from "@/lib/actions/experiments";
+import { getAiSummaryState, startAiSummary } from "@/lib/actions/experiments";
 import { useLang, useT } from "@/lib/i18n/LanguageProvider";
 import { Icon } from "@/components/ui";
 
@@ -12,6 +12,19 @@ type AiSummaryMeta = {
   model: string;
   generatedAt: string;
 };
+
+type AiRunMeta = {
+  state: "running" | "done" | "failed";
+  startedAt: string;
+  lang: "en" | "zh";
+};
+
+// Mirrors AI_SUMMARY_STALE_MS server-side: a "running" marker older than
+// this belongs to a crashed run and must not spin forever.
+const RUN_STALE_MS = 3 * 60_000;
+
+const isRunning = (run: AiRunMeta | null) =>
+  run?.state === "running" && Date.now() - Date.parse(run.startedAt) < RUN_STALE_MS;
 
 const FIELDS = [
   { key: "observation", labelKey: "sci.observation", icon: "Eye", phKey: "sci.observationPh" },
@@ -37,30 +50,51 @@ export function ScienceStrip({
   const lang = useLang();
   const [editing, setEditing] = useState<FieldKey | null>(null);
   const [draft, setDraft] = useState("");
+  const meta = exp.metadata as {
+    aiSummary?: AiSummaryMeta;
+    aiSummaryRun?: AiRunMeta;
+  } | null;
   const [aiSummary, setAiSummary] = useState<AiSummaryMeta | null>(
-    (exp.metadata as { aiSummary?: AiSummaryMeta } | null)?.aiSummary ?? null,
+    meta?.aiSummary ?? null,
   );
-  const [aiBusy, setAiBusy] = useState(false);
+  // The run marker is persisted server-side, so a generation started before
+  // navigating away is picked up again on mount and keeps spinning here.
+  const [aiRun, setAiRun] = useState<AiRunMeta | null>(meta?.aiSummaryRun ?? null);
   const [aiError, setAiError] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const aiBusy = isRunning(aiRun);
 
   const conclusionLocked = exp.status === "DRAFT" || exp.status === "IN_LAB";
   const editingField = FIELDS.find((f) => f.key === editing);
 
   const runAiSummary = async () => {
-    setAiBusy(true);
     setAiError(false);
     try {
-      const summary = await generateAiSummary(exp.id, lang);
-      if (summary) {
-        setAiSummary(summary);
-        setAiOpen(true);
-      } else setAiError(true);
+      setAiRun(await startAiSummary(exp.id, lang));
     } catch {
       setAiError(true);
     }
-    setAiBusy(false);
   };
+
+  // While a generation is running, poll until the server marker resolves.
+  useEffect(() => {
+    if (!aiBusy) return;
+    const timer = setInterval(async () => {
+      try {
+        const state = await getAiSummaryState(exp.id);
+        if (!state) return;
+        if (state.summary) setAiSummary(state.summary);
+        if (state.run) {
+          setAiRun(state.run);
+          if (state.run.state === "done") setAiOpen(true);
+          if (state.run.state === "failed") setAiError(true);
+        }
+      } catch {
+        // transient poll failure — keep trying until the stale cutoff
+      }
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [aiBusy, exp.id]);
 
   const open = (key: FieldKey) => {
     setDraft(exp[key]);
@@ -143,7 +177,12 @@ export function ScienceStrip({
                 </button>
               )}
             </div>
-            {aiError && <p className="text-[11px] text-danger mt-1.5 ml-6">{t("sci.aiFailed")}</p>}
+            {aiBusy && (
+              <p className="text-[11px] text-muted mt-1.5 ml-6">{t("sci.aiBackground")}</p>
+            )}
+            {aiError && !aiBusy && (
+              <p className="text-[11px] text-danger mt-1.5 ml-6">{t("sci.aiFailed")}</p>
+            )}
             {aiSummary && aiOpen && (
               <div className="mt-2 ml-6 border border-brand/30 bg-brand-soft/40 rounded-[6px] p-3">
                 <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-charcoal">
