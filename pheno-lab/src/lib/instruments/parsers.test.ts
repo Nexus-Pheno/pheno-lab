@@ -88,6 +88,31 @@ describe("instrument parser fixtures", () => {
     expect(parsed.scans[0].curve).toHaveLength(119);
   });
 
+  it("joins metrics when trace names use full serials but summary rows use sim codes", () => {
+    // Real 2026-08-28 session: the operator typed "2026-001-26-2-S25-8" into
+    // the trace-name field but the summary table carried "13A25-8" — every
+    // scan came out with an empty metrics object.
+    const parsed = parseInstrumentFile(fixture("lightsky-simcode-summary.csv"), {
+      fileName: "20260828-PLASMA.csv",
+      fileModifiedAt: new Date("2026-08-28T03:00:00Z"),
+    });
+    expect(parsed.instrument).toBe("LIGHTSKY_LIV");
+    expect(parsed.scans.map((s) => s.serial)).toEqual([
+      "2026-001-26-2-S25-8",
+      "2026-001-26-2-S25-8",
+    ]);
+    expect(parsed.scans.map((s) => s.direction)).toEqual([
+      "REVERSE",
+      "FORWARD",
+    ]);
+    // Metrics come from the sim-code summary rows, direction-matched.
+    expect(parsed.scans[0].metrics).toMatchObject({ voc: 1.95, pce: 19.9 });
+    expect(parsed.scans[1].metrics).toMatchObject({ voc: 1.92, pce: 18.8 });
+    expect(
+      parsed.warnings.some((w) => w.includes("by sample/pixel number")),
+    ).toBe(true);
+  });
+
   it("keeps every repeat when one cell is scanned twice in the same direction", () => {
     // A LIGHTSKY session routinely holds several scans of one cell in one
     // direction, so the trace name repeats. Keying the summary table by name
