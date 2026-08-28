@@ -146,9 +146,11 @@ export function ScienceStrip({
                 {t("sci.aiSummary")}
               </span>
               {aiSummary ? (
+                // Same type treatment as the neighbouring rows; green marks
+                // the text as AI-generated.
                 <button
                   onClick={() => setAiOpen((v) => !v)}
-                  className="text-[12.5px] text-charcoal truncate flex-1 text-left hover:underline"
+                  className="font-sans text-[12.5px] font-normal leading-normal text-brand-deep truncate flex-1 text-left hover:underline"
                 >
                   {aiSummary.text}
                 </button>
@@ -185,7 +187,7 @@ export function ScienceStrip({
             )}
             {aiSummary && aiOpen && (
               <div className="mt-2 ml-6 border border-brand/30 bg-brand-soft/40 rounded-[6px] p-3">
-                <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-charcoal">
+                <p className="font-sans text-[12.5px] font-normal leading-relaxed whitespace-pre-wrap text-brand-deep">
                   {aiSummary.text}
                 </p>
                 <p className="text-[10px] text-muted mt-2">
