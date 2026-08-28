@@ -1,7 +1,6 @@
 import { requireSession } from "@/lib/auth";
 import {
   ProcessLibrary,
-  LocationSection,
   EnvironmentSection,
 } from "@/components/library/sections";
 import {
@@ -37,17 +36,13 @@ export default async function LibraryPage() {
           processes={data.processes}
           equipment={data.equipment}
           locations={data.locations}
+          environments={data.environments.map((env) => ({ id: env.id, name: env.name }))}
           canEdit={data.canEdit}
           canEditEquipment={data.stewardships.equipmentAdmin}
-          canAddLocation={data.stewardships.facilityAdmin}
           layers={data.layers}
         />
         <EnvironmentSection
           environments={data.environments}
-          canEdit={data.stewardships.facilityAdmin}
-        />
-        <LocationSection
-          locations={data.locations}
           canEdit={data.stewardships.facilityAdmin}
         />
 

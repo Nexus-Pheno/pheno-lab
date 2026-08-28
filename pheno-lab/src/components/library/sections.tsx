@@ -14,7 +14,6 @@ import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { LibrarySection } from "./Collapsible";
 
-const ADD_LOCATION = "__add_location__";
 
 // A machine's original vendor documents, attached when the equipment was
 // ingested. They are read-only here: the ingestion gate owns what gets attached.
@@ -100,25 +99,23 @@ function DefRows({
 // ---------------- Equipment editor ----------------
 
 type EquipmentForm = {
-  name: string; nickname: string; make: string; model: string; assetTag: string;
+  name: string; nickname: string; make: string; model: string; assetTag: string; environmentId: string | null;
   locationId: string | null; photoPath: string; parameters: ParamDef[];
 };
 
 const emptyEquipment: EquipmentForm = {
-  name: "", nickname: "", make: "", model: "", assetTag: "", locationId: null, photoPath: "", parameters: [],
+  name: "", nickname: "", make: "", model: "", assetTag: "", locationId: null, environmentId: null, photoPath: "", parameters: [],
 };
 
 function EquipmentEditor({
   value,
-  locations,
-  canAddLocation,
+  environments,
   onSave,
   onCancel,
   saveLabel,
 }: {
   value: EquipmentForm;
-  locations: Location[];
-  canAddLocation: boolean;
+  environments: { id: string; name: string }[];
   onSave: (form: EquipmentForm) => Promise<void>;
   onCancel: () => void;
   saveLabel: string;
@@ -173,24 +170,13 @@ function EquipmentEditor({
           <FieldLabel>{t("lib.location")}</FieldLabel>
           <select
             className={selectCls}
-            value={form.locationId ?? ""}
-            onChange={async (e) => {
-              if (e.target.value === ADD_LOCATION) {
-                const name = prompt("New location name:");
-                if (name?.trim()) {
-                  const location = await createLocation(name);
-                  patch({ locationId: location.id });
-                }
-                return;
-              }
-              patch({ locationId: e.target.value || null });
-            }}
+            value={form.environmentId ?? ""}
+            onChange={(e) => patch({ environmentId: e.target.value || null })}
           >
             <option value="">{t("lib.noLocation")}</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
+            {environments.map((env) => (
+              <option key={env.id} value={env.id}>{env.name}</option>
             ))}
-            {canAddLocation && <option value={ADD_LOCATION}>{t("lib.addLocation")}</option>}
           </select>
         </div>
         <div className="col-span-2">
@@ -314,18 +300,18 @@ export function ProcessLibrary({
   processes,
   equipment,
   locations,
+  environments,
   canEdit,
   canEditEquipment,
-  canAddLocation,
   layers,
 }: {
   processes: Process[];
   equipment: EquipmentWithDocs[];
   locations: Location[];
+  environments: { id: string; name: string }[];
   layers: { code: string; name: string }[];
   canEdit: boolean;
   canEditEquipment: boolean;
-  canAddLocation: boolean;
 }) {
   const t = useT();
   const tt = useTerm();
@@ -334,6 +320,8 @@ export function ProcessLibrary({
   const [addingProcess, setAddingProcess] = useState<ProcessKind | null>(null);
   const [newProcess, setNewProcess] = useState({ name: "", icon: "Wrench" });
   const locationName = (id: string | null) => locations.find((l) => l.id === id)?.name ?? "";
+  const environmentName = (id: string | null) =>
+    environments.find((env) => env.id === id)?.name ?? "";
 
   const renderProcess = (p: Process) => {
     const eqs = equipment.filter((e) => e.processId === p.id);
@@ -406,7 +394,7 @@ export function ProcessLibrary({
                         <div className="text-[10.5px] text-muted truncate">
                           {[e.nickname, e.make, e.model].filter(Boolean).join(" · ")}
                           {e.assetTag && <span className="mono"> · {e.assetTag}</span>}
-                          {e.locationId && ` · ${locationName(e.locationId)}`}
+                          {(e.environmentId || e.locationId) && ` · ${environmentName(e.environmentId) || locationName(e.locationId)}`}
                         </div>
                       </div>
                       <div className="hidden md:flex flex-wrap gap-1 max-w-64 justify-end">
@@ -433,12 +421,11 @@ export function ProcessLibrary({
                     <SpecSheets docs={e.attachments} />
                     {editingEq === e.id && (
                       <EquipmentEditor
-                        canAddLocation={canAddLocation}
+                        environments={environments}
                         value={{
-                          name: e.name, nickname: e.nickname, make: e.make, model: e.model, assetTag: e.assetTag,
+                          name: e.name, nickname: e.nickname, make: e.make, model: e.model, assetTag: e.assetTag, environmentId: e.environmentId,
                           locationId: e.locationId, photoPath: e.photoPath, parameters: paramDefs(e.parameters),
                         }}
-                        locations={locations}
                         saveLabel={t("lib.saveChanges")}
                         onCancel={() => setEditingEq(null)}
                         onSave={async (form) => { await updateEquipment(e.id, form); setEditingEq(null); }}
@@ -448,9 +435,8 @@ export function ProcessLibrary({
                 ))}
                 {editingEq === "new" && (
                   <EquipmentEditor
-                        canAddLocation={canAddLocation}
+                    environments={environments}
                     value={emptyEquipment}
-                    locations={locations}
                     saveLabel={t("lib.addEquipment")}
                     onCancel={() => setEditingEq(null)}
                     onSave={async (form) => { await createEquipment({ ...form, processId: p.id }); setEditingEq(null); }}

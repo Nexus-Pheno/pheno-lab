@@ -50,6 +50,18 @@ async function requireOrgLocation(
   if (!count) throw new Error("Location not found in this organization.");
 }
 
+async function requireOrgEnvironment(
+  tx: Prisma.TransactionClient,
+  actor: Actor,
+  environmentId: string | null | undefined,
+) {
+  if (!environmentId) return;
+  const count = await tx.labEnvironment.count({
+    where: { id: environmentId, organizationId: actor.org },
+  });
+  if (!count) throw new Error("Environment not found in this organization.");
+}
+
 function assertUpdated(count: number, label: string): void {
   if (count !== 1) throw new Error(`${label} not found.`);
 }
@@ -140,6 +152,7 @@ export async function createEquipment(actor: Actor, raw: unknown) {
   return db.$transaction(async (tx) => {
     await requireOrgProcess(tx, actor, input.processId);
     await requireOrgLocation(tx, actor, input.locationId);
+    await requireOrgEnvironment(tx, actor, input.environmentId);
     const row = await tx.equipment.create({
       data: {
         ...input,
@@ -164,6 +177,7 @@ export async function updateEquipment(actor: Actor, raw: unknown) {
   await db.$transaction(async (tx) => {
     await requireOrgProcess(tx, actor, data.processId);
     await requireOrgLocation(tx, actor, data.locationId);
+    await requireOrgEnvironment(tx, actor, data.environmentId);
     const result = await tx.equipment.updateMany({
       where: { id, organizationId: actor.org },
       data: {
