@@ -21,7 +21,8 @@ import {
   applyTestPlan as applyTestPlanService,
   clearTestData as clearTestDataService,
   createExperiment as createExperimentService,
-  generateAiSummary as generateAiSummaryService,
+  getAiSummaryState as getAiSummaryStateService,
+  startAiSummary as startAiSummaryService,
   deleteCharacterization as deleteCharacterizationService,
   deleteExperiment as deleteExperimentService,
   deletePreset as deletePresetService,
@@ -200,12 +201,16 @@ export async function quickCreateMaterial(
   return quickCreateMaterialService(await requireSession(), name, processId);
 }
 
-export async function generateAiSummary(experimentId: string, lang: "en" | "zh") {
-  return generateAiSummaryService(
+export async function startAiSummary(experimentId: string, lang: "en" | "zh") {
+  return startAiSummaryService(
     await requireSession(),
     experimentId,
     z.enum(["en", "zh"]).parse(lang),
   );
+}
+
+export async function getAiSummaryState(experimentId: string) {
+  return getAiSummaryStateService(await requireSession(), experimentId);
 }
 
 export async function applyTestPlan(experimentId: string, plan: TestPlan) {

@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
+import { experimentVisibilityScope } from "@/modules/authorization/scope";
 import { activeProvider, chat } from "@/modules/ai/client";
 import { recordUserAudit } from "@/modules/audit/writer";
 import type { TestPlan } from "@/lib/library";
@@ -328,4 +329,89 @@ export async function generateAiSummary(
     });
   });
   return summary;
+}
+
+// ---- background generation -------------------------------------------------
+//
+// Generation takes ~30s, so the browser must not have to keep the request
+// alive: startAiSummary records a "running" marker in metadata, kicks the
+// generation off detached (same fire-and-forget pattern as translations),
+// and the client polls getAiSummaryState — leaving the page and coming back
+// resumes the spinner from the persisted marker.
+
+export type AiSummaryRun = {
+  state: "running" | "done" | "failed";
+  startedAt: string;
+  lang: "en" | "zh";
+};
+
+/** A "running" marker older than this is a crashed run — allow a restart. */
+export const AI_SUMMARY_STALE_MS = 3 * 60_000;
+
+async function writeRunState(id: string, patch: AiSummaryRun) {
+  const row = await db.experiment.findUniqueOrThrow({
+    where: { id },
+    select: { metadata: true },
+  });
+  const metadata = {
+    ...((row.metadata as Record<string, unknown> | null) ?? {}),
+    aiSummaryRun: patch,
+  };
+  await db.experiment.update({
+    where: { id },
+    data: { metadata: metadata as Prisma.InputJsonValue },
+  });
+}
+
+export async function startAiSummary(
+  actor: Actor,
+  rawId: unknown,
+  lang: "en" | "zh",
+): Promise<AiSummaryRun> {
+  const id = experimentIdSchema.parse(rawId);
+  await assertEdit(actor, id);
+  const row = await db.experiment.findUniqueOrThrow({
+    where: { id },
+    select: { metadata: true },
+  });
+  const existing = (row.metadata as { aiSummaryRun?: AiSummaryRun } | null)
+    ?.aiSummaryRun;
+  if (
+    existing?.state === "running" &&
+    Date.now() - Date.parse(existing.startedAt) < AI_SUMMARY_STALE_MS
+  ) {
+    return existing; // one generation at a time
+  }
+  const run: AiSummaryRun = {
+    state: "running",
+    startedAt: new Date().toISOString(),
+    lang,
+  };
+  await writeRunState(id, run);
+  void generateAiSummary(actor, id, lang)
+    .then((summary) =>
+      writeRunState(id, { ...run, state: summary ? "done" : "failed" }),
+    )
+    .catch(() =>
+      writeRunState(id, { ...run, state: "failed" }).catch(() => {}),
+    );
+  return run;
+}
+
+/** Poll target for the client; read access follows experiment visibility. */
+export async function getAiSummaryState(
+  actor: Actor,
+  rawId: unknown,
+): Promise<{ run: AiSummaryRun | null; summary: AiSummary | null } | null> {
+  const id = experimentIdSchema.parse(rawId);
+  const row = await db.experiment.findFirst({
+    where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
+    select: { metadata: true },
+  });
+  if (!row) return null;
+  const meta = row.metadata as {
+    aiSummaryRun?: AiSummaryRun;
+    aiSummary?: AiSummary;
+  } | null;
+  return { run: meta?.aiSummaryRun ?? null, summary: meta?.aiSummary ?? null };
 }

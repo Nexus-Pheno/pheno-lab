@@ -111,6 +111,7 @@ export const en = {
   "sci.aiGenerate": "Generate",
   "sci.aiRegenerate": "Regenerate",
   "sci.aiBusy": "Analyzing…",
+  "sci.aiBackground": "Runs in the background — you can leave this page and come back.",
   "sci.aiFailed": "No AI model configured or the call failed — try again or check the AI provider in Profile.",
   "sci.aiDisclaimer": "AI-generated; verify numbers before citing",
 
@@ -1126,6 +1127,7 @@ export const zh: Record<TKey, string> = {
   "sci.aiGenerate": "生成",
   "sci.aiRegenerate": "重新生成",
   "sci.aiBusy": "分析中…",
+  "sci.aiBackground": "后台运行——可离开此页面，稍后回来查看。",
   "sci.aiFailed": "未配置 AI 模型或调用失败——请重试或在个人资料中检查 AI 服务。",
   "sci.aiDisclaimer": "AI 生成内容，引用前请核对数据",
 
