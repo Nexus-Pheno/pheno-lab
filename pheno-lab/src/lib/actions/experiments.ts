@@ -21,6 +21,7 @@ import {
   applyTestPlan as applyTestPlanService,
   clearTestData as clearTestDataService,
   createExperiment as createExperimentService,
+  generateAiSummary as generateAiSummaryService,
   deleteCharacterization as deleteCharacterizationService,
   deleteExperiment as deleteExperimentService,
   deletePreset as deletePresetService,
@@ -197,6 +198,14 @@ export async function quickCreateMaterial(
   processId: string | null,
 ) {
   return quickCreateMaterialService(await requireSession(), name, processId);
+}
+
+export async function generateAiSummary(experimentId: string, lang: "en" | "zh") {
+  return generateAiSummaryService(
+    await requireSession(),
+    experimentId,
+    z.enum(["en", "zh"]).parse(lang),
+  );
 }
 
 export async function applyTestPlan(experimentId: string, plan: TestPlan) {

@@ -30,7 +30,7 @@ export async function activeProvider(orgId: string) {
 export async function chat(
   orgId: string,
   messages: ChatMessage[],
-  opts: { maxTokens?: number; temperature?: number } = {},
+  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
 ): Promise<string | null> {
   const p = await activeProvider(orgId);
   if (!p) return null;
@@ -48,7 +48,7 @@ export async function chat(
         max_tokens: opts.maxTokens ?? 400,
         temperature: opts.temperature ?? 0,
       }),
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 25_000),
     });
     if (!res.ok) return null;
     const j = await res.json();

@@ -107,9 +107,19 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
       orderBy: { position: "asc" },
       select: { code: true, name: true, nameZh: true },
     }),
+    // Full rows: the designer both filters dropdowns by layer and feeds the
+    // in-page "add material" modal, which needs the display names.
     db.materialCategoryDef.findMany({
       where: { organizationId: actor.org },
-      select: { code: true, layers: true },
+      orderBy: { position: "asc" },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameZh: true,
+        builtIn: true,
+        layers: true,
+      },
     }),
   ]);
   if (!experiment) return null;

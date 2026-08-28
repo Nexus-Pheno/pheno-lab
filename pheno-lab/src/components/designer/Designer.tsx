@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Equipment, Material, Preset, LabEnvironment, Process } from "@prisma/client";
 import type { ExperimentFull, StepFull, CharFull, StepDraft, CharDraft } from "@/lib/types";
 import { STATUS_META, type TestPlan } from "@/lib/library";
@@ -12,6 +13,7 @@ import {
   addMember, removeMember, quickCreateMaterial, applyTestPlan,
 } from "@/lib/actions/experiments";
 import { Icon } from "@/components/ui";
+import type { CategoryRow } from "@/components/library/MaterialsRecipes";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { usePointerDrag } from "@/lib/usePointerDrag";
 import { ReviewPanel } from "./ReviewPanel";
@@ -49,14 +51,16 @@ export default function Designer({
   orgUsers: { id: string; name: string; email: string; role: string }[];
   recipes: { id: string; name: string; summary: string }[];
   layers: { code: string; name: string }[];
-  categoryLayers?: { code: string; layers: string[] }[];
+  categoryLayers?: (CategoryRow & { layers: string[] })[];
   canManageMaterials: boolean;
   canEdit: boolean;
   canManageMembers: boolean;
 }) {
   const t = useT();
   const tt = useTerm();
+  const router = useRouter();
   const [exp, setExp] = useState<ExperimentFull>(initial);
+  const [sendingToLab, setSendingToLab] = useState(false);
   const [materials, setMaterials] = useState<Material[]>(initialMaterials);
   const [presets, setPresets] = useState<Preset[]>(initialPresets);
   const [selection, setSelection] = useState<Selection>({ kind: "none" });
@@ -190,6 +194,16 @@ export default function Designer({
     void track(updateExperimentMeta(exp.id, patch));
   };
 
+  // Everything already autosaves; these buttons only settle the status and
+  // return the user to the kanban board.
+  const handleSaveDraft = () => router.push("/");
+  const handleSendToLab = async () => {
+    setSendingToLab(true);
+    const ok = await track(updateExperimentMeta(exp.id, { status: "IN_LAB" }));
+    setSendingToLab(false);
+    if (ok !== null) router.push("/");
+  };
+
   const handleAddMember = async (userId: string) => {
     const members = await track(addMember(exp.id, userId));
     if (members) setExp((e) => ({ ...e, members: members as ExperimentFull["members"] }));
@@ -297,6 +311,25 @@ export default function Designer({
             {t("dash.capture")}
           </Link>
         )}
+        {canEdit && exp.status === "DRAFT" && (
+          <>
+            <button
+              onClick={handleSaveDraft}
+              className="shrink-0 h-8 text-xs font-semibold text-charcoal border border-line rounded-[4px] px-3 hover:bg-subtle flex items-center gap-1.5"
+            >
+              <Icon name="Save" size={13} />
+              {t("designer.saveDraft")}
+            </button>
+            <button
+              disabled={sendingToLab}
+              onClick={handleSendToLab}
+              className="shrink-0 h-8 text-xs font-bold bg-brand text-[#243000] rounded-[4px] px-3 flex items-center gap-1.5 disabled:opacity-60"
+            >
+              <Icon name="FlaskConical" size={13} />
+              {t("designer.sendToLab")}
+            </button>
+          </>
+        )}
         <button
           onClick={() => setShowSettings(true)}
           className="shrink-0 h-8 text-xs font-semibold text-charcoal border border-line rounded-[4px] px-3 hover:bg-subtle flex items-center gap-1.5"
@@ -377,9 +410,14 @@ export default function Designer({
             materials={materials}
             layers={layers}
             categoryLayers={categoryLayers}
+            categories={categoryLayers}
             sampleCount={exp.samples.length}
             canEdit={canEdit}
+            canManageMaterials={canManageMaterials}
             onApply={handleApplyTestPlan}
+            onMaterialCreated={(m) =>
+              setMaterials((ms) => [...ms, m].sort((a, b) => a.name.localeCompare(b.name)))
+            }
           />
 
           <div className="flex items-center gap-2.5 mb-2.5 mt-5">
