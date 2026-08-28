@@ -9,8 +9,16 @@ import {
   type SearchHit,
   type SearchResponse,
 } from "@/modules/insights/query";
+import {
+  getActivityFeed as getActivityFeedQuery,
+  type ActivityFeed,
+} from "@/modules/audit/query";
 
-export type { DatabaseSummary, SearchHit, SearchResponse };
+export type { DatabaseSummary, SearchHit, SearchResponse, ActivityFeed };
+
+export async function getActivityFeed(): Promise<ActivityFeed> {
+  return getActivityFeedQuery(await requireSession());
+}
 
 export async function getDatabaseSummary(
   includeTest = false,

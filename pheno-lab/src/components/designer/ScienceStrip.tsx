@@ -137,8 +137,20 @@ export function ScienceStrip({
       <div className="bg-surface border border-line rounded-[6px] divide-y divide-line">
         {FIELDS.filter((f) => f.key !== "conclusion").map(fieldRow)}
         {/* AI-assisted summary sits right above the conclusion: read the
-            model's analysis of the full record, then write your own verdict. */}
-        {!conclusionLocked && (
+            model's analysis of the full record, then write your own verdict.
+            On drafts it is visible but locked, like the conclusion, so the
+            team knows the feature exists. */}
+        {conclusionLocked ? (
+          <div className="w-full flex items-center gap-2.5 px-3.5 py-2 bg-subtle cursor-default">
+            <Icon name="Sparkles" size={13} className="shrink-0 text-muted" />
+            <span className="text-[10px] font-bold uppercase text-muted w-24 shrink-0">
+              {t("sci.aiSummary")}
+            </span>
+            <span className="text-[12px] italic text-muted truncate">
+              {t("sci.aiLocked")}
+            </span>
+          </div>
+        ) : (
           <div className="px-3.5 py-2">
             <div className="flex items-center gap-2.5">
               <Icon name="Sparkles" size={13} className="shrink-0 text-brand-deep" />

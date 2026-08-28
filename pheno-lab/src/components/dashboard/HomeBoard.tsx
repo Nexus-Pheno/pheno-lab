@@ -26,6 +26,11 @@ export type ExpRow = {
 
 const STATUSES: ExperimentStatus[] = ["DRAFT", "IN_LAB", "REVIEW", "COMPLETE", "ARCHIVED"];
 
+// Completed/archived columns hold the whole history — populate a page at a
+// time instead of hundreds of cards.
+const DONE_PAGE = 10;
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
+
 const STATUS_TONE: Record<string, string> = {
   DRAFT: "bg-warn-soft text-warn border-warn-line",
   IN_LAB: "bg-brand-soft text-brand-deep border-brand/40",
@@ -50,6 +55,13 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
   const canEdit = role !== "TECHNICIAN";
   const dragRef = useRef<string | null>(null);
   const [dropCol, setDropCol] = useState<string | null>(null);
+  // How many finished items are revealed per closed status ("view more").
+  const [doneShown, setDoneShown] = useState<Record<string, number>>({
+    COMPLETE: DONE_PAGE,
+    ARCHIVED: DONE_PAGE,
+  });
+  const showMore = (status: string) =>
+    setDoneShown((s) => ({ ...s, [status]: (s[status] ?? DONE_PAGE) + 20 }));
 
   const switchView = (v: "kanban" | "list") => {
     setView(v);
@@ -212,10 +224,11 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
         </div>
       </Link>
       <div className="flex items-center gap-1 mt-2">
-        {[e.createdBy, ...e.members.filter((m) => m !== e.createdBy)].slice(0, 4).map((m) => (
+        {/* First names, not initials — contributors are recognizable at a glance. */}
+        {[e.createdBy, ...e.members.filter((m) => m !== e.createdBy)].slice(0, 3).map((m) => (
           <span key={m} title={m}
-            className="w-5 h-5 rounded-full bg-subtle border border-line text-[8px] font-bold text-charcoal flex items-center justify-center">
-            {m.slice(0, 2).toUpperCase()}
+            className="h-5 px-1.5 rounded-full bg-subtle border border-line text-[9px] font-bold text-charcoal flex items-center justify-center max-w-16 truncate">
+            {firstName(m)}
           </span>
         ))}
         <span className="flex-1" />
@@ -306,6 +319,8 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
           >
             {STATUSES.map((status) => {
               const items = filtered.filter((e) => e.status === status);
+              const cap = doneShown[status];
+              const shown = cap ? items.slice(0, cap) : items;
               return (
                 <div
                   key={status}
@@ -330,58 +345,91 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                     <span className="mono text-[11px] text-muted">{items.length}</span>
                   </div>
                   <div className="space-y-2">
-                    {items.map((e) => <KanbanCard key={e.id} e={e} />)}
+                    {shown.map((e) => <KanbanCard key={e.id} e={e} />)}
                   </div>
+                  {items.length > shown.length && (
+                    <button
+                      onClick={() => showMore(status)}
+                      className="w-full mt-2 h-7 text-[11px] font-semibold text-brand-deep border border-dashed border-line rounded-[4px] hover:bg-subtle"
+                    >
+                      {t("dash.viewMore").replace("{n}", String(items.length - shown.length))}
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="bg-surface border border-line rounded-[6px] overflow-x-auto">
-            <table className="w-full min-w-[760px] text-[13px]">
-              <thead>
-                <tr className="text-left text-[11px] uppercase text-muted border-b border-line">
-                  <th className="px-4 py-2.5 font-bold">{t("list.code")}</th>
-                  <th className="px-4 py-2.5 font-bold">{t("list.titleCol")}</th>
-                  <th className="px-4 py-2.5 font-bold">{t("list.status")}</th>
-                  <th className="px-4 py-2.5 font-bold">{t("list.createdBy")}</th>
-                  <th className="px-4 py-2.5 font-bold text-right">{t("list.samples")}</th>
-                  <th className="px-4 py-2.5 font-bold text-right">{t("list.steps")}</th>
-                  <th className="px-4 py-2.5 font-bold">{t("list.labels")}</th>
-                  <th className="px-4 py-2.5 font-bold">{t("list.updated")}</th>
-                  <th className="px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((e) => (
-                  <tr key={e.id} className="border-b border-line last:border-0 hover:bg-subtle">
-                    <td className="px-4 py-3">
-                      <Link href={`/experiments/${e.id}`} className="mono font-semibold text-brand-deep">{e.code}</Link>
-                    </td>
-                    <td className="px-4 py-3"><Link href={`/experiments/${e.id}`}>{e.title}</Link></td>
-                    <td className="px-4 py-3">{statusChip(e.status)}</td>
-                    <td className="px-4 py-3 text-muted">{e.createdBy}</td>
-                    <td className="px-4 py-3 text-right mono">{e.samples}</td>
-                    <td className="px-4 py-3 text-right mono">{e.steps}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {e.labels.slice(0, 4).map((l) => (
-                          <span key={l} className="text-[10px] px-1.5 py-0.5 bg-subtle border border-line rounded-[3px] text-charcoal">{l}</span>
-                        ))}
-                        {e.labels.length > 4 && <span className="text-[10px] text-muted">+{e.labels.length - 4}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted mono">{e.updatedAt}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end">
-                        <RowActions e={e} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          (() => {
+            // Finished rows are capped like the kanban columns — the history
+            // is one click away instead of pushing the table off-screen.
+            const seen: Record<string, number> = {};
+            const rows = filtered.filter((e) => {
+              const cap = doneShown[e.status];
+              if (!cap) return true;
+              seen[e.status] = (seen[e.status] ?? 0) + 1;
+              return seen[e.status] <= cap;
+            });
+            const hidden = filtered.length - rows.length;
+            return (
+              <div className="bg-surface border border-line rounded-[6px] overflow-x-auto">
+                <table className="w-full min-w-[760px] text-[12.5px]">
+                  <thead>
+                    <tr className="text-left text-[10.5px] uppercase text-muted border-b border-line">
+                      <th className="px-3 py-1.5 font-bold">{t("list.code")}</th>
+                      <th className="px-3 py-1.5 font-bold">{t("list.titleCol")}</th>
+                      <th className="px-3 py-1.5 font-bold">{t("list.status")}</th>
+                      <th className="px-3 py-1.5 font-bold">{t("list.createdBy")}</th>
+                      <th className="px-3 py-1.5 font-bold text-right">{t("list.samples")}</th>
+                      <th className="px-3 py-1.5 font-bold text-right">{t("list.steps")}</th>
+                      <th className="px-3 py-1.5 font-bold">{t("list.labels")}</th>
+                      <th className="px-3 py-1.5 font-bold">{t("list.updated")}</th>
+                      <th className="px-3 py-1.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((e) => (
+                      <tr key={e.id} className="border-b border-line last:border-0 hover:bg-subtle">
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          <Link href={`/experiments/${e.id}`} className="mono text-[11.5px] font-semibold text-brand-deep">{e.code}</Link>
+                        </td>
+                        <td className="px-3 py-1.5"><Link href={`/experiments/${e.id}`} className="line-clamp-1">{e.title}</Link></td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">{statusChip(e.status)}</td>
+                        <td className="px-3 py-1.5 text-muted whitespace-nowrap">{firstName(e.createdBy)}</td>
+                        <td className="px-3 py-1.5 text-right mono">{e.samples}</td>
+                        <td className="px-3 py-1.5 text-right mono">{e.steps}</td>
+                        <td className="px-3 py-1.5">
+                          <div className="flex gap-1 overflow-hidden whitespace-nowrap">
+                            {e.labels.slice(0, 3).map((l) => (
+                              <span key={l} className="text-[10px] px-1.5 py-px bg-subtle border border-line rounded-[3px] text-charcoal shrink-0">{l}</span>
+                            ))}
+                            {e.labels.length > 3 && <span className="text-[10px] text-muted shrink-0">+{e.labels.length - 3}</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-1.5 text-muted mono text-[11px] whitespace-nowrap">{e.updatedAt}</td>
+                        <td className="px-3 py-1.5">
+                          <div className="flex items-center justify-end">
+                            <RowActions e={e} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {hidden > 0 && (
+                  <button
+                    onClick={() => {
+                      showMore("COMPLETE");
+                      showMore("ARCHIVED");
+                    }}
+                    className="w-full h-8 text-[11.5px] font-semibold text-brand-deep border-t border-line hover:bg-subtle"
+                  >
+                    {t("dash.viewMore").replace("{n}", String(hidden))}
+                  </button>
+                )}
+              </div>
+            );
+          })()
         )}
       </div>
     </main>

@@ -45,9 +45,20 @@ export async function getSession(): Promise<Session | null> {
         role: true,
         organizationId: true,
         active: true,
+        lastSeenAt: true,
       },
     });
     if (!user?.active) return null;
+    // Presence heartbeat for the activity monitor — at most one write per
+    // 5 minutes per user, never blocking the request.
+    if (
+      !user.lastSeenAt ||
+      Date.now() - user.lastSeenAt.getTime() > 5 * 60_000
+    ) {
+      void db.user
+        .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
+        .catch(() => {});
+    }
     return {
       uid: user.id,
       name: user.name,

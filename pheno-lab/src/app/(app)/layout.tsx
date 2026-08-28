@@ -95,10 +95,11 @@ export default async function AppLayout({
             title={t("nav.profile")}
             className="h-8 flex items-center gap-2 border border-line rounded-[4px] pl-1.5 pr-2.5 hover:bg-subtle"
           >
-            <span className="w-6 h-6 rounded-full bg-brand-soft border border-brand/40 text-[9px] font-bold text-brand-deep flex items-center justify-center">
-              {session.name.slice(0, 2).toUpperCase()}
+            {/* First name in the oval — recognizable at a glance, unlike initials. */}
+            <span className="h-6 px-2 rounded-full bg-brand-soft border border-brand/40 text-[10px] font-bold text-brand-deep flex items-center justify-center max-w-20 truncate">
+              {session.name.trim().split(/\s+/)[0] || session.name}
             </span>
-            <span className="text-xs font-semibold text-charcoal whitespace-nowrap truncate max-w-24 sm:max-w-none">
+            <span className="text-xs font-semibold text-charcoal whitespace-nowrap truncate max-w-24 sm:max-w-none hidden sm:block">
               {session.name}
             </span>
           </Link>
