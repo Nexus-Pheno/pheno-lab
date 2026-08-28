@@ -265,8 +265,8 @@ function systemPrompt(lang: "en" | "zh"): string {
     "5. Verdict — whether the data supports, contradicts, or cannot yet decide the hypothesis, with the reasoning.",
     "",
     lang === "zh"
-      ? "Write the summary in Simplified Chinese. Keep sample codes, group labels, units and metric names (PCE, Voc, Jsc, FF) exactly as written."
-      : "Write the summary in English. Keep sample codes, group labels, units and metric names exactly as written.",
+      ? "Write the summary in Simplified Chinese, at most about 800 characters. Keep sample codes, group labels, units and metric names (PCE, Voc, Jsc, FF) exactly as written."
+      : "Write the summary in English, at most about 500 words. Keep sample codes, group labels, units and metric names exactly as written.",
   ].join("\n");
 }
 
@@ -292,8 +292,11 @@ export async function generateAiSummary(
       { role: "system", content: systemPrompt(lang) },
       { role: "user", content: digest },
     ],
-    // Long analytical output; stays under the 60s Nginx proxy window.
-    { maxTokens: 1800, temperature: 0, timeoutMs: 55_000 },
+    // Reasoning models (deepseek-v4-flash) spend max_tokens on hidden
+    // reasoning BEFORE the visible answer — 1800 got fully eaten by thinking
+    // and returned an empty content. The prompt bounds the visible length;
+    // the timeout stays under the 60s Nginx proxy window.
+    { maxTokens: 5000, temperature: 0, timeoutMs: 55_000 },
   );
   if (!reply?.trim()) return null;
 
