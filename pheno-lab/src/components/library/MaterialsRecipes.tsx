@@ -184,7 +184,7 @@ export function MaterialsSection({
   );
 }
 
-function MaterialModal({
+export function MaterialModal({
   material, categories, category, canManage, onClose, onSaved,
 }: {
   material: Material | null;
@@ -192,7 +192,8 @@ function MaterialModal({
   category: string;
   canManage: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  /** Receives the saved row on create/update (absent after archive toggles). */
+  onSaved: (saved?: Material) => void;
 }) {
   const t = useT();
   const lang = useLang();
@@ -336,12 +337,12 @@ function MaterialModal({
               disabled={busy || !form.name.trim()}
               onClick={async () => {
                 setBusy(true);
-                await saveMaterialCard(material?.id ?? null, {
+                const saved = await saveMaterialCard(material?.id ?? null, {
                   ...form,
                   properties: Object.fromEntries(props.filter(([k]) => k.trim())),
                 });
                 setBusy(false);
-                onSaved();
+                onSaved(saved);
               }}
               className="h-9 px-4 bg-brand text-[#243000] rounded-[4px] text-[12.5px] font-bold disabled:opacity-50"
             >

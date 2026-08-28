@@ -7,9 +7,14 @@ import { GROUP_LABELS } from "@/lib/library";
 import { paramDefs } from "@/lib/types";
 import { Icon, inputCls, selectCls, FieldLabel } from "@/components/ui";
 import { SubstrateBoard, EXTRA_GROUP } from "@/components/designer/SubstrateBoard";
+import { MaterialModal, type CategoryRow } from "@/components/library/MaterialsRecipes";
 import { useT } from "@/lib/i18n/LanguageProvider";
 
 const CUSTOM = "__custom__";
+const ADD_MATERIAL = "__add_material__";
+
+/** Where a just-created material's name should land. */
+type AddMaterialTarget = { kind: "cell"; vi: number; group: string } | { kind: "substrate" };
 
 const distribute = (groups: { label: string; samples: number }[], count: number) => {
   const assignments: Record<string, string> = {};
@@ -41,9 +46,12 @@ export function TestPlanCard({
   materials,
   layers,
   categoryLayers = [],
+  categories = [],
   sampleCount,
   canEdit,
+  canManageMaterials = false,
   onApply,
+  onMaterialCreated,
 }: {
   plan: TestPlan | null;
   processes: Process[];
@@ -51,14 +59,21 @@ export function TestPlanCard({
   materials: Material[];
   layers: { code: string; name: string }[];
   categoryLayers?: { code: string; layers: string[] }[];
+  /** Full category rows for the in-page material creation modal. */
+  categories?: CategoryRow[];
   sampleCount: number;
   canEdit: boolean;
+  canManageMaterials?: boolean;
   onApply: (plan: TestPlan) => Promise<void>;
+  onMaterialCreated?: (m: Material) => void;
 }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TestPlan | null>(null);
   const [busy, setBusy] = useState(false);
+  // Creating a material mid-plan must not lose the draft — the modal overlays
+  // this page and the saved name drops straight into the pending select.
+  const [addTarget, setAddTarget] = useState<AddMaterialTarget | null>(null);
 
   const processing = processes.filter((p) => p.kind === "PROCESSING");
   const processName = (id: string) => processes.find((p) => p.id === id)?.name ?? "?";
@@ -130,6 +145,26 @@ export function TestPlanCard({
       ...d,
       variables: d.variables.map((v, j) => (j === vi ? { ...v, values: { ...v.values, [group]: value } } : v)),
     });
+
+  const setAllCells = (vi: number, value: string) =>
+    setDraft((d) => d && {
+      ...d,
+      variables: d.variables.map((v, j) =>
+        j === vi
+          ? { ...v, values: Object.fromEntries(d.groups.map((g) => [g.label, value])) }
+          : v,
+      ),
+    });
+
+  // A new material created mid-plan defaults into the category serving the
+  // slot's layer, so it immediately shows up in the filtered dropdown.
+  const defaultCategoryFor = (target: AddMaterialTarget) => {
+    const layer =
+      target.kind === "substrate" ? "SUBSTRATE" : (draft?.variables[target.vi]?.layer ?? "");
+    return (
+      (layer ? categoriesForLayer(layer)[0] : undefined) ?? categories[0]?.code ?? "OTHER"
+    );
+  };
 
   const total = draft?.groups.reduce((sum, g) => sum + (g.samples || 0), 0) ?? 0;
 
@@ -383,12 +418,16 @@ export function TestPlanCard({
             <select
               className={selectCls}
               value={draft.substrates?.materialName ?? ""}
-              onChange={(e) =>
+              onChange={(e) => {
+                if (e.target.value === ADD_MATERIAL) {
+                  setAddTarget({ kind: "substrate" });
+                  return;
+                }
                 setDraft({
                   ...draft,
                   substrates: { count: draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0), materialName: e.target.value },
-                })
-              }
+                });
+              }}
             >
               <option value="">{t("plan.selectMaterial")}</option>
               {substrateMaterials.map((m) => (
@@ -398,6 +437,9 @@ export function TestPlanCard({
                 !substrateMaterials.some((m) => m.name === draft.substrates?.materialName) && (
                   <option value={draft.substrates.materialName}>{draft.substrates.materialName}</option>
                 )}
+              {canManageMaterials && (
+                <option value={ADD_MATERIAL}>{t("plan.addMaterial")}</option>
+              )}
             </select>
           </div>
         </div>
@@ -468,29 +510,56 @@ export function TestPlanCard({
                     }
                   />
                 </td>
-                {draft.variables.map((v, vi) => (
-                  <td key={vi} className="py-1 pr-2">
-                    {v.kind === "material" ? (
-                      <select
-                        className="w-full border border-line rounded-[3px] px-2 py-1.5 bg-surface"
-                        value={v.values[g.label] ?? ""}
-                        onChange={(e) => setCell(vi, g.label, e.target.value)}
-                      >
-                        <option value="">{t("plan.selectMaterial")}</option>
-                        {materialsForVariable(v).map((m) => (
-                          <option key={m.id} value={m.name}>{m.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        className="mono w-full border border-line rounded-[3px] px-2 py-1.5"
-                        placeholder="value"
-                        value={v.values[g.label] ?? ""}
-                        onChange={(e) => setCell(vi, g.label, e.target.value)}
-                      />
-                    )}
-                  </td>
-                ))}
+                {draft.variables.map((v, vi) => {
+                  const cell = v.values[g.label] ?? "";
+                  const options = materialsForVariable(v);
+                  return (
+                    <td key={vi} className="py-1 pr-2">
+                      <div className="flex items-center gap-1">
+                        {v.kind === "material" ? (
+                          <select
+                            className="w-full min-w-0 flex-1 border border-line rounded-[3px] px-2 py-1.5 bg-surface"
+                            value={cell}
+                            onChange={(e) => {
+                              if (e.target.value === ADD_MATERIAL) {
+                                setAddTarget({ kind: "cell", vi, group: g.label });
+                                return;
+                              }
+                              setCell(vi, g.label, e.target.value);
+                            }}
+                          >
+                            <option value="">{t("plan.selectMaterial")}</option>
+                            {options.map((m) => (
+                              <option key={m.id} value={m.name}>{m.name}</option>
+                            ))}
+                            {cell && !options.some((m) => m.name === cell) && (
+                              <option value={cell}>{cell}</option>
+                            )}
+                            {canManageMaterials && (
+                              <option value={ADD_MATERIAL}>{t("plan.addMaterial")}</option>
+                            )}
+                          </select>
+                        ) : (
+                          <input
+                            className="mono w-full min-w-0 flex-1 border border-line rounded-[3px] px-2 py-1.5"
+                            placeholder="value"
+                            value={cell}
+                            onChange={(e) => setCell(vi, g.label, e.target.value)}
+                          />
+                        )}
+                        {draft.groups.length > 1 && cell.trim() && (
+                          <button
+                            title={t("plan.applyAll")}
+                            onClick={() => setAllCells(vi, cell)}
+                            className="shrink-0 p-1 text-muted hover:text-brand-deep"
+                          >
+                            <Icon name="ChevronsDown" size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
                 <td className="py-1">
                   <button
                     onClick={() =>
@@ -579,6 +648,33 @@ export function TestPlanCard({
           {t("plan.apply")}
         </button>
       </div>
+
+      {/* In-page material creation — the plan draft stays intact underneath. */}
+      {addTarget && (
+        <MaterialModal
+          material={null}
+          categories={categories}
+          category={defaultCategoryFor(addTarget)}
+          canManage={canManageMaterials}
+          onClose={() => setAddTarget(null)}
+          onSaved={(saved) => {
+            setAddTarget(null);
+            if (!saved) return;
+            onMaterialCreated?.(saved);
+            if (addTarget.kind === "substrate") {
+              setDraft((d) => d && {
+                ...d,
+                substrates: {
+                  count: d.substrates?.count ?? d.groups.reduce((a, g) => a + g.samples, 0),
+                  materialName: saved.name,
+                },
+              });
+            } else {
+              setCell(addTarget.vi, addTarget.group, saved.name);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
