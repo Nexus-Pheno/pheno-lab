@@ -79,6 +79,9 @@ model User {
   exportDecisions     ExportRequest[]    @relation("ExportDecider")
   nextExpSeq          Int                @default(1) // this user's next experiment number — never reused, no ceiling
   role                Role               @default(TECHNICIAN)
+  // Presence: refreshed (throttled) whenever a signed-in request arrives, so
+  // the admin activity monitor can show who is online.
+  lastSeenAt          DateTime?
   // Stewardships: who is responsible for each part of the lab's library.
   materialAdmin       Boolean            @default(false) // materials library (purchasing/stock owner)
   equipmentAdmin      Boolean            @default(false) // equipment & machine parameters

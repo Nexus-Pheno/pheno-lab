@@ -35,9 +35,6 @@ export function DataTable({
     if (next > 1) params.set("page", String(next));
     router.push(`/data${params.toString() ? `?${params}` : ""}`);
   };
-  // Only the visible page is in the DOM — with ~18k samples and hundreds of
-  // columns, rendering everything locked the browser.
-  const shownCells = useMemo(() => rows.length * columns.length, [rows.length, columns.length]);
 
   const writeCsv = async () => {
     // The page holds one slice of rows; the file is built server-side so the
@@ -82,16 +79,14 @@ export function DataTable({
 
   return (
     <main className="h-full flex flex-col bg-subtle">
-      <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3">
-        <div className="min-w-0 mr-auto">
-          <h1 className="text-[15px] font-bold">{t("data.title")}</h1>
-          <p className="text-[11px] text-muted">
-            {t("data.subtitle")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* One header line: title, search, counts, paging and export together —
+          the old two-band layout ate vertical space the table needed. */}
+      <div className="shrink-0 flex items-center gap-2 px-5 py-2.5 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <h1 className="text-[14px] font-bold shrink-0" title={t("data.subtitle")}>
+          {t("data.title")}
+        </h1>
         <input
-          className="h-8 border border-line rounded-[4px] px-3 text-[12.5px] bg-surface w-44 lg:w-64 min-w-0"
+          className="h-8 border border-line rounded-[4px] px-3 text-[12.5px] bg-surface w-44 lg:w-64 min-w-0 shrink-0"
           placeholder={t("data.search")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -103,9 +98,31 @@ export function DataTable({
         >
           {t("data.searchGo")}
         </button>
-        <span className="mono text-[11px] text-muted whitespace-nowrap">
+        <span className="mono text-[11px] text-muted whitespace-nowrap shrink-0">
           {filtered.length} {t("data.rows")} · {columns.length} {t("data.columns")}
         </span>
+        <span className="flex-1" />
+        <span className="text-[11px] text-muted whitespace-nowrap shrink-0 hidden md:inline">
+          {t("data.pageOf").replace("{page}", String(page)).replace("{pages}", String(pages))}
+          {" · "}
+          {t("data.expMatching").replace("{n}", String(total))}
+        </span>
+        <button
+          disabled={page <= 1}
+          onClick={() => go(page - 1)}
+          className="h-8 px-2 border border-line rounded-[4px] text-[11.5px] font-semibold text-charcoal disabled:opacity-40 hover:bg-subtle flex items-center shrink-0"
+          title={t("cap.prev")}
+        >
+          <Icon name="ChevronLeft" size={13} />
+        </button>
+        <button
+          disabled={page >= pages}
+          onClick={() => go(page + 1)}
+          className="h-8 px-2 border border-line rounded-[4px] text-[11.5px] font-semibold text-charcoal disabled:opacity-40 hover:bg-subtle flex items-center shrink-0"
+          title={t("cap.next")}
+        >
+          <Icon name="ChevronRight" size={13} />
+        </button>
         {asking ? (
           <span className="flex items-center gap-1.5 bg-surface border border-line rounded-[4px] p-1">
             <input
@@ -136,7 +153,6 @@ export function DataTable({
             {canExportDirectly ? t("data.export") : t("exp.request")}
           </button>
         )}
-        </div>
       </div>
       {notice && (
         <div className="shrink-0 px-5 pb-2">
@@ -145,30 +161,6 @@ export function DataTable({
           </p>
         </div>
       )}
-      <div className="shrink-0 flex flex-wrap items-center gap-2 px-5 pb-2">
-        <span className="text-[11.5px] text-muted">
-          {t("data.pageOf").replace("{page}", String(page)).replace("{pages}", String(pages))}
-          {" · "}
-          {t("data.expMatching").replace("{n}", String(total))}
-        </span>
-        <span className="flex-1" />
-        <button
-          disabled={page <= 1}
-          onClick={() => go(page - 1)}
-          className="h-7 px-2.5 border border-line rounded-[4px] text-[11.5px] font-semibold text-charcoal disabled:opacity-40 hover:bg-subtle flex items-center gap-1"
-        >
-          <Icon name="ChevronLeft" size={12} /> {t("cap.prev")}
-        </button>
-        <button
-          disabled={page >= pages}
-          onClick={() => go(page + 1)}
-          className="h-7 px-2.5 border border-line rounded-[4px] text-[11.5px] font-semibold text-charcoal disabled:opacity-40 hover:bg-subtle flex items-center gap-1"
-        >
-          {t("cap.next")} <Icon name="ChevronRight" size={12} />
-        </button>
-        <span className="mono text-[10.5px] text-muted">{shownCells.toLocaleString()} {t("data.cells")}</span>
-      </div>
-
       <div className="flex-1 min-h-0 overflow-auto mx-5 mb-5 bg-surface border border-line rounded-[6px]">
         <table className="text-[11.5px] border-collapse min-w-full">
           <thead className="sticky top-0 z-10">
