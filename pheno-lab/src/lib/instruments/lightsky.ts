@@ -40,6 +40,24 @@ function splitDirection(name: string): {
   return { serial: m[1], direction: tag === "rev" ? "REVERSE" : "FORWARD" };
 }
 
+/**
+ * Trace names and summary names come from two different fields in the LabVIEW
+ * software, and operators don't always type them the same way — one real
+ * session named its traces "2026-001-26-2-S25-8-Rev" (full serial) but its
+ * summary rows "13A25-8-Rev" (sim-code style), so the exact-name join failed
+ * and every scan lost its Voc/PCE. Both styles end in
+ * <sample number>-<pixel>, so that plus the direction makes a structural key
+ * for a fallback pairing when exact names don't line up.
+ */
+function canonicalKey(name: string): string | null {
+  const { serial, direction } = splitDirection(name.trim());
+  const m =
+    serial.match(/[sS](\d{1,3})-(\d{1,3})$/) ?? // …-S25-8 (full serial)
+    serial.match(/^\d{1,2}[a-zA-Z](\d{1,3})-(\d{1,3})$/); // 13A25-8 (sim code)
+  if (!m) return null;
+  return `s${Number(m[1])}-${Number(m[2])}-${direction ?? ""}`;
+}
+
 export function parseLightSky(
   grid: string[][],
   fileDate: Date,
@@ -64,6 +82,11 @@ export function parseLightSky(
   // the Nth summary row of that name. Keying by name alone silently gave every
   // repeat the last row's Voc/PCE and discarded the others.
   const summary = new Map<string, Record<string, string>[]>();
+  // Same rows again under the structural key, for the fuzzy fallback.
+  const byCanonical = new Map<
+    string,
+    { names: Set<string>; rows: Record<string, string>[] }
+  >();
   let summaryRow = -1;
   for (let r = 1; r < grid.length; r++) {
     if (cell(grid, r, 1).toLowerCase() === "name") {
@@ -83,6 +106,13 @@ export function parseLightSky(
       const forName = summary.get(name);
       if (forName) forName.push(row);
       else summary.set(name, [row]);
+      const ck = canonicalKey(name);
+      if (ck) {
+        const entry = byCanonical.get(ck) ?? { names: new Set(), rows: [] };
+        entry.names.add(name);
+        entry.rows.push(row);
+        byCanonical.set(ck, entry);
+      }
     }
   } else {
     warnings.push(
@@ -93,8 +123,9 @@ export function parseLightSky(
   const { year, month, day } = wallClockParts(fileDate, tzOffsetMinutes);
 
   const scans: JvScan[] = [];
-  // How many blocks of each name have already claimed a summary row.
+  // How many blocks of each claim key have already taken a summary row.
   const claimed = new Map<string, number>();
+  const fuzzyWarned = new Set<string>();
   for (const c of blockCols) {
     const name = cell(grid, 0, c + 2);
     if (!name) {
@@ -131,9 +162,27 @@ export function parseLightSky(
       return { v, i: ii, j: jj, p: v * ii };
     });
 
-    const nth = claimed.get(name) ?? 0;
-    claimed.set(name, nth + 1);
-    const s = summary.get(name)?.[nth];
+    // Exact name first; else the structural key — but only when it maps to a
+    // single summary name, so metrics can never cross between two cells.
+    let rows = summary.get(name);
+    let claimKey = name;
+    if (!rows) {
+      const ck = canonicalKey(name);
+      const entry = ck ? byCanonical.get(ck) : undefined;
+      if (entry && entry.names.size === 1) {
+        rows = entry.rows;
+        claimKey = ck!;
+        if (!fuzzyWarned.has(name)) {
+          fuzzyWarned.add(name);
+          warnings.push(
+            `Trace "${name}" matched summary row "${[...entry.names][0]}" by sample/pixel number — the two name fields disagree in this file.`,
+          );
+        }
+      }
+    }
+    const nth = claimed.get(claimKey) ?? 0;
+    claimed.set(claimKey, nth + 1);
+    const s = rows?.[nth];
     const metrics: JvMetrics = s
       ? {
           voc: num(s.voc),
@@ -152,7 +201,7 @@ export function parseLightSky(
     if (!s)
       warnings.push(
         nth > 0
-          ? `"${name}" appears ${nth + 1} times but the summary table lists it ${summary.get(name)?.length ?? 0} time(s), so this repeat has no Voc/PCE.`
+          ? `"${name}" appears ${nth + 1} times but the summary table lists it ${rows?.length ?? 0} time(s), so this repeat has no Voc/PCE.`
           : `"${name}" has a curve but no summary row — it was probably not ticked before saving.`,
       );
 

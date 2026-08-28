@@ -59,12 +59,20 @@ const metricDefaults = (name: string): Record<string, string> => {
   return Object.fromEntries((hit?.[1] ?? []).map((m) => [m, ""]));
 };
 
-// Planned values for a step given a variation group (null = base values).
-const plannedFor = (step: StepFull, group: string | null): Record<string, string> => {
+// Planned values for a step given the selected variation groups. When every
+// selected group plans the same value for a parameter (always true for
+// non-varied parameters), that value is the plan; only when the selected
+// groups genuinely disagree does the step's base value stand in. Selecting
+// several groups at once used to fall straight to base values, which techs
+// then had to correct by hand.
+const plannedFor = (step: StepFull, zones: string[]): Record<string, string> => {
   const out: Record<string, string> = {};
   for (const p of step.parameters) {
-    const v = group ? p.variations.find((x) => x.variationGroup === group) : undefined;
-    out[p.name] = v?.value ?? p.value;
+    const values = zones.map(
+      (zone) => p.variations.find((x) => x.variationGroup === zone)?.value ?? p.value,
+    );
+    out[p.name] =
+      values.length > 0 && values.every((v) => v === values[0]) ? values[0] : p.value;
   }
   return out;
 };
@@ -427,7 +435,17 @@ export function CaptureView({
                       ...es.filter((e) => !(e.stepId === step.id && list.some((x) => x.sampleId === e.sampleId))),
                       ...list,
                     ]);
-                    advance();
+                    // Advance only once every grouped sample of THIS step is
+                    // captured — jumping ahead while samples remained forced
+                    // techs to swipe back for each group.
+                    const captured = new Set([
+                      ...execsFor(step.id).map((x) => x.sampleId),
+                      ...list.map((x) => x.sampleId),
+                    ]);
+                    const stepDone = exp.samples
+                      .filter((s) => planGroups.includes(assignments[s.code]))
+                      .every((s) => captured.has(s.id));
+                    if (stepDone) advance();
                   }}
                   onCleared={(sampleIds) => {
                     setExecutions((es) =>
@@ -642,16 +660,17 @@ function BatchStepCapture({
     });
   };
 
-  // Planned values resolve per group when the selection sits in one group.
-  const targetZones = targets.map((s) => assignments[s.code]);
-  const scopeGroup =
-    targetZones.length > 0 &&
-    targetZones.every((zone) => zone === targetZones[0]) &&
-    groups.includes(targetZones[0])
-      ? targetZones[0]
-      : null;
+  // The variation groups the selection spans — planned values resolve from
+  // these (shared values prefill even across a multi-group selection).
+  const scopeZones = useMemo(
+    () =>
+      [...new Set(targets.map((s) => assignments[s.code]))].filter((zone) =>
+        groups.includes(zone),
+      ),
+    [targets, assignments, groups],
+  );
 
-  const planned = useMemo(() => plannedFor(step, scopeGroup), [step, scopeGroup]);
+  const planned = useMemo(() => plannedFor(step, scopeZones), [step, scopeZones]);
   const plannedEnv = (step.environmentConditions ?? {}) as Record<string, string>;
   const plannedMaterialNames = useMemo(
     () => step.parameters
@@ -705,7 +724,7 @@ function BatchStepCapture({
     setBusy(false);
     setClearAsk(false);
     setEditing(false);
-    const resetActuals = plannedFor(step, scopeGroup);
+    const resetActuals = plannedFor(step, scopeZones);
     setActuals(resetActuals);
     setMaterialSelections(materialSelectionForValues(step.parameters, resetActuals, {}, materialOptions));
     setEnvActuals(plannedEnv);
@@ -748,7 +767,7 @@ function BatchStepCapture({
     if (lastScopeKey.current === scopeKey) return;
     lastScopeKey.current = scopeKey;
     const ex = targets.length > 0 ? executions.find((x) => x.sampleId === targets[0].id) : undefined;
-    const nextActuals = ex?.actuals ?? plannedFor(step, scopeGroup);
+    const nextActuals = ex?.actuals ?? plannedFor(step, scopeZones);
     setActuals(nextActuals);
     setMaterialSelections(
       materialSelectionForValues(step.parameters, nextActuals, ex?.materialSelections ?? {}, materialOptions),
@@ -791,6 +810,20 @@ function BatchStepCapture({
     setExistingPhotos(saved[0]?.attachments.map((a) => ({ id: a.id, path: a.storedPath })) ?? existingPhotos);
     setNewPhotos([]);
     setPendingPhotoDelete(null);
+    // Hand the selection to the next uncaptured group so the tech keeps
+    // recording without folding back — one group per confirm.
+    const capturedAfter = new Set([...capturedIds, ...targets.map((s) => s.id)]);
+    const remaining = grouped.filter((s) => !capturedAfter.has(s.id));
+    if (remaining.length > 0) {
+      const nextZone = assignments[remaining[0].code];
+      setSelectedIds(
+        new Set(
+          remaining
+            .filter((s) => assignments[s.code] === nextZone)
+            .map((s) => s.id),
+        ),
+      );
+    }
     onSaved(saved.map((x) => ({
       stepId: step.id,
       sampleId: x.sampleId,
