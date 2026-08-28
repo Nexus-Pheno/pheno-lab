@@ -46,16 +46,18 @@ function splitDirection(name: string): {
  * session named its traces "2026-001-26-2-S25-8-Rev" (full serial) but its
  * summary rows "13A25-8-Rev" (sim-code style), so the exact-name join failed
  * and every scan lost its Voc/PCE. Both styles end in
- * <sample number>-<pixel>, so that plus the direction makes a structural key
- * for a fallback pairing when exact names don't line up.
+ * <sample number>-<pixel>, which makes a structural key for a fallback
+ * pairing when exact names don't line up. Direction is deliberately NOT in
+ * the key: the same session also disagreed on Rev/For between the two
+ * fields, and the summary table (the instrument's own report) wins.
  */
 function canonicalKey(name: string): string | null {
-  const { serial, direction } = splitDirection(name.trim());
+  const { serial } = splitDirection(name.trim());
   const m =
     serial.match(/[sS](\d{1,3})-(\d{1,3})$/) ?? // …-S25-8 (full serial)
     serial.match(/^\d{1,2}[a-zA-Z](\d{1,3})-(\d{1,3})$/); // 13A25-8 (sim code)
   if (!m) return null;
-  return `s${Number(m[1])}-${Number(m[2])}-${direction ?? ""}`;
+  return `s${Number(m[1])}-${Number(m[2])}`;
 }
 
 export function parseLightSky(
@@ -82,10 +84,18 @@ export function parseLightSky(
   // the Nth summary row of that name. Keying by name alone silently gave every
   // repeat the last row's Voc/PCE and discarded the others.
   const summary = new Map<string, Record<string, string>[]>();
-  // Same rows again under the structural key, for the fuzzy fallback.
+  // Same rows again under the structural key, for the fuzzy fallback. Each
+  // row remembers its own name and direction so a claim can prefer a
+  // direction match but still take (and adopt) a conflicting row.
+  type CanonicalRow = {
+    name: string;
+    direction: ScanDirection | null;
+    row: Record<string, string>;
+    used: boolean;
+  };
   const byCanonical = new Map<
     string,
-    { names: Set<string>; rows: Record<string, string>[] }
+    { serials: Set<string>; rows: CanonicalRow[] }
   >();
   let summaryRow = -1;
   for (let r = 1; r < grid.length; r++) {
@@ -108,9 +118,15 @@ export function parseLightSky(
       else summary.set(name, [row]);
       const ck = canonicalKey(name);
       if (ck) {
-        const entry = byCanonical.get(ck) ?? { names: new Set(), rows: [] };
-        entry.names.add(name);
-        entry.rows.push(row);
+        const parts = splitDirection(name.trim());
+        const entry = byCanonical.get(ck) ?? { serials: new Set(), rows: [] };
+        entry.serials.add(parts.serial.toLowerCase());
+        entry.rows.push({
+          name,
+          direction: parts.direction,
+          row,
+          used: false,
+        });
         byCanonical.set(ck, entry);
       }
     }
@@ -162,27 +178,49 @@ export function parseLightSky(
       return { v, i: ii, j: jj, p: v * ii };
     });
 
-    // Exact name first; else the structural key — but only when it maps to a
-    // single summary name, so metrics can never cross between two cells.
-    let rows = summary.get(name);
-    let claimKey = name;
-    if (!rows) {
+    // Exact name first; else the structural key — but only when every row
+    // under that key names a single cell, so metrics can never cross between
+    // two cells. A fuzzy claim prefers a row with the same direction but
+    // takes any unclaimed one; on a Rev/For conflict the summary row's
+    // direction is kept — it is the instrument's own report.
+    const { serial, direction: nameDirection } = splitDirection(name);
+    let direction = nameDirection;
+    let s: Record<string, string> | undefined;
+    const exact = summary.get(name);
+    if (exact) {
+      const nth = claimed.get(name) ?? 0;
+      claimed.set(name, nth + 1);
+      s = exact[nth];
+      if (!s)
+        warnings.push(
+          `"${name}" appears ${nth + 1} times but the summary table lists it ${exact.length} time(s), so this repeat has no Voc/PCE.`,
+        );
+    } else {
       const ck = canonicalKey(name);
       const entry = ck ? byCanonical.get(ck) : undefined;
-      if (entry && entry.names.size === 1) {
-        rows = entry.rows;
-        claimKey = ck!;
-        if (!fuzzyWarned.has(name)) {
-          fuzzyWarned.add(name);
-          warnings.push(
-            `Trace "${name}" matched summary row "${[...entry.names][0]}" by sample/pixel number — the two name fields disagree in this file.`,
-          );
+      if (entry && entry.serials.size === 1) {
+        const pick =
+          entry.rows.find((r) => !r.used && r.direction === nameDirection) ??
+          entry.rows.find((r) => !r.used);
+        if (pick) {
+          pick.used = true;
+          s = pick.row;
+          if (pick.direction !== nameDirection) direction = pick.direction;
+          if (!fuzzyWarned.has(name)) {
+            fuzzyWarned.add(name);
+            warnings.push(
+              pick.direction !== nameDirection
+                ? `Trace "${name}" matched summary row "${pick.name}" by sample/pixel number; the summary's ${pick.direction ?? "unknown"} direction was kept.`
+                : `Trace "${name}" matched summary row "${pick.name}" by sample/pixel number — the two name fields disagree in this file.`,
+            );
+          }
         }
       }
+      if (!s)
+        warnings.push(
+          `"${name}" has a curve but no summary row — it was probably not ticked before saving.`,
+        );
     }
-    const nth = claimed.get(claimKey) ?? 0;
-    claimed.set(claimKey, nth + 1);
-    const s = rows?.[nth];
     const metrics: JvMetrics = s
       ? {
           voc: num(s.voc),
@@ -198,12 +236,6 @@ export function parseLightSky(
           area: num(s.area),
         }
       : {};
-    if (!s)
-      warnings.push(
-        nth > 0
-          ? `"${name}" appears ${nth + 1} times but the summary table lists it ${rows?.length ?? 0} time(s), so this repeat has no Voc/PCE.`
-          : `"${name}" has a curve but no summary row — it was probably not ticked before saving.`,
-      );
 
     let measuredAt: Date | null = null;
     const t = (s?.date ?? "").match(/(\d{1,2}):(\d{2}):(\d{2})/);
@@ -219,7 +251,6 @@ export function parseLightSky(
       );
     }
 
-    const { serial, direction } = splitDirection(name);
     scans.push({
       serial,
       direction,

@@ -113,6 +113,26 @@ describe("instrument parser fixtures", () => {
     ).toBe(true);
   });
 
+  it("adopts the summary table's direction when the two name fields conflict", () => {
+    // Same real session: five traces named "-Rev" whose summary rows all say
+    // "-For". Per lab policy the summary — the instrument's own report — wins,
+    // so the metrics attach and the scan is recorded as FORWARD.
+    const parsed = parseInstrumentFile(
+      fixture("lightsky-direction-conflict.csv"),
+      {
+        fileName: "20260828-PLASMA.csv",
+        fileModifiedAt: new Date("2026-08-28T03:00:00Z"),
+      },
+    );
+    expect(parsed.scans).toHaveLength(1);
+    expect(parsed.scans[0].serial).toBe("2026-001-26-2-S15-8");
+    expect(parsed.scans[0].direction).toBe("FORWARD");
+    expect(parsed.scans[0].metrics).toMatchObject({ voc: 1.95, pce: 20.44 });
+    expect(
+      parsed.warnings.some((w) => w.includes("direction was kept")),
+    ).toBe(true);
+  });
+
   it("keeps every repeat when one cell is scanned twice in the same direction", () => {
     // A LIGHTSKY session routinely holds several scans of one cell in one
     // direction, so the trace name repeats. Keying the summary table by name
