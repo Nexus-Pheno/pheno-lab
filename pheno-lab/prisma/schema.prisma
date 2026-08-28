@@ -373,6 +373,9 @@ model Equipment {
   processId         String
   process           Process            @relation(fields: [processId], references: [id])
   name              String // display name, e.g. "Hotplate — IKA C-MAG HS 7"
+  // What colleagues actually call it ("小蓝箱") — shown first wherever the
+  // machine is picked; the formal contract name stays in `name`.
+  nickname          String             @default("")
   make              String             @default("")
   model             String             @default("")
   assetTag          String             @default("")

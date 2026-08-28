@@ -262,7 +262,7 @@ export function TestPlanCard({
                   >
                     <option value="">{t("plan.anyEquipment")}</option>
                     {equipmentFor(v.processId).map((e) => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
+                      <option key={e.id} value={e.id}>{e.nickname ? `${e.nickname} — ${e.name}` : e.name}</option>
                     ))}
                   </select>
                 </div>

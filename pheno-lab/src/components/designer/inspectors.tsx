@@ -379,7 +379,7 @@ export function StepInspector({
           <option value="">{t("insp.noEquipment")}</option>
           {equipment.map((eq) => (
             <option key={eq.id} value={eq.id}>
-              {eq.name}
+              {eq.nickname ? `${eq.nickname} — ${eq.name}` : eq.name}
               {eq.assetTag ? ` · ${eq.assetTag}` : ""}
             </option>
           ))}
@@ -743,7 +743,7 @@ export function CharInspector({
           <option value="">{t("insp.noInstrument")}</option>
           {equipment.map((eq) => (
             <option key={eq.id} value={eq.id}>
-              {eq.name}
+              {eq.nickname ? `${eq.nickname} — ${eq.name}` : eq.name}
             </option>
           ))}
         </select>
