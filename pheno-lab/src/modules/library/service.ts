@@ -157,6 +157,7 @@ export async function createEquipment(actor: Actor, raw: unknown) {
       data: {
         ...input,
         parameters: input.parameters as Prisma.InputJsonValue,
+        workParameters: input.workParameters as Prisma.InputJsonValue,
         organizationId: actor.org,
       },
     });
@@ -183,6 +184,8 @@ export async function updateEquipment(actor: Actor, raw: unknown) {
       data: {
         ...data,
         parameters: data.parameters as Prisma.InputJsonValue | undefined,
+        workParameters: data.workParameters as
+          Prisma.InputJsonValue | undefined,
       },
     });
     assertUpdated(result.count, "Equipment");

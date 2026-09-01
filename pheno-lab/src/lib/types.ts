@@ -81,3 +81,33 @@ export type CharPresetPayload = {
 
 export const paramDefs = (json: Prisma.JsonValue | null | undefined): ParamDef[] =>
   Array.isArray(json) ? (json as ParamDef[]) : [];
+
+type EquipmentLabelSource = {
+  name: string;
+  nickname?: string | null;
+  parameters?: Prisma.JsonValue | null;
+  workParameters?: Prisma.JsonValue | null;
+};
+
+/**
+ * A short distinguishing hint for pickers — the first size-like spec, e.g.
+ * "400 × 400 mm". Few people remember which model number is which size, so
+ * similar machines (three UV cleaners, several hotplates) need it inline.
+ */
+export const equipmentSizeHint = (e: EquipmentLabelSource): string => {
+  const defs = [...paramDefs(e.workParameters), ...paramDefs(e.parameters)];
+  const hit = defs.find(
+    (d) =>
+      d.defaultValue &&
+      /area|substrate|size|width|plate|coating|尺寸|基片|面积/i.test(d.name),
+  );
+  if (!hit) return "";
+  return `${hit.defaultValue}${hit.unit ? ` ${hit.unit}` : ""}`.trim();
+};
+
+/** Picker label: nickname first; otherwise name plus the size hint. */
+export const equipmentOptionLabel = (e: EquipmentLabelSource): string => {
+  if (e.nickname) return `${e.nickname} — ${e.name}`;
+  const hint = equipmentSizeHint(e);
+  return hint ? `${e.name}（${hint}）` : e.name;
+};

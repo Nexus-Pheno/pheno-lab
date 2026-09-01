@@ -295,9 +295,12 @@ export const en = {
     "The manufacturer's original documents for this machine — manuals, datasheets, acceptance reports.",
   "lib.addSpecSheet": "Add document",
   "lib.noSpecSheets": "No documents attached",
-  "lib.machineParams": "Machine parameters",
+  "lib.machineParams": "Specifications",
   "lib.machineParamsHint":
-    "These parameters belong to this machine. When a process step selects it, the step's parameter list is filled from these definitions.",
+    "Reference values from the spec sheet — shown on the equipment card only, never loaded into steps.",
+  "lib.workParams": "Process parameters (used in experiments)",
+  "lib.workParamsHint":
+    "The knobs techs actually set on this machine day to day. When a step or test-plan variable selects this machine, these definitions are what gets offered and pre-filled.",
   "lib.materialName": "Material name",
   "lib.composition": "Composition / recipe",
   "lib.supplier": "Supplier",
@@ -1313,9 +1316,12 @@ export const zh: Record<TKey, string> = {
   "lib.specSheetsHint": "该设备的厂家原始文件——说明书、规格书、验收报告等。",
   "lib.addSpecSheet": "添加文件",
   "lib.noSpecSheets": "暂无附件",
-  "lib.machineParams": "设备参数",
+  "lib.machineParams": "设备规格",
   "lib.machineParamsHint":
-    "这些参数属于该设备。工艺步骤选择该设备后，将自动填入这些参数定义。",
+    "规格书上的参考值——仅在设备卡片上展示，不会填入工艺步骤。",
+  "lib.workParams": "设备工艺参数（实验中使用）",
+  "lib.workParamsHint":
+    "技术员日常在该设备上实际调试的参数。工艺步骤或实验方案变量选择该设备后，自动带入并可选取的就是这里的定义。",
   "lib.materialName": "材料名称",
   "lib.composition": "成分 / 配方",
   "lib.supplier": "供应商",

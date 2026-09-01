@@ -53,6 +53,7 @@ const equipmentFields = z.object({
   environmentId: idSchema.nullable().optional().default(null),
   photoPath: z.string().max(1000),
   parameters: z.array(paramDefSchema).max(200),
+  workParameters: z.array(paramDefSchema).max(200).default([]),
 });
 
 export const equipmentCreateSchema = equipmentFields;

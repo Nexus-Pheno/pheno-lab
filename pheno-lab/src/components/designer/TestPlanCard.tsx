@@ -4,14 +4,14 @@ import { useState } from "react";
 import type { Process, Equipment, Material } from "@prisma/client";
 import type { TestPlan, TestPlanVariable } from "@/lib/library";
 import { GROUP_LABELS } from "@/lib/library";
-import { paramDefs } from "@/lib/types";
+import { equipmentOptionLabel, paramDefs } from "@/lib/types";
+import { MaterialCombobox } from "@/components/designer/inspectors";
 import { Icon, inputCls, selectCls, FieldLabel } from "@/components/ui";
 import { SubstrateBoard, EXTRA_GROUP } from "@/components/designer/SubstrateBoard";
 import { MaterialModal, type CategoryRow } from "@/components/library/MaterialsRecipes";
 import { useT } from "@/lib/i18n/LanguageProvider";
 
 const CUSTOM = "__custom__";
-const ADD_MATERIAL = "__add_material__";
 
 /** Where a just-created material's name should land. */
 type AddMaterialTarget = { kind: "cell"; vi: number; group: string } | { kind: "substrate" };
@@ -78,13 +78,17 @@ export function TestPlanCard({
   const processing = processes.filter((p) => p.kind === "PROCESSING");
   const processName = (id: string) => processes.find((p) => p.id === id)?.name ?? "?";
 
-  // Parameter suggestions for a process: its own definitions plus the
-  // parameters of every machine under it.
-  const paramOptions = (processId: string) => {
-    const proc = processes.find((p) => p.id === processId);
+  // Parameter suggestions: the process's own definitions plus WORK parameters
+  // (设备工艺参数) — of the selected machine only when one is chosen, so five
+  // machines' knobs never pile into one dropdown. Spec-sheet values stay out.
+  const paramOptions = (v: TestPlanVariable) => {
+    const proc = processes.find((p) => p.id === v.processId);
     const defs = [...paramDefs(proc?.parameters)];
-    for (const eq of equipment.filter((e) => e.processId === processId)) {
-      for (const d of paramDefs(eq.parameters)) {
+    const pool = v.equipmentId
+      ? equipment.filter((e) => e.id === v.equipmentId)
+      : equipment.filter((e) => e.processId === v.processId);
+    for (const eq of pool) {
+      for (const d of paramDefs(eq.workParameters)) {
         if (!defs.some((x) => x.name.toLowerCase() === d.name.toLowerCase())) defs.push(d);
       }
     }
@@ -246,7 +250,7 @@ export function TestPlanCard({
       {/* Variables */}
       <div className="space-y-2">
         {draft.variables.map((v, vi) => {
-          const options = paramOptions(v.processId);
+          const options = paramOptions(v);
           const known = options.some((o) => o.name === v.parameter);
           return (
             <div key={vi} className="border border-line rounded-[4px] p-2.5 bg-subtle/60">
@@ -297,7 +301,7 @@ export function TestPlanCard({
                   >
                     <option value="">{t("plan.anyEquipment")}</option>
                     {equipmentFor(v.processId).map((e) => (
-                      <option key={e.id} value={e.id}>{e.nickname ? `${e.nickname} — ${e.name}` : e.name}</option>
+                      <option key={e.id} value={e.id}>{equipmentOptionLabel(e)}</option>
                     ))}
                   </select>
                 </div>
@@ -415,32 +419,23 @@ export function TestPlanCard({
           </div>
           <div className="flex-1 min-w-40">
             <FieldLabel>{t("plan.substrateMaterial")}</FieldLabel>
-            <select
-              className={selectCls}
-              value={draft.substrates?.materialName ?? ""}
-              onChange={(e) => {
-                if (e.target.value === ADD_MATERIAL) {
-                  setAddTarget({ kind: "substrate" });
-                  return;
-                }
+            <MaterialCombobox
+              materials={substrateMaterials}
+              value={
+                substrateMaterials.find((m) => m.name === draft.substrates?.materialName)?.id ?? ""
+              }
+              disabled={false}
+              canCreate={canManageMaterials}
+              onPick={(id) => {
+                const mat = substrateMaterials.find((m) => m.id === id);
+                if (!mat) return;
                 setDraft({
                   ...draft,
-                  substrates: { count: draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0), materialName: e.target.value },
+                  substrates: { count: draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0), materialName: mat.name },
                 });
               }}
-            >
-              <option value="">{t("plan.selectMaterial")}</option>
-              {substrateMaterials.map((m) => (
-                <option key={m.id} value={m.name}>{m.name}</option>
-              ))}
-              {draft.substrates?.materialName &&
-                !substrateMaterials.some((m) => m.name === draft.substrates?.materialName) && (
-                  <option value={draft.substrates.materialName}>{draft.substrates.materialName}</option>
-                )}
-              {canManageMaterials && (
-                <option value={ADD_MATERIAL}>{t("plan.addMaterial")}</option>
-              )}
-            </select>
+              onCreate={() => setAddTarget({ kind: "substrate" })}
+            />
           </div>
         </div>
         {draft.substrates && draft.assignments ? (
@@ -517,28 +512,22 @@ export function TestPlanCard({
                     <td key={vi} className="py-1 pr-2">
                       <div className="flex items-center gap-1">
                         {v.kind === "material" ? (
-                          <select
-                            className="w-full min-w-0 flex-1 border border-line rounded-[3px] px-2 py-1.5 bg-surface"
-                            value={cell}
-                            onChange={(e) => {
-                              if (e.target.value === ADD_MATERIAL) {
-                                setAddTarget({ kind: "cell", vi, group: g.label });
-                                return;
-                              }
-                              setCell(vi, g.label, e.target.value);
-                            }}
-                          >
-                            <option value="">{t("plan.selectMaterial")}</option>
-                            {options.map((m) => (
-                              <option key={m.id} value={m.name}>{m.name}</option>
-                            ))}
-                            {cell && !options.some((m) => m.name === cell) && (
-                              <option value={cell}>{cell}</option>
-                            )}
-                            {canManageMaterials && (
-                              <option value={ADD_MATERIAL}>{t("plan.addMaterial")}</option>
-                            )}
-                          </select>
+                          // Searchable: type a few letters instead of scrolling
+                          // a long dropdown. The create row opens the full
+                          // material card without leaving the plan.
+                          <div className="w-full min-w-0 flex-1">
+                            <MaterialCombobox
+                              materials={options}
+                              value={options.find((m) => m.name === cell)?.id ?? ""}
+                              disabled={false}
+                              canCreate={canManageMaterials}
+                              onPick={(id) => {
+                                const mat = options.find((m) => m.id === id);
+                                if (mat) setCell(vi, g.label, mat.name);
+                              }}
+                              onCreate={() => setAddTarget({ kind: "cell", vi, group: g.label })}
+                            />
+                          </div>
                         ) : (
                           <input
                             className="mono w-full min-w-0 flex-1 border border-line rounded-[3px] px-2 py-1.5"
