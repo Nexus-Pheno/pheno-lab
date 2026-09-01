@@ -389,7 +389,13 @@ model Equipment {
   environmentId     String?
   environment       LabEnvironment?    @relation(fields: [environmentId], references: [id])
   photoPath         String             @default("") // stored file name under uploads/
+  // 设备规格 — reference specifications from the spec sheet, shown on the
+  // equipment card. NOT loaded into steps or variable pickers.
   parameters        Json               @default("[]") // [{ name, unit, defaultValue }]
+  // 设备工艺参数 — the tuning knobs techs actually set in daily runs. These
+  // are what a step inherits when this machine is selected, and what the
+  // test-plan parameter dropdown offers.
+  workParameters    Json               @default("[]") // [{ name, unit, defaultValue }]
   archived          Boolean            @default(false)
   createdAt         DateTime           @default(now())
   steps             ProcessStep[]

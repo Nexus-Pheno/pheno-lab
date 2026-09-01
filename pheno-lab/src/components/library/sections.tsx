@@ -100,11 +100,11 @@ function DefRows({
 
 type EquipmentForm = {
   name: string; nickname: string; make: string; model: string; assetTag: string; environmentId: string | null;
-  locationId: string | null; photoPath: string; parameters: ParamDef[];
+  locationId: string | null; photoPath: string; parameters: ParamDef[]; workParameters: ParamDef[];
 };
 
 const emptyEquipment: EquipmentForm = {
-  name: "", nickname: "", make: "", model: "", assetTag: "", locationId: null, environmentId: null, photoPath: "", parameters: [],
+  name: "", nickname: "", make: "", model: "", assetTag: "", locationId: null, environmentId: null, photoPath: "", parameters: [], workParameters: [],
 };
 
 function EquipmentEditor({
@@ -204,6 +204,15 @@ function EquipmentEditor({
           </div>
         </div>
       </div>
+      {/* 设备工艺参数 — the knobs techs actually tune. These drive step
+          prefill and the test-plan parameter dropdown; specs below do not. */}
+      <div className="bg-surface border border-brand/40 rounded-[4px] p-3">
+        <FieldLabel>{t("lib.workParams")}</FieldLabel>
+        <p className="text-[11px] text-muted mb-2">
+          {t("lib.workParamsHint")}
+        </p>
+        <DefRows defs={form.workParameters} onChange={(workParameters) => patch({ workParameters })} nameLabel={t("insp.parameter")} />
+      </div>
       <div className="bg-surface border border-line rounded-[4px] p-3">
         <FieldLabel>{t("lib.machineParams")}</FieldLabel>
         <p className="text-[11px] text-muted mb-2">
@@ -219,7 +228,11 @@ function EquipmentEditor({
           disabled={busy || !form.name.trim()}
           onClick={async () => {
             setBusy(true);
-            await onSave({ ...form, parameters: form.parameters.filter((p) => p.name.trim()) });
+            await onSave({
+              ...form,
+              parameters: form.parameters.filter((p) => p.name.trim()),
+              workParameters: form.workParameters.filter((p) => p.name.trim()),
+            });
             setBusy(false);
           }}
           className="bg-ink text-white rounded-[4px] px-4 py-1.5 text-[12px] font-semibold disabled:opacity-50"
@@ -425,6 +438,7 @@ export function ProcessLibrary({
                         value={{
                           name: e.name, nickname: e.nickname, make: e.make, model: e.model, assetTag: e.assetTag, environmentId: e.environmentId,
                           locationId: e.locationId, photoPath: e.photoPath, parameters: paramDefs(e.parameters),
+                          workParameters: paramDefs(e.workParameters),
                         }}
                         saveLabel={t("lib.saveChanges")}
                         onCancel={() => setEditingEq(null)}

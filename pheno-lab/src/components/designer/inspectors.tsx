@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Equipment, Material, Preset, LabEnvironment } from "@prisma/client";
 import type { StepFull, CharFull, StepDraft, CharDraft, ParamInput, MaterialInput } from "@/lib/types";
-import { paramDefs } from "@/lib/types";
+import { equipmentOptionLabel, paramDefs } from "@/lib/types";
 import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { fuzzyFilter } from "@/lib/fuzzy";
@@ -146,7 +146,7 @@ function EnvironmentEditor({
 
 // Fuzzy material search: type a name (even slightly off) and pick from the
 // live suggestions. Creating new materials is reserved for material admins.
-function MaterialCombobox({
+export function MaterialCombobox({
   materials,
   value,
   disabled,
@@ -278,9 +278,10 @@ export function StepInspector({
   const applyEquipment = (equipmentId: string | null) => {
     const eq = equipment.find((e) => e.id === equipmentId);
     if (!eq) return patch({ equipmentId });
-    // The machine's parameter set overlays the current one: keep entered
-    // values for same-named parameters, tag machine-added ones as "equipment".
-    const defs = paramDefs(eq.parameters);
+    // The machine's WORK parameters (设备工艺参数) overlay the current set:
+    // keep entered values for same-named parameters, tag machine-added ones
+    // as "equipment". Spec-sheet values never flood the step.
+    const defs = paramDefs(eq.workParameters);
     const params: ParamInput[] = defs.map((d) => {
       const existing = draft.parameters.find((p) => p.name.toLowerCase() === d.name.toLowerCase());
       return existing ?? { name: d.name, unit: d.unit, value: d.defaultValue, source: "equipment", variations: [] };
@@ -379,7 +380,7 @@ export function StepInspector({
           <option value="">{t("insp.noEquipment")}</option>
           {equipment.map((eq) => (
             <option key={eq.id} value={eq.id}>
-              {eq.nickname ? `${eq.nickname} — ${eq.name}` : eq.name}
+              {equipmentOptionLabel(eq)}
               {eq.assetTag ? ` · ${eq.assetTag}` : ""}
             </option>
           ))}
@@ -743,7 +744,7 @@ export function CharInspector({
           <option value="">{t("insp.noInstrument")}</option>
           {equipment.map((eq) => (
             <option key={eq.id} value={eq.id}>
-              {eq.nickname ? `${eq.nickname} — ${eq.name}` : eq.name}
+              {equipmentOptionLabel(eq)}
             </option>
           ))}
         </select>
