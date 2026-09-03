@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Equipment, Material, Preset, LabEnvironment } from "@prisma/client";
 import type { StepFull, CharFull, StepDraft, CharDraft, ParamInput, MaterialInput } from "@/lib/types";
 import { equipmentOptionLabel, paramDefs } from "@/lib/types";
@@ -165,6 +166,28 @@ export function MaterialCombobox({
   const tt = useTerm();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // The suggestion list renders in a portal with fixed positioning: inside
+  // the test-plan card (overflow container) an absolutely-positioned panel
+  // was clipped by the card's edge and unreadable.
+  const [pos, setPos] = useState<{ left: number; top: number; width: number; up: boolean } | null>(null);
+  const place = () => {
+    const r = inputRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const up = window.innerHeight - r.bottom < 240 && r.top > 260;
+    setPos({ left: r.left, top: up ? r.top : r.bottom + 2, width: r.width, up });
+  };
+  useEffect(() => {
+    if (!open) return;
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const selected = materials.find((m) => m.id === value);
   const matches = fuzzyFilter(
     materials.filter((m) => !m.archived),
@@ -175,6 +198,7 @@ export function MaterialCombobox({
   return (
     <div className="relative min-w-0">
       <input
+        ref={inputRef}
         className="w-full border border-line rounded-[3px] px-2 py-1.5 text-[12px] bg-surface disabled:bg-subtle"
         disabled={disabled}
         placeholder={t("insp.searchMaterial")}
@@ -183,8 +207,17 @@ export function MaterialCombobox({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={(e) => setQuery(e.target.value)}
       />
-      {open && (
-        <div className="absolute z-30 left-0 right-0 top-full mt-0.5 bg-surface border border-line rounded-[4px] shadow-lg max-h-56 overflow-y-auto">
+      {open && pos && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            left: pos.left,
+            width: Math.max(pos.width, 220),
+            ...(pos.up
+              ? { bottom: window.innerHeight - pos.top + 2 }
+              : { top: pos.top }),
+          }}
+          className="z-[70] bg-surface border border-line rounded-[4px] shadow-lg max-h-56 overflow-y-auto">
           {matches.map((m) => (
             <button
               key={m.id}
@@ -208,7 +241,8 @@ export function MaterialCombobox({
               ＋ {t("insp.createMaterial")} “{query.trim()}”
             </button>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
