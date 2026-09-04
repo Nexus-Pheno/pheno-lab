@@ -93,6 +93,7 @@ model User {
   presets             Preset[]
   runs                Run[]
   feedback            Feedback[]
+  reviewedFeedback    Feedback[]         @relation("FeedbackReviewer")
   recipes             Recipe[]
   assignedExperiments Experiment[]       @relation("ExperimentAssignee")
   approvedExperiments Experiment[]       @relation("ExperimentApprover")
@@ -155,12 +156,20 @@ model Feedback {
   userId         String
   user           User         @relation(fields: [userId], references: [id])
   kind           String // "bug" | "feedback"
+  title          String       @default("") // one problem per item, named
   message        String
-  screenshotPath String       @default("") // uploaded file name
+  screenshotPath String       @default("") // legacy single screenshot; new items use attachments
   errorLog       String       @default("") // recent client-side errors at submit time
   pageUrl        String       @default("")
   userAgent      String       @default("")
-  status         String       @default("open") // "open" | "resolved"
+  // Review pipeline: the admin sifts submissions, annotates them, and
+  // approves the ones an agent should implement. "resolved" is legacy.
+  status         String       @default("open") // "open" | "approved" | "rejected" | "implemented"
+  adminNote      String       @default("") // the admin's comments / scoping edits
+  reviewedById   String?
+  reviewedBy     User?        @relation("FeedbackReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt     DateTime?
+  attachments    Attachment[]
   createdAt      DateTime     @default(now())
 }
 
@@ -677,7 +686,12 @@ model Attachment {
   // its manual belongs to the environment record.
   labEnvironmentId         String?
   labEnvironment           LabEnvironment?         @relation(fields: [labEnvironmentId], references: [id], onDelete: Cascade)
+  // Feedback screenshots — several per reported problem.
+  feedbackId               String?
+  feedback                 Feedback?               @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   createdAt                DateTime                @default(now())
+
+  @@index([feedbackId])
 }
 
 // ─── Instrument ingestion ────────────────────────────────────────────────────

@@ -6,12 +6,27 @@ import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 
+const feedbackInclude = {
+  user: { select: { name: true, email: true } },
+  reviewedBy: { select: { name: true } },
+  attachments: { select: { id: true, fileName: true, storedPath: true } },
+} as const;
+
 export async function listFeedback(actor: Actor) {
   assertAdmin(actor);
   return db.feedback.findMany({
     where: { organizationId: actor.org },
     orderBy: { createdAt: "desc" },
-    include: { user: { select: { name: true, email: true } } },
+    include: feedbackInclude,
+  });
+}
+
+/** A reporter's own submissions, with the admin's verdict and comments. */
+export async function listMyFeedback(actor: Actor) {
+  return db.feedback.findMany({
+    where: { organizationId: actor.org, userId: actor.uid },
+    orderBy: { createdAt: "desc" },
+    include: feedbackInclude,
   });
 }
 
@@ -22,6 +37,8 @@ export async function exportFeedback(actor: Actor) {
     orderBy: { createdAt: "desc" },
     include: {
       user: { select: { name: true, email: true, role: true } },
+      reviewedBy: { select: { name: true } },
+      attachments: { select: { fileName: true, storedPath: true } },
     },
   });
 }

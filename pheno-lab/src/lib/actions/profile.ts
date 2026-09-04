@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createSession, requireSession } from "@/lib/auth";
 import {
   changePassword as changePasswordService,
-  setFeedbackStatus as setFeedbackStatusService,
+  reviewFeedback as reviewFeedbackService,
   setLanguage as setLanguageService,
   submitFeedback as submitFeedbackService,
   updateProfile as updateProfileService,
@@ -34,19 +34,27 @@ export async function setLanguage(lang: "en" | "zh") {
 
 export async function submitFeedback(data: {
   kind: "bug" | "feedback";
+  title?: string;
   message: string;
-  screenshotPath: string;
-  errorLog: string;
-  pageUrl: string;
-  userAgent: string;
+  screenshotPath?: string;
+  photoFileNames?: string[];
+  errorLog?: string;
+  pageUrl?: string;
+  userAgent?: string;
 }) {
   await submitFeedbackService(await requireSession(), data);
+  revalidatePath("/feedback");
 }
 
-export async function setFeedbackStatus(
+export async function reviewFeedback(
   id: string,
-  status: "open" | "resolved",
+  patch: {
+    status?: "open" | "approved" | "rejected" | "implemented";
+    adminNote?: string;
+    title?: string;
+    message?: string;
+  },
 ) {
-  await setFeedbackStatusService(await requireSession(), { id, status });
+  await reviewFeedbackService(await requireSession(), { id, ...patch });
   revalidatePath("/feedback");
 }

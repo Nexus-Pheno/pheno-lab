@@ -69,7 +69,14 @@ export async function canReadObject(
         },
       }),
       db.feedback.findFirst({
-        where: { organizationId: actor.org, screenshotPath: key },
+        where: {
+          organizationId: actor.org,
+          // Legacy single screenshot or one of the new attachment shots.
+          OR: [
+            { screenshotPath: key },
+            { attachments: { some: { storedPath: key } } },
+          ],
+        },
         select: { userId: true },
       }),
       db.equipment.findFirst({
