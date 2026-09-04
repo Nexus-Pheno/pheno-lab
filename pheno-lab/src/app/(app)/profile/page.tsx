@@ -1,21 +1,18 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
-import { ProfileForms, FeedbackForm } from "@/components/profile/ProfileForms";
+import { ProfileForms } from "@/components/profile/ProfileForms";
 import { Icon } from "@/components/ui";
 import { AiProviders } from "@/components/profile/AiProviders";
-import { getProfileData } from "@/modules/accounts/query";
+import { FeedbackBoard } from "@/components/feedback/FeedbackBoard";
+import { getProfileData, listMyFeedback } from "@/modules/accounts/query";
 import { getSystemStatus } from "@/modules/system/query";
 
 export default async function ProfilePage() {
   const session = await requireSession();
   const t = await getT();
-  const {
-    user,
-    organization: org,
-    aiProviders,
-    statistics,
-  } = await getProfileData(session);
+  const [{ user, organization: org, aiProviders, statistics }, myFeedback] =
+    await Promise.all([getProfileData(session), listMyFeedback(session)]);
 
   const stats: { label: string; value: string | number; icon: string }[] = [
     {
@@ -116,7 +113,33 @@ export default async function ProfilePage() {
           orgName={org.name}
         />
 
-        <FeedbackForm />
+        {/* The team's feedback channel: file one problem per item with
+            screenshots, and follow the admin's verdict right here. */}
+        <section className="bg-surface border border-line rounded-[6px] p-4">
+          <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
+            <Icon name="Bug" size={14} className="text-charcoal" /> {t("fb.boardTitle")}
+          </h2>
+          <p className="text-[11px] text-muted mb-3">{t("fb.boardHint")}</p>
+          <FeedbackBoard
+            isAdmin={false}
+            items={myFeedback.map((f) => ({
+              id: f.id,
+              kind: f.kind,
+              title: f.title,
+              message: f.message,
+              screenshotPath: f.screenshotPath,
+              attachments: f.attachments,
+              errorLog: f.errorLog,
+              pageUrl: f.pageUrl,
+              status: f.status,
+              adminNote: f.adminNote,
+              reviewedBy: f.reviewedBy?.name ?? "",
+              createdAt: f.createdAt.toISOString().replace("T", " ").slice(0, 16),
+              userName: f.user.name,
+              userEmail: f.user.email,
+            }))}
+          />
+        </section>
 
         {session.role === "ADMIN" && <AiProviders rows={aiProviders} />}
 

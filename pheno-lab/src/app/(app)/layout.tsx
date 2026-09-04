@@ -72,12 +72,15 @@ export default async function AppLayout({
             >
               {t("nav.data")}
             </Link>
-            <Link
-              href="/feedback"
-              className="px-2 py-1 rounded-[4px] hover:bg-subtle"
-            >
-              {t("nav.feedback")}
-            </Link>
+            {/* Triage board is the admin's; teammates submit from /profile. */}
+            {session.role === "ADMIN" && (
+              <Link
+                href="/feedback"
+                className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+              >
+                {t("nav.feedback")}
+              </Link>
+            )}
             <Link
               href="/portal"
               className="px-2 py-1 rounded-[4px] hover:bg-subtle text-brand-deep"
