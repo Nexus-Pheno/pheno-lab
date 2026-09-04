@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateProfile, changePassword, setLanguage, submitFeedback } from "@/lib/actions/profile";
+import { updateProfile, changePassword, setLanguage } from "@/lib/actions/profile";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";
 
@@ -134,106 +134,3 @@ export function ProfileForms({
   );
 }
 
-export function FeedbackForm() {
-  const t = useT();
-  const [kind, setKind] = useState<"bug" | "feedback">("bug");
-  const [message, setMessage] = useState("");
-  const [screenshotPath, setScreenshotPath] = useState("");
-  const [includeErrors, setIncludeErrors] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const upload = async (file: File) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const json = await res.json();
-      if (json.fileName) setScreenshotPath(json.fileName);
-      else alert(json.error ?? "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <section className={sectionCls}>
-      <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
-        <Icon name="Bug" size={14} className="text-charcoal" /> {t("fb.title")}
-      </h2>
-      {done ? (
-        <p className="text-[13px] text-brand-deep flex items-center gap-1.5 mt-2">
-          <Icon name="Check" size={14} /> {t("fb.submitted")}
-        </p>
-      ) : (
-        <div className="space-y-3 mt-2">
-          <div className="flex gap-2">
-            {(["bug", "feedback"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setKind(k)}
-                className={
-                  "text-[12px] font-semibold px-3 py-1.5 rounded-[4px] border " +
-                  (kind === k ? "bg-brand-soft text-brand-deep border-brand/40" : "border-line text-muted hover:bg-subtle")
-                }
-              >
-                {t(k === "bug" ? "fb.bug" : "fb.feedback")}
-              </button>
-            ))}
-          </div>
-          <div>
-            <FieldLabel>{t("fb.message")}</FieldLabel>
-            <textarea
-              className={inputCls + " resize-none"}
-              rows={4}
-              placeholder={t("fb.messagePh")}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <input ref={fileRef} type="file" accept="image/*" className="hidden"
-              onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="text-[12px] font-semibold border border-line rounded-[4px] px-3 py-1.5 hover:bg-subtle disabled:opacity-50 flex items-center gap-1.5"
-            >
-              <Icon name="Camera" size={13} />
-              {uploading ? t("lib.uploading") : screenshotPath ? t("fb.attached") : t("fb.attach")}
-            </button>
-            {screenshotPath && <Icon name="CheckCircle2" size={14} className="text-brand-deep" />}
-            <label className="flex items-center gap-1.5 text-[12px] text-charcoal">
-              <input type="checkbox" checked={includeErrors} onChange={(e) => setIncludeErrors(e.target.checked)} />
-              {t("fb.includeErrors")}
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <button
-              disabled={busy || !message.trim()}
-              onClick={async () => {
-                setBusy(true);
-                await submitFeedback({
-                  kind,
-                  message,
-                  screenshotPath,
-                  errorLog: includeErrors ? (window.__phenoErrors ?? []).join("\n") : "",
-                  pageUrl: window.location.href,
-                  userAgent: navigator.userAgent,
-                });
-                setBusy(false);
-                setDone(true);
-              }}
-              className="bg-ink text-white rounded-[4px] px-5 py-1.5 text-[12px] font-bold disabled:opacity-50"
-            >
-              {t("fb.submit")}
-            </button>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}

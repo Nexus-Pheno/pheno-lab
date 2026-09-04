@@ -43,6 +43,7 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [shots, setShots] = useState<string[]>([]);
+  const [includeErrors, setIncludeErrors] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -71,7 +72,10 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
         title: title.trim(),
         message: message.trim(),
         photoFileNames: shots,
-        pageUrl: "",
+        errorLog: includeErrors
+          ? (window.__phenoErrors ?? []).join("\n").slice(0, 8000)
+          : "",
+        pageUrl: window.location.href.slice(0, 500),
         userAgent: navigator.userAgent.slice(0, 300),
       });
       setTitle("");
@@ -142,6 +146,10 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
           <Icon name={uploading ? "LoaderCircle" : "ImagePlus"} size={15} className={uploading ? "animate-spin" : ""} />
           <span className="text-[9px] font-semibold">{t("fb.addShot")}</span>
         </button>
+        <label className="flex items-center gap-1.5 text-[11.5px] text-charcoal">
+          <input type="checkbox" checked={includeErrors} onChange={(e) => setIncludeErrors(e.target.checked)} />
+          {t("fb.includeErrors")}
+        </label>
         <span className="flex-1" />
         {sent && <span className="text-[11.5px] text-brand-deep font-semibold">{t("fb.submitted")}</span>}
         <button
@@ -287,7 +295,15 @@ function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
   );
 }
 
-export function FeedbackBoard({ items, isAdmin }: { items: FeedbackItem[]; isAdmin: boolean }) {
+export function FeedbackBoard({
+  items,
+  isAdmin,
+  showComposer = true,
+}: {
+  items: FeedbackItem[];
+  isAdmin: boolean;
+  showComposer?: boolean;
+}) {
   const t = useT();
   const router = useRouter();
   const [tab, setTab] = useState<string>("open");
@@ -303,7 +319,7 @@ export function FeedbackBoard({ items, isAdmin }: { items: FeedbackItem[]; isAdm
 
   return (
     <div className="space-y-4">
-      <Composer onSubmitted={() => router.refresh()} />
+      {showComposer && <Composer onSubmitted={() => router.refresh()} />}
 
       <div className="flex items-center gap-1.5 flex-wrap">
         {TABS.map((s) => (
