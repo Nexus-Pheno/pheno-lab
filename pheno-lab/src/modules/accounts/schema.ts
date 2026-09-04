@@ -25,12 +25,27 @@ export const createUserSchema = z.object({
 
 export const feedbackSchema = z.object({
   kind: z.enum(["bug", "feedback"]),
+  title: z.string().trim().max(300).default(""),
   message: z.string().trim().min(1).max(20_000),
-  screenshotPath: z.string().max(512),
-  errorLog: z.string().max(8_000),
-  pageUrl: z.string().max(500),
-  userAgent: z.string().max(300),
+  screenshotPath: z.string().max(512).default(""),
+  // Multi-screenshot uploads (one problem, several shots).
+  photoFileNames: z.array(z.string().max(512)).max(10).default([]),
+  errorLog: z.string().max(8_000).default(""),
+  pageUrl: z.string().max(500).default(""),
+  userAgent: z.string().max(300).default(""),
 });
+
+// The admin's triage decision: status and/or comments, plus optional edits
+// that tighten the reporter's wording before an agent implements it.
+export const feedbackReviewSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    status: z.enum(["open", "approved", "rejected", "implemented"]).optional(),
+    adminNote: z.string().max(20_000).optional(),
+    title: z.string().trim().max(300).optional(),
+    message: z.string().trim().min(1).max(20_000).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 1, "No changes supplied.");
 
 export const profileSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -43,11 +58,6 @@ export const passwordChangeSchema = z.object({
 });
 
 export const languageSchema = z.enum(["en", "zh"]);
-
-export const feedbackStatusSchema = z.object({
-  id: z.string().min(1).max(128),
-  status: z.enum(["open", "resolved"]),
-});
 
 export const organizationSubmissionSchema = z.object({
   token: z.string().min(20).max(500),

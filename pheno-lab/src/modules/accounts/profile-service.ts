@@ -2,12 +2,13 @@ import "server-only";
 
 import bcrypt from "bcryptjs";
 import { db } from "@/infrastructure/db/client";
+import { objectStorage } from "@/infrastructure/storage";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
 import {
+  feedbackReviewSchema,
   feedbackSchema,
-  feedbackStatusSchema,
   languageSchema,
   passwordChangeSchema,
   profileSchema,
@@ -79,8 +80,24 @@ export async function setLanguage(actor: Actor, raw: unknown) {
   return language;
 }
 
+/** Screenshots must be the actor's own fresh uploads — same rule as capture. */
+async function requireOwnedUploadKeys(
+  actor: Actor,
+  keys: string[],
+): Promise<void> {
+  const prefix = `organizations/${actor.org}/users/${actor.uid}/images/`;
+  for (const key of keys) {
+    if (!key.startsWith(prefix) || !(await objectStorage().exists(key))) {
+      throw new Error(
+        "A screenshot is missing or does not belong to this user.",
+      );
+    }
+  }
+}
+
 export async function submitFeedback(actor: Actor, raw: unknown) {
-  const input = feedbackSchema.parse(raw);
+  const { photoFileNames, ...input } = feedbackSchema.parse(raw);
+  await requireOwnedUploadKeys(actor, photoFileNames);
   return db.$transaction(async (tx) => {
     const row = await tx.feedback.create({
       data: {
@@ -89,32 +106,53 @@ export async function submitFeedback(actor: Actor, raw: unknown) {
         ...input,
       },
     });
+    if (photoFileNames.length > 0) {
+      await tx.attachment.createMany({
+        data: photoFileNames.map((key) => ({
+          feedbackId: row.id,
+          fileName: key.split("/").pop() ?? key,
+          storedPath: key,
+          mime: "image/*",
+          size: 0,
+        })),
+      });
+    }
     await recordUserAudit(tx, {
       actor,
       action: "feedback.created",
       entityType: "Feedback",
       entityId: row.id,
-      metadata: { kind: row.kind, pageUrl: row.pageUrl },
+      metadata: {
+        kind: row.kind,
+        pageUrl: row.pageUrl,
+        screenshots: photoFileNames.length,
+      },
     });
     return row;
   });
 }
 
-export async function setFeedbackStatus(actor: Actor, raw: unknown) {
+/** Triage: status changes, admin comments, and wording edits — audited. */
+export async function reviewFeedback(actor: Actor, raw: unknown) {
   assertAdmin(actor);
-  const input = feedbackStatusSchema.parse(raw);
+  const { id, ...patch } = feedbackReviewSchema.parse(raw);
   await db.$transaction(async (tx) => {
     const result = await tx.feedback.updateMany({
-      where: { id: input.id, organizationId: actor.org },
-      data: { status: input.status },
+      where: { id, organizationId: actor.org },
+      data: {
+        ...patch,
+        ...(patch.status
+          ? { reviewedById: actor.uid, reviewedAt: new Date() }
+          : {}),
+      },
     });
     if (result.count !== 1) throw new Error("Feedback not found.");
     await recordUserAudit(tx, {
       actor,
-      action: "feedback.status.updated",
+      action: "feedback.reviewed",
       entityType: "Feedback",
-      entityId: input.id,
-      changes: { status: input.status },
+      entityId: id,
+      changes: patch,
     });
   });
 }
