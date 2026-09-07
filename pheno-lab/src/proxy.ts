@@ -34,7 +34,10 @@ export async function proxy(req: NextRequest) {
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname === "/api/health/live" ||
-    pathname === "/api/health/ready"
+    pathname === "/api/health/ready" ||
+    // Shared-tablet registration runs on a device nobody is signed in on;
+    // the one-time token in the path is the authorization.
+    pathname.startsWith("/kiosk/claim/")
   ) {
     return continueRequest(req, id);
   }
