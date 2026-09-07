@@ -110,6 +110,21 @@ for _attempt in $(seq 1 30); do
 done
 
 if [[ "$healthy" == true ]]; then
+  # A healthy deploy prunes the release history: the newest KEEP_RELEASES
+  # directories stay for instant rollback; anything older is rebuildable
+  # from git (the repository is the source of truth, not this directory).
+  # 50 unpruned releases once filled 53 GB of the 105 GB disk (2026-09-07).
+  KEEP_RELEASES=5
+  CURRENT_TARGET="$(readlink -f "$CURRENT")"
+  while IFS= read -r OLD; do
+    OLD_PATH="$RELEASES/$OLD"
+    # Never remove whatever current resolves to, however the list came out.
+    if [[ "$(readlink -f "$OLD_PATH")" == "$CURRENT_TARGET" ]]; then
+      continue
+    fi
+    rm -rf "$OLD_PATH"
+    echo "pruned release $OLD"
+  done < <(ls -1 "$RELEASES" | grep -E '^[0-9]{8}-[0-9]{3}$' | sort | head -n -"$KEEP_RELEASES")
   echo "deployed $RELEASE_ID"
   exit 0
 fi
