@@ -5,6 +5,7 @@ import type { Actor } from "@/modules/authorization/actor";
 import { canReadExperiment } from "@/modules/authorization/policy";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import { recordUserAudit } from "@/modules/audit/writer";
+import { notify } from "@/modules/notifications/service";
 import {
   accessDecisionSchema,
   accessRequestSchema,
@@ -100,6 +101,25 @@ export async function requestAccess(actor: Actor, raw: unknown): Promise<void> {
     await tx.accessRequest.create({
       data: { experimentId, requesterId: actor.uid, message },
     });
+    const [requester, experiment] = await Promise.all([
+      tx.user.findUniqueOrThrow({
+        where: { id: actor.uid },
+        select: { name: true },
+      }),
+      tx.experiment.findUniqueOrThrow({
+        where: { id: experimentId },
+        select: { code: true, title: true },
+      }),
+    ]);
+    await notify(tx, {
+      organizationId: actor.org,
+      userId: resource.createdById,
+      actorUserId: actor.uid,
+      kind: "access_requested",
+      actorName: requester.name,
+      entityLabel: `${experiment.code} · ${experiment.title}`,
+      href: `/experiments/${experimentId}`,
+    });
     await recordUserAudit(tx, {
       actor,
       action: "experiment.access_requested",
@@ -178,6 +198,25 @@ export async function decideAccessRequest(
         update: {},
       });
     }
+    const [decider, experiment] = await Promise.all([
+      tx.user.findUniqueOrThrow({
+        where: { id: actor.uid },
+        select: { name: true },
+      }),
+      tx.experiment.findUniqueOrThrow({
+        where: { id: request.experimentId },
+        select: { code: true, title: true },
+      }),
+    ]);
+    await notify(tx, {
+      organizationId: actor.org,
+      userId: request.requesterId,
+      actorUserId: actor.uid,
+      kind: approve ? "access_approved" : "access_declined",
+      actorName: decider.name,
+      entityLabel: `${experiment.code} · ${experiment.title}`,
+      href: `/experiments/${request.experimentId}`,
+    });
     await recordUserAudit(tx, {
       actor,
       action: approve

@@ -4,6 +4,7 @@ import { syncSampleSerials } from "@/modules/instruments/sample-serial-engine";
 import { db } from "@/infrastructure/db/client";
 import { assertExperimentPermission } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
+import { notify } from "@/modules/notifications/service";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertStaff } from "@/modules/authorization/policy";
 import {
@@ -61,6 +62,25 @@ export async function assignExperiment(actor: Actor, raw: unknown) {
     // Sim codes carry the responsible person's employee number, so a new
     // assignee means new codes (only while no measurement data depends on them).
     await syncSampleSerials(transaction, id);
+    if (userId) {
+      const assigner = await transaction.user.findUniqueOrThrow({
+        where: { id: actor.uid },
+        select: { name: true },
+      });
+      const experiment = await transaction.experiment.findUniqueOrThrow({
+        where: { id },
+        select: { code: true, title: true },
+      });
+      await notify(transaction, {
+        organizationId: actor.org,
+        userId,
+        actorUserId: actor.uid,
+        kind: "assigned",
+        actorName: assigner.name,
+        entityLabel: `${experiment.code} · ${experiment.title}`,
+        href: `/experiments/${id}`,
+      });
+    }
     await recordUserAudit(transaction, {
       actor,
       action: "experiment.assign",

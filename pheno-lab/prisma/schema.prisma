@@ -63,6 +63,7 @@ model Organization {
   instruments    Instrument[]
   jvMeasurements JvMeasurement[]
   sharedDevices  SharedDevice[]
+  notifications  Notification[]
 }
 
 model User {
@@ -112,6 +113,7 @@ model User {
   ownedMeasurements   JvMeasurement[]    @relation("MeasurementOwner")
   sharedDeviceLogins  SharedDevice[]     @relation("SharedDeviceUser")
   accessRequests      AccessRequest[]    @relation("AccessRequester")
+  notifications       Notification[]     @relation("NotificationRecipient")
 }
 
 // A registered shared lab tablet. The browser carries a signed cookie naming
@@ -316,6 +318,26 @@ model AccessRequest {
 
   @@index([experimentId, status])
   @@index([requesterId])
+}
+
+// In-app notifications: the bell next to the profile chip. One row per
+// recipient per event; text is rendered client-side from `kind` so each
+// reader sees their own language.
+model Notification {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  userId         String // recipient
+  user           User         @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  kind           String // access_requested | access_approved | access_declined | feedback_* | assigned | member_added
+  actorName      String       @default("") // who did it (display only)
+  entityLabel    String       @default("") // e.g. "2026-001-26-3 · 添加剂效果确认"
+  href           String       @default("") // where the notification links
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 model ExperimentMember {

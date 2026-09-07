@@ -6,6 +6,7 @@ import { objectStorage } from "@/infrastructure/storage";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
+import { notify, type NotificationKind } from "@/modules/notifications/service";
 import {
   feedbackReviewSchema,
   feedbackSchema,
@@ -147,6 +148,36 @@ export async function reviewFeedback(actor: Actor, raw: unknown) {
       },
     });
     if (result.count !== 1) throw new Error("Feedback not found.");
+    // Tell the submitter their item was answered — a verdict or a comment.
+    const feedback = await tx.feedback.findUniqueOrThrow({
+      where: { id },
+      select: { userId: true, title: true, message: true },
+    });
+    const kind: NotificationKind | null =
+      patch.status === "approved"
+        ? "feedback_approved"
+        : patch.status === "rejected"
+          ? "feedback_rejected"
+          : patch.status === "implemented"
+            ? "feedback_implemented"
+            : patch.adminNote
+              ? "feedback_commented"
+              : null;
+    if (kind) {
+      const reviewer = await tx.user.findUniqueOrThrow({
+        where: { id: actor.uid },
+        select: { name: true },
+      });
+      await notify(tx, {
+        organizationId: actor.org,
+        userId: feedback.userId,
+        actorUserId: actor.uid,
+        kind,
+        actorName: reviewer.name,
+        entityLabel: feedback.title || feedback.message.slice(0, 80),
+        href: "/profile",
+      });
+    }
     await recordUserAudit(tx, {
       actor,
       action: "feedback.reviewed",
