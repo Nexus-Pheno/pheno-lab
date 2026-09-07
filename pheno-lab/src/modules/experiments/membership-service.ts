@@ -3,6 +3,7 @@ import "server-only";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import { recordUserAudit } from "@/modules/audit/writer";
+import { notify } from "@/modules/notifications/service";
 import {
   refreshExperimentSerials,
   syncSampleSerials,
@@ -31,6 +32,25 @@ export async function addMember(
       where: { experimentId_userId: { experimentId, userId } },
       update: {},
       create: { experimentId, userId },
+    });
+    const [adder, experiment] = await Promise.all([
+      tx.user.findUniqueOrThrow({
+        where: { id: actor.uid },
+        select: { name: true },
+      }),
+      tx.experiment.findUniqueOrThrow({
+        where: { id: experimentId },
+        select: { code: true, title: true },
+      }),
+    ]);
+    await notify(tx, {
+      organizationId: actor.org,
+      userId,
+      actorUserId: actor.uid,
+      kind: "member_added",
+      actorName: adder.name,
+      entityLabel: `${experiment.code} · ${experiment.title}`,
+      href: `/experiments/${experimentId}`,
     });
     await recordUserAudit(tx, {
       actor,

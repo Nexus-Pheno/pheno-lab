@@ -7,7 +7,9 @@ import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import { BackButton } from "@/components/BackButton";
 import { ErrorCollector } from "@/components/ErrorCollector";
 import { IdleGuard } from "@/components/kiosk/IdleGuard";
+import { NotificationBell } from "@/components/NotificationBell";
 import { getOrganizationName } from "@/modules/organizations/query";
+import { unreadNotificationCount } from "@/modules/notifications/service";
 
 function ClipboardPenIcon() {
   return (
@@ -36,7 +38,10 @@ export default async function AppLayout({
   const session = await requireSession();
   const lang = await getLang();
   const t = await getT();
-  const organizationName = await getOrganizationName(session);
+  const [organizationName, unread] = await Promise.all([
+    getOrganizationName(session),
+    unreadNotificationCount(session),
+  ]);
 
   return (
     <LanguageProvider lang={lang}>
@@ -110,6 +115,7 @@ export default async function AppLayout({
           <span className="text-xs text-muted hidden sm:block">
             {organizationName}
           </span>
+          <NotificationBell initialUnread={unread} />
           <Link
             href="/profile"
             title={t("nav.profile")}
