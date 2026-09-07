@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { login } from "@/lib/actions/auth";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon } from "@/components/ui";
+import { BadgeLogin } from "./BadgeLogin";
 
 /**
  * The sign-in card. On a registered shared tablet it grows a kiosk badge and
@@ -78,6 +79,7 @@ export function LoginForm({
                 ))}
               </div>
             )}
+            <BadgeLogin />
           </div>
         )}
 

@@ -75,3 +75,14 @@ export const inviteTokenSchema = z.string().min(20).max(500);
 export const deviceLabelSchema = z.string().trim().min(1).max(120);
 export const deviceIdSchema = z.string().min(1).max(128);
 export const setupTokenSchema = z.string().min(20).max(200);
+
+// NFC badges. Web NFC reports serial numbers as colon-separated hex
+// ("04:1d:c6:8a:da:1b:90"); we store canonical lowercase hex, no separators.
+// NTAG UIDs are 7 bytes, but 4/8/10-byte tags exist — accept 4–10 bytes.
+export const badgeUidSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .transform((s) => s.replace(/[:\s-]/g, ""))
+  .pipe(z.string().regex(/^[0-9a-f]{8,20}$/));
+export const badgeTokenSchema = z.string().max(200).default("");

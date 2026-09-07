@@ -83,6 +83,13 @@ model User {
   // Presence: refreshed (throttled) whenever a signed-in request arrives, so
   // the admin activity monitor can show who is online.
   lastSeenAt          DateTime?
+  // NFC badge (NTAG213 sticker on the work ID): tap-to-sign-in on shared
+  // tablets. The UID is read from the chip; the secret is a random token the
+  // bind flow writes onto the card, stored here only as a hash. Both must
+  // match at login, and only on a registered shared device.
+  badgeUid            String?            @unique // canonical lowercase hex, no separators
+  badgeSecretHash     String             @default("") // sha256 of the on-card token; "" = UID-only badge
+  badgeBoundAt        DateTime?
   // Stewardships: who is responsible for each part of the lab's library.
   materialAdmin       Boolean            @default(false) // materials library (purchasing/stock owner)
   equipmentAdmin      Boolean            @default(false) // equipment & machine parameters
