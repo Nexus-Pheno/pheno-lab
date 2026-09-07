@@ -115,7 +115,6 @@ export function ScanButton({ variant }: { variant: "tile" | "compact" }) {
             </div>
           ) : (
             <div className="relative flex-1 min-h-0">
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video
                 ref={videoRef}
                 playsInline

@@ -103,17 +103,19 @@ export async function deleteExperiment(actor: Actor, rawId: unknown) {
   });
 }
 
-/** Phase 2: duplicate an experiment as a template — full plan, no run data. */
+/** Duplicate an experiment's full plan — no run data. */
 export async function duplicateExperiment(actor: Actor, rawId: unknown) {
   const id = experimentIdSchema.parse(rawId);
-  // Copying a plan requires being able to open the source experiment.
-  await requireExperimentPermission(actor, id, "read");
-  const src = await db.experiment.findUniqueOrThrow({
-    where: { id },
+  const src = await db.experiment.findFirst({
+    where: { id, organizationId: actor.org },
     include: experimentInclude,
   });
-  if (src.organizationId !== actor.org)
-    throw new Error("Experiment belongs to another organization.");
+  if (!src) throw new Error("Experiment belongs to another organization.");
+  // Copying a plan requires being able to open the source experiment — unless
+  // it is pinned as an org-wide template, whose whole point is that anyone in
+  // the lab can start from it.
+  const isTemplate = src.templatePinnedAt !== null;
+  if (!isTemplate) await requireExperimentPermission(actor, id, "read");
 
   const copy = await db.$transaction(async (tx) => {
     const code = await nextExperimentCode(tx, actor);
@@ -121,9 +123,11 @@ export async function duplicateExperiment(actor: Actor, rawId: unknown) {
       data: {
         organizationId: actor.org,
         code,
-        title: `${src.title} (copy)`,
+        // A template's name is a starting point, not a provenance marker.
+        title: isTemplate ? src.title : `${src.title} (copy)`,
         campaign: src.campaign,
         status: "DRAFT",
+        isTest: src.isTest,
         observation: src.observation,
         problem: src.problem,
         hypothesis: src.hypothesis,
@@ -136,6 +140,7 @@ export async function duplicateExperiment(actor: Actor, rawId: unknown) {
           create: src.samples.map((sample) => ({
             code: sample.code,
             variationGroup: sample.variationGroup,
+            note: sample.note,
           })),
         },
       },
@@ -152,6 +157,8 @@ export async function duplicateExperiment(actor: Actor, rawId: unknown) {
           equipmentId: step.equipmentId,
           environmentId: step.environmentId,
           environmentConditions: step.environmentConditions ?? undefined,
+          layer: step.layer,
+          recipeId: step.recipeId,
           notes: step.notes,
           materials: {
             create: step.materials.map((material) => ({
@@ -206,4 +213,36 @@ export async function duplicateExperiment(actor: Actor, rawId: unknown) {
   });
   await syncAutoLabels(copy.id);
   return { id: copy.id, code: copy.code };
+}
+
+/** Staff-only: pin/unpin an experiment as an org-wide starting template. */
+export async function setTemplatePin(
+  actor: Actor,
+  rawId: unknown,
+  pinned: boolean,
+) {
+  assertStaff(actor);
+  const id = experimentIdSchema.parse(rawId);
+  const experiment = await db.experiment.findFirst({
+    where: { id, organizationId: actor.org },
+    select: { id: true, isTest: true },
+  });
+  if (!experiment) throw new Error("No such experiment.");
+  if (pinned && experiment.isTest)
+    throw new Error("Test experiments cannot be templates.");
+  await db.$transaction(async (tx) => {
+    await tx.experiment.update({
+      where: { id },
+      data: { templatePinnedAt: pinned ? new Date() : null },
+    });
+    await recordUserAudit(tx, {
+      actor,
+      action: pinned
+        ? "experiment.template_pinned"
+        : "experiment.template_unpinned",
+      entityType: "Experiment",
+      entityId: id,
+      changes: { pinned },
+    });
+  });
 }

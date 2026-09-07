@@ -270,6 +270,9 @@ model Experiment {
   // Test runs live alongside real work but are excluded from every real view
   // and can be cleared in one action. Chosen when the experiment is created.
   isTest            Boolean            @default(false)
+  // Pinned as an org-wide template: anyone may start a new experiment from a
+  // copy of its plan, even without read access to the original. Staff-set.
+  templatePinnedAt  DateTime?
   observation       String             @default("")
   problem           String             @default("")
   hypothesis        String             @default("")
