@@ -107,11 +107,13 @@ export const en = {
   "sci.hypothesisPh": "What do you expect to happen, and why?",
   "sci.conclusionLocked": "Unlocks when the experiment is marked complete.",
   "sci.aiSummary": "AI summary",
-  "sci.aiHint": "Let AI analyze the full experiment record before you write the conclusion.",
+  "sci.aiHint":
+    "Let AI analyze the full experiment record before you write the conclusion.",
   "sci.aiGenerate": "Generate",
   "sci.aiRegenerate": "Regenerate",
   "sci.aiBusy": "Analyzing…",
-  "sci.aiBackground": "Runs in the background — you can leave this page and come back.",
+  "sci.aiBackground":
+    "Runs in the background — you can leave this page and come back.",
   "sci.aiLocked": "Unlocks with the conclusion once the experiment completes.",
   "dash.viewMore": "View more ({n})",
   "activity.title": "Activity",
@@ -127,7 +129,8 @@ export const en = {
   "act.duplicated": "duplicated",
   "act.aiSummary": "generated AI summary for",
   "act.changed": "changed",
-  "sci.aiFailed": "No AI model configured or the call failed — try again or check the AI provider in Profile.",
+  "sci.aiFailed":
+    "No AI model configured or the call failed — try again or check the AI provider in Profile.",
   "sci.aiDisclaimer": "AI-generated; verify numbers before citing",
 
   // Test plan
@@ -157,7 +160,8 @@ export const en = {
   "plan.substrates": "Substrate batch",
   "plan.substrateCount": "Substrates to prepare",
   "plan.substrateMaterial": "Substrate material",
-  "plan.substrateHint": "Drag each substrate into its group. Spares wait in Extras; scrapped ones go to Error — swap in a spare without renumbering.",
+  "plan.substrateHint":
+    "Drag each substrate into its group. Spares wait in Extras; scrapped ones go to Error — swap in a spare without renumbering.",
   "plan.regroup": "Regroup substrates",
   "plan.samples": "Samples",
   "plan.control": "Control",
@@ -425,7 +429,8 @@ export const en = {
   "fb.boardHint":
     "One problem per item — describe it, attach screenshots, and track the admin's verdict here.",
   "fb.newItem": "Report a problem or idea",
-  "fb.titlePh": "Short title, e.g. “Material dropdown is clipped in the test plan”",
+  "fb.titlePh":
+    "Short title, e.g. “Material dropdown is clipped in the test plan”",
   "fb.addShot": "Screenshot",
   "fb.st.open": "Open",
   "fb.st.approved": "Approved",
@@ -500,8 +505,9 @@ export const en = {
   "portal.install": "Install this app",
   "portal.iosTitle": "Add Pheno Lab to your home screen",
   "portal.iosStep1": "Tap the Share button in the browser toolbar",
-  "portal.iosStep2": "Choose \"Add to Home Screen\"",
-  "portal.iosHint": "The icon opens full-screen like an app, with the Pheno logo.",
+  "portal.iosStep2": 'Choose "Add to Home Screen"',
+  "portal.iosHint":
+    "The icon opens full-screen like an app, with the Pheno logo.",
   "portal.toPortal": "Lab portal",
   "portal.other": "Other experiments",
   "cap.applyTo": "Apply to",
@@ -572,13 +578,13 @@ export const en = {
   "mat.cat.SOLVENT": "Solvents",
   "mat.cat.OTHER": "Other / prepared solutions",
   "rec.title": "Recipes",
-  "rec.subtitle":
-    "proprietary recipes — viewing and stewardship are separate",
+  "rec.subtitle": "proprietary recipes — viewing and stewardship are separate",
   "rec.add": "Add recipe",
   "rec.new": "New recipe",
   "rec.name": "Recipe name",
   "rec.summary": "Recipe summary",
-  "rec.summaryHint": 'Visible with recipe contents, e.g. "1.68 eV wide-gap triple-cation"',
+  "rec.summaryHint":
+    'Visible with recipe contents, e.g. "1.68 eV wide-gap triple-cation"',
   "rec.components": "Components",
   "rec.component": "Component",
   "rec.amount": "Amount",
@@ -844,7 +850,8 @@ export const en = {
   "org.stewFacilities": "Facilities",
   "org.stewFacilitiesHint": "manages locations and lab environments",
   "org.stewRecipes": "Recipes",
-  "org.stewRecipesHint": "views approved recipe contents; does not grant editing",
+  "org.stewRecipesHint":
+    "views approved recipe contents; does not grant editing",
   "org.recipeSteward": "Recipe steward",
   "org.recipeStewardHint": "views, edits, archives and approves recipes",
   "review.materials": "Material edit suggestions",
@@ -854,7 +861,8 @@ export const en = {
   "review.rejected": "Rejected",
   "review.approve": "Approve",
   "review.reject": "Reject",
-  "review.failed": "Could not complete this action. Refresh and check permissions; a changed material needs a fresh suggestion.",
+  "review.failed":
+    "Could not complete this action. Refresh and check permissions; a changed material needs a fresh suggestion.",
   "review.savedOnly": "Review applies to saved contents. Save any edits first.",
   "org.noneAssigned": "Nobody assigned yet",
   "org.adminImplicit": "Admins hold every responsibility automatically.",
@@ -904,7 +912,8 @@ export const en = {
   "cap.capturedSamples": "Captured",
   "cap.simCode": "Sample code",
   "cap.applyToAll": "Apply to all",
-  "cap.trashWhy": "What went wrong with this substrate? (recorded on the sample; add photos on the step card)",
+  "cap.trashWhy":
+    "What went wrong with this substrate? (recorded on the sample; add photos on the step card)",
   "cap.scanPolicy": "Displayed value (multiple scans):",
   "cap.policy.BEST": "Best",
   "cap.policy.MIN": "Minimum",
@@ -933,13 +942,16 @@ export const en = {
   "di.title": "AI data analysis — ask the whole experiment history",
   "di.hint":
     "Answers use every experiment you can see (test experiments excluded) and cite experiment codes. Takes about 30–60 seconds.",
-  "di.ph": "e.g. Spin-coated vs blade-coated SAM — which performed better, and with which HTL?",
+  "di.ph":
+    "e.g. Spin-coated vs blade-coated SAM — which performed better, and with which HTL?",
   "di.run": "Analyze",
   "di.running": "Analyzing…",
   "di.error": "Analysis failed or no AI provider is configured — try again.",
-  "di.footer": "Based on {n} experiments · {model} · AI-generated, verify against the records",
+  "di.footer":
+    "Based on {n} experiments · {model} · AI-generated, verify against the records",
   "res.dist": "Distributions by group",
-  "res.distHint": "box = middle half · line = median · △ = mean · dots = samples",
+  "res.distHint":
+    "box = middle half · line = median · △ = mean · dots = samples",
   "res.open": "View results",
   "res.run": "Run",
   "rep.title": "Report",
@@ -984,13 +996,31 @@ export const en = {
   "reg.password": "Choose a password",
   "reg.password2": "Confirm password",
   "reg.submit": "Verify & create account",
-  "reg.done": "Registration submitted — an admin will approve your account shortly; you can sign in once it's confirmed.",
+  "reg.done":
+    "Registration submitted — an admin will approve your account shortly; you can sign in once it's confirmed.",
   "reg.badDomain":
     "This email domain is not registered to any organization. Ask your admin to add it.",
   "reg.badCode": "Invalid or expired passcode.",
   "reg.exists": "An account with this email already exists.",
   "reg.link": "New here? Register with your organization email",
   "reg.backToLogin": "Back to sign in",
+  "reset.title": "Reset your password",
+  "reset.subtitle":
+    "Enter your account email and we will issue a one-time passcode.",
+  "reset.request": "Send reset code",
+  "reset.codeEmailed":
+    "If this email has an account, a passcode was sent to it. Enter it below — check your spam folder if it does not arrive.",
+  "reset.codeSent":
+    "If this email has an account, a passcode was generated. Ask your admin for it (codes are visible in Users → Pending codes).",
+  "reset.password": "New password",
+  "reset.submit": "Set new password",
+  "reset.done": "Password updated — you can sign in with it now.",
+  "login.forgot": "Forgot your password?",
+  "users.resetPw": "Reset password",
+  "users.resetConfirm": "Set this password",
+  "users.resetDone": "Password set — copy it now; it will not be shown again.",
+  "users.codeRegister": "register",
+  "users.codeReset": "reset",
 
   // User management
   "users.title": "Users",
@@ -1106,7 +1136,8 @@ export const en = {
     "Registered lab tablets run in kiosk mode: sign in with a tap-to-pick name, auto sign-out after 1 hour idle, one user at a time, and no admin pages.",
   "kiosk.labelPh": "e.g. Tablet 3 · A2-202 evaporation",
   "kiosk.nameField": "Name this tablet",
-  "kiosk.nameHint": "Pick a name that says which tablet this is and where it lives — the admin's list shows exactly this.",
+  "kiosk.nameHint":
+    "Pick a name that says which tablet this is and where it lives — the admin's list shows exactly this.",
   "kiosk.pendingName": "(unregistered — waiting for a technician to name it)",
   "kiosk.create": "New registration link",
   "kiosk.addHint":
@@ -1134,7 +1165,8 @@ export const en = {
   "kiosk.badgeHint":
     "Shared tablet session — signs out automatically when idle.",
   "kiosk.idleTitle": "Still there?",
-  "kiosk.idleBody": "No activity — signing out in {s} s to protect your account.",
+  "kiosk.idleBody":
+    "No activity — signing out in {s} s to protect your account.",
   "kiosk.idleStay": "Keep working",
   "nfc.title": "NFC work badge",
   "nfc.hint":
@@ -1334,7 +1366,8 @@ export const zh: Record<TKey, string> = {
   "act.duplicated": "复制了",
   "act.aiSummary": "生成了 AI 总结：",
   "act.changed": "修改了",
-  "sci.aiFailed": "未配置 AI 模型或调用失败——请重试或在个人资料中检查 AI 服务。",
+  "sci.aiFailed":
+    "未配置 AI 模型或调用失败——请重试或在个人资料中检查 AI 服务。",
   "sci.aiDisclaimer": "AI 生成内容，引用前请核对数据",
 
   "plan.title": "实验方案",
@@ -1362,7 +1395,8 @@ export const zh: Record<TKey, string> = {
   "plan.substrates": "基片批次",
   "plan.substrateCount": "准备基片数量",
   "plan.substrateMaterial": "基片材料",
-  "plan.substrateHint": "将每片基片拖入对应组。备用基片放在“备用”，出错的拖入“报废”，随时用备用片替换，编号不变。",
+  "plan.substrateHint":
+    "将每片基片拖入对应组。备用基片放在“备用”，出错的拖入“报废”，随时用备用片替换，编号不变。",
   "plan.regroup": "调整基片分组",
   "plan.samples": "样品数",
   "plan.control": "对照组",
@@ -1607,7 +1641,8 @@ export const zh: Record<TKey, string> = {
   "fb.none": "暂无反馈。",
   "nav.feedback": "反馈",
   "fb.boardTitle": "反馈",
-  "fb.boardHint": "每条反馈只描述一个问题——写清情况、附上截图，并在这里跟进管理员的处理意见。",
+  "fb.boardHint":
+    "每条反馈只描述一个问题——写清情况、附上截图，并在这里跟进管理员的处理意见。",
   "fb.newItem": "提交问题或建议",
   "fb.titlePh": "简短标题，如“实验方案里材料下拉框显示不全”",
   "fb.addShot": "截图",
@@ -2016,7 +2051,8 @@ export const zh: Record<TKey, string> = {
   "review.rejected": "已拒绝",
   "review.approve": "批准",
   "review.reject": "拒绝",
-  "review.failed": "操作未完成。请刷新并检查权限；若材料已变更，请重新提交修改建议。",
+  "review.failed":
+    "操作未完成。请刷新并检查权限；若材料已变更，请重新提交修改建议。",
   "review.savedOnly": "审批针对已保存的内容。请先保存修改。",
   "org.noneAssigned": "尚未指定",
   "org.adminImplicit": "管理员自动拥有全部职责。",
@@ -2142,6 +2178,22 @@ export const zh: Record<TKey, string> = {
   "reg.exists": "该邮箱已注册账户。",
   "reg.link": "新用户？使用机构邮箱注册",
   "reg.backToLogin": "返回登录",
+  "reset.title": "重置密码",
+  "reset.subtitle": "输入账号邮箱，我们将发送一次性验证码。",
+  "reset.request": "发送重置验证码",
+  "reset.codeEmailed":
+    "如果该邮箱有账号，验证码已发送。请在下方输入——未收到请检查垃圾邮件。",
+  "reset.codeSent":
+    "如果该邮箱有账号，验证码已生成。请向管理员索取（管理员可在“成员 → 待处理验证码”中查看）。",
+  "reset.password": "新密码",
+  "reset.submit": "设置新密码",
+  "reset.done": "密码已更新，现在可以用它登录。",
+  "login.forgot": "忘记密码？",
+  "users.resetPw": "重置密码",
+  "users.resetConfirm": "使用此密码",
+  "users.resetDone": "密码已设置——请立即复制，之后不再显示。",
+  "users.codeRegister": "注册",
+  "users.codeReset": "重置",
 
   "users.title": "用户",
   "users.subtitle": "管理机构的账户与权限",
@@ -2253,10 +2305,12 @@ export const zh: Record<TKey, string> = {
     "注册过的实验室平板以共享模式运行：点名快捷登录、闲置 1 小时自动退出、同时仅一人登录、不显示管理页面。",
   "kiosk.labelPh": "例如：3号平板 · A2-202 蒸镀区",
   "kiosk.nameField": "为这台平板命名",
-  "kiosk.nameHint": "填写能说明是哪台平板、放在哪个区域的名字——管理员列表中显示的就是这个名字。",
+  "kiosk.nameHint":
+    "填写能说明是哪台平板、放在哪个区域的名字——管理员列表中显示的就是这个名字。",
   "kiosk.pendingName": "（待注册——等待技术员在设备上命名）",
   "kiosk.create": "生成注册链接",
-  "kiosk.addHint": "链接已自动复制——发给技术员，由其在平板上打开、命名设备并确认。",
+  "kiosk.addHint":
+    "链接已自动复制——发给技术员，由其在平板上打开、命名设备并确认。",
   "kiosk.none": "尚未注册共享平板。",
   "kiosk.unclaimed": "设置链接尚未在设备上打开",
   "kiosk.inUse": "{name} 已登录 · {ago}前有操作",
@@ -2266,14 +2320,17 @@ export const zh: Record<TKey, string> = {
   "kiosk.copied": "已复制",
   "kiosk.revoke": "停用",
   "kiosk.restore": "恢复",
-  "kiosk.rules": "共享会话闲置 1 小时自动退出，单次登录最长 12 小时；新登录会自动顶掉忘记退出的上一个人。",
+  "kiosk.rules":
+    "共享会话闲置 1 小时自动退出，单次登录最长 12 小时；新登录会自动顶掉忘记退出的上一个人。",
   "kiosk.manage": "共享平板",
   "kiosk.claimTitle": "将此浏览器注册为共享平板",
-  "kiosk.claimHint": "请仅在实验室平板上确认，不要在个人手机上操作。注册后该浏览器会自动退出闲置用户。",
+  "kiosk.claimHint":
+    "请仅在实验室平板上确认，不要在个人手机上操作。注册后该浏览器会自动退出闲置用户。",
   "kiosk.claimConfirm": "确认——这是实验室平板",
   "kiosk.claimInvalid": "设置链接无效或已被使用。",
   "kiosk.claimDone": "平板注册成功，请在下方登录。",
-  "kiosk.loginHint": "共享平板：点击你的名字，输入密码登录。闲置 1 小时将自动退出。",
+  "kiosk.loginHint":
+    "共享平板：点击你的名字，输入密码登录。闲置 1 小时将自动退出。",
   "kiosk.badgeHint": "共享平板会话——闲置时会自动退出登录。",
   "kiosk.idleTitle": "还在使用吗？",
   "kiosk.idleBody": "长时间无操作，{s} 秒后将自动退出以保护你的账号。",
@@ -2292,7 +2349,8 @@ export const zh: Record<TKey, string> = {
   "nfc.bindDoneUidOnly": "绑定成功（芯片写保护，仅按序列号绑定）。",
   "nfc.bindFailed": "绑定失败，请重试。",
   "nfc.timeout": "未检测到工牌——请重试并保持卡片贴稳。",
-  "nfc.unsupported": "当前浏览器不支持 NFC 读取。请在安卓平板或手机的 Chrome 上绑定。",
+  "nfc.unsupported":
+    "当前浏览器不支持 NFC 读取。请在安卓平板或手机的 Chrome 上绑定。",
   "nfc.loginBtn": "贴工牌登录",
   "nfc.loginTap": "请将工牌贴在平板背面…",
   "nfc.loginChecking": "正在验证工牌…",
@@ -2308,14 +2366,16 @@ export const zh: Record<TKey, string> = {
   "appr.registered": "注册信息",
   "appr.handle": "Handle",
   "appr.legacy": "历史数据",
-  "appr.legacyHint": "如果此人平台上线前的实验已被导入，选择对应数据集——批准的同时数据即归其所有。",
+  "appr.legacyHint":
+    "如果此人平台上线前的实验已被导入，选择对应数据集——批准的同时数据即归其所有。",
   "appr.noLegacy": "无历史数据",
   "appr.expCount": "{n} 个实验",
   "appr.suggested": "姓名匹配",
   "appr.approve": "批准",
   "appr.reject": "拒绝",
   "req.ownedBy": "{name} 的实验",
-  "req.explain": "这是同事的实验。提交访问申请，实验负责人（或管理者）批准后即可打开，并自动成为实验成员。",
+  "req.explain":
+    "这是同事的实验。提交访问申请，实验负责人（或管理者）批准后即可打开，并自动成为实验成员。",
   "req.declined": "上次申请被拒绝，可以再次申请。",
   "req.messagePh": "说明申请原因（选填）",
   "req.send": "申请访问",

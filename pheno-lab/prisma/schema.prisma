@@ -158,6 +158,9 @@ model OtpCode {
   email          String
   code           String // 6 digits
   purpose        String       @default("register")
+  // Failed verify count — password-reset codes stop working after 5 wrong
+  // guesses, closing the 10^6-in-15-minutes brute-force window.
+  attempts       Int          @default(0)
   expiresAt      DateTime
   usedAt         DateTime?
   createdAt      DateTime     @default(now())

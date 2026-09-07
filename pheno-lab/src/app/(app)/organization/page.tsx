@@ -56,6 +56,7 @@ export default async function OrganizationPage() {
           pending={pending.map((p) => ({
             email: p.email,
             code: p.code,
+            purpose: p.purpose,
             expiresAt: p.expiresAt.toISOString().replace("T", " ").slice(0, 16),
           }))}
         />

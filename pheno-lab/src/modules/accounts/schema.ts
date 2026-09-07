@@ -16,6 +16,12 @@ export const registrationSchema = z.object({
   password: passwordSchema,
 });
 
+export const passwordResetSchema = z.object({
+  email: emailSchema,
+  code: z.string().regex(/^\d{6}$/),
+  password: passwordSchema,
+});
+
 export const createUserSchema = z.object({
   name: z.string().trim().max(200),
   email: emailSchema,

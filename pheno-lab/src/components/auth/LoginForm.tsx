@@ -163,6 +163,14 @@ export function LoginForm({
             {t("reg.link")}
           </Link>
         </p>
+        <p className="mt-1.5 text-center">
+          <Link
+            href="/reset"
+            className="text-[12px] font-semibold text-muted hover:underline"
+          >
+            {t("login.forgot")}
+          </Link>
+        </p>
       </div>
     </main>
   );
