@@ -15,7 +15,11 @@ const secret = () => new TextEncoder().encode(serverConfig().SESSION_SECRET);
 // the source of truth: one active user at a time (a new login displaces the
 // old session), idle timeout, and an absolute cap per sign-in. Personal
 // phones never carry the device cookie and keep normal 30-day sessions.
-const KIOSK_IDLE_MS = 15 * 60_000;
+// Idle window is 1 hour (was 15 min): experiments run 2h+ with long gaps
+// where nothing needs entering, and a forgotten logout is already covered
+// by the next person's sign-in displacing the session (tech feedback via
+// Michael, 2026-09-07).
+const KIOSK_IDLE_MS = 60 * 60_000;
 const KIOSK_ABSOLUTE_MS = 12 * 3600_000;
 const KIOSK_TOUCH_THROTTLE_MS = 60_000;
 
