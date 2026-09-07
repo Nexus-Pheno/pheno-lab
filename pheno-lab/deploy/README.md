@@ -465,6 +465,12 @@ unset DATABASE_URL SESSION_SECRET INGEST_CRON_SECRET HEALTHCHECK_TOKEN \
 `deploy-release.sh` 会校验 checksum / env，执行 `prisma migrate deploy`，切换 `current`，
 重启 systemd 并轮询 readiness。
 
+readiness 通过后，`deploy-release.sh` 会**自动裁剪 release 历史**：只保留最新 5 个
+`releases/<release-id>` 目录（含 `current` 指向的目录，脚本对其有显式保护），更早的目录
+直接删除。被删除的 release 随时可以从 git 对应 commit 重新构建——仓库才是事实来源。
+背景：每个 release 约 1 GB，2026-09-07 累积 50 个 release 占满 53 GB 磁盘后引入本步骤
+（Michael 批准）。readiness 失败的部署不裁剪，保留全部现场供诊断。
+
 首次发布如果 readiness 失败，因为没有旧 release 可回滚，服务会停止，失败 release 会保留供诊断。
 不要对生产库运行 `pnpm prisma db seed`；仓库 seed 包含 demo 用户。
 
