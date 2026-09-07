@@ -62,6 +62,7 @@ model Organization {
   otpCodes       OtpCode[]
   instruments    Instrument[]
   jvMeasurements JvMeasurement[]
+  sharedDevices  SharedDevice[]
 }
 
 model User {
@@ -99,6 +100,30 @@ model User {
   approvedExperiments Experiment[]       @relation("ExperimentApprover")
   ingestReviews       IngestItem[]
   ownedMeasurements   JvMeasurement[]    @relation("MeasurementOwner")
+  sharedDeviceLogins  SharedDevice[]     @relation("SharedDeviceUser")
+}
+
+// A registered shared lab tablet. The browser carries a signed cookie naming
+// one of these rows; sessions created on it get kiosk rules — idle timeout,
+// absolute cap, one active user at a time (a new login displaces the old
+// session), and no access to admin surfaces. Personal phones never have the
+// cookie and keep normal long-lived sessions.
+model SharedDevice {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  label          String // e.g. "3号平板 · A2-202 蒸镀区"
+  // One-time claim token; consumed when the tablet's browser is registered.
+  setupToken     String?      @unique
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  revokedAt      DateTime?
+  // Who is signed in on this tablet right now (at most one).
+  currentUserId  String?
+  currentUser    User?        @relation("SharedDeviceUser", fields: [currentUserId], references: [id], onDelete: SetNull)
+  lastActivityAt DateTime?
+
+  @@index([organizationId])
 }
 
 // One-time passcodes for registration. Delivery is via server log and the

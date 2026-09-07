@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { OrgAdmin } from "@/components/orgs/OrgAdmin";
 import { listOrganizations } from "@/modules/organizations/query";
@@ -8,6 +8,7 @@ import { listOrganizations } from "@/modules/organizations/query";
 // and invite-link generation. Only admins of organization #1 see this.
 export default async function OrganizationsPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
   const orgs = await listOrganizations(session).catch(() => notFound());

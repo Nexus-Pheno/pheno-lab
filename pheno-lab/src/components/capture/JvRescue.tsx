@@ -108,7 +108,6 @@ export function JvRescue({
       }
     });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [experimentId]);
 
   // Which sample could this serial mean? Zero-insensitive, whole segments only.

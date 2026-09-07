@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { IngestReview, type IngestRow } from "@/components/ingest/IngestReview";
 import { Icon } from "@/components/ui";
@@ -9,6 +9,7 @@ import { getIngestReviewData } from "@/modules/ingest/query";
 // manager/admin reviews, edits and publishes them into the live library.
 export default async function IngestPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   if (session.role === "TECHNICIAN") notFound();
   const t = await getT();
 

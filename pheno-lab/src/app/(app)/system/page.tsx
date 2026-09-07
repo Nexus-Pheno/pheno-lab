@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { Icon } from "@/components/ui";
 import { BackupButton } from "@/components/system/BackupButton";
@@ -14,6 +14,7 @@ const fmtBytes = (n: number) => {
 
 export default async function SystemPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
   const status = await getSystemStatus(session);

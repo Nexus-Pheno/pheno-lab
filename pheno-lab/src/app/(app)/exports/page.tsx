@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { ExportLog } from "@/components/data/ExportLog";
 import { Icon } from "@/components/ui";
@@ -8,6 +8,7 @@ import { listExportRequests } from "@/modules/exports/service";
 // pending ones; everyone else sees their own history.
 export default async function ExportsPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   const t = await getT();
   const rows = await listExportRequests(session);
 

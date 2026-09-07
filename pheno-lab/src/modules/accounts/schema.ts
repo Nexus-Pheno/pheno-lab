@@ -70,3 +70,8 @@ export const organizationSubmissionSchema = z.object({
 
 export const organizationNameSchema = z.string().trim().min(1).max(200);
 export const inviteTokenSchema = z.string().min(20).max(500);
+
+// Shared lab tablets (kiosk mode).
+export const deviceLabelSchema = z.string().trim().min(1).max(120);
+export const deviceIdSchema = z.string().min(1).max(128);
+export const setupTokenSchema = z.string().min(20).max(200);

@@ -143,7 +143,7 @@ export default async function ProfilePage() {
 
         {session.role === "ADMIN" && <AiProviders rows={aiProviders} />}
 
-        {session.role !== "TECHNICIAN" && (
+        {session.role !== "TECHNICIAN" && !session.device && (
           <div className="flex flex-wrap gap-4 mb-2">
             <Link
               href="/ingest"
@@ -166,8 +166,14 @@ export default async function ProfilePage() {
           </div>
         )}
 
-        {session.role === "ADMIN" && (
+        {session.role === "ADMIN" && !session.device && (
           <div className="flex flex-wrap gap-4">
+            <Link
+              href="/kiosk"
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-deep hover:underline"
+            >
+              <Icon name="Tablet" size={13} /> {t("kiosk.manage")}
+            </Link>
             <Link
               href="/feedback"
               className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-deep hover:underline"
