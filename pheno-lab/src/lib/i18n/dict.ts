@@ -1077,7 +1077,7 @@ export const en = {
   "jv.aliasSaved": "Serial added",
   "kiosk.title": "Shared tablets",
   "kiosk.subtitle":
-    "Registered lab tablets run in kiosk mode: sign in with a tap-to-pick name, auto sign-out after 15 minutes idle, one user at a time, and no admin pages.",
+    "Registered lab tablets run in kiosk mode: sign in with a tap-to-pick name, auto sign-out after 1 hour idle, one user at a time, and no admin pages.",
   "kiosk.labelPh": "e.g. Tablet 3 · A2-202 evaporation",
   "kiosk.nameField": "Name this tablet",
   "kiosk.nameHint": "Pick a name that says which tablet this is and where it lives — the admin's list shows exactly this.",
@@ -1095,7 +1095,7 @@ export const en = {
   "kiosk.revoke": "Revoke",
   "kiosk.restore": "Restore",
   "kiosk.rules":
-    "Kiosk sessions sign out after 15 minutes idle and 12 hours at most; a new sign-in replaces whoever forgot to sign out.",
+    "Kiosk sessions sign out after 1 hour idle and 12 hours at most; a new sign-in replaces whoever forgot to sign out.",
   "kiosk.manage": "Shared tablets",
   "kiosk.claimTitle": "Register this browser as a shared tablet",
   "kiosk.claimHint":
@@ -1104,7 +1104,7 @@ export const en = {
   "kiosk.claimInvalid": "This setup link is invalid or already used.",
   "kiosk.claimDone": "Tablet registered. Sign in below to start.",
   "kiosk.loginHint":
-    "Shared tablet: tap your name, enter your password. You will be signed out automatically after 15 minutes of inactivity.",
+    "Shared tablet: tap your name, enter your password. You will be signed out automatically after 1 hour of inactivity.",
   "kiosk.badgeHint":
     "Shared tablet session — signs out automatically when idle.",
   "kiosk.idleTitle": "Still there?",
@@ -2192,7 +2192,7 @@ export const zh: Record<TKey, string> = {
   "jv.aliasSaved": "编号已添加",
   "kiosk.title": "共享平板",
   "kiosk.subtitle":
-    "注册过的实验室平板以共享模式运行：点名快捷登录、闲置 15 分钟自动退出、同时仅一人登录、不显示管理页面。",
+    "注册过的实验室平板以共享模式运行：点名快捷登录、闲置 1 小时自动退出、同时仅一人登录、不显示管理页面。",
   "kiosk.labelPh": "例如：3号平板 · A2-202 蒸镀区",
   "kiosk.nameField": "为这台平板命名",
   "kiosk.nameHint": "填写能说明是哪台平板、放在哪个区域的名字——管理员列表中显示的就是这个名字。",
@@ -2208,14 +2208,14 @@ export const zh: Record<TKey, string> = {
   "kiosk.copied": "已复制",
   "kiosk.revoke": "停用",
   "kiosk.restore": "恢复",
-  "kiosk.rules": "共享会话闲置 15 分钟自动退出，单次登录最长 12 小时；新登录会自动顶掉忘记退出的上一个人。",
+  "kiosk.rules": "共享会话闲置 1 小时自动退出，单次登录最长 12 小时；新登录会自动顶掉忘记退出的上一个人。",
   "kiosk.manage": "共享平板",
   "kiosk.claimTitle": "将此浏览器注册为共享平板",
   "kiosk.claimHint": "请仅在实验室平板上确认，不要在个人手机上操作。注册后该浏览器会自动退出闲置用户。",
   "kiosk.claimConfirm": "确认——这是实验室平板",
   "kiosk.claimInvalid": "设置链接无效或已被使用。",
   "kiosk.claimDone": "平板注册成功，请在下方登录。",
-  "kiosk.loginHint": "共享平板：点击你的名字，输入密码登录。闲置 15 分钟将自动退出。",
+  "kiosk.loginHint": "共享平板：点击你的名字，输入密码登录。闲置 1 小时将自动退出。",
   "kiosk.badgeHint": "共享平板会话——闲置时会自动退出登录。",
   "kiosk.idleTitle": "还在使用吗？",
   "kiosk.idleBody": "长时间无操作，{s} 秒后将自动退出以保护你的账号。",

@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { logout } from "@/lib/actions/auth";
 
-// Client half of the kiosk idle timeout. The server enforces the real 15-min
+// Client half of the kiosk idle timeout. The server enforces the real 1-hour
 // cutoff; this warns two minutes early so a technician mid-entry can keep the
 // session (any touch resets it), and cleanly signs out instead of leaving a
 // stale screen for the next person to find.
-const WARN_AFTER_MS = 13 * 60_000;
+const WARN_AFTER_MS = 58 * 60_000;
 const GRACE_MS = 2 * 60_000;
 
 export function IdleGuard() {
