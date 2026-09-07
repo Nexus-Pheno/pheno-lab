@@ -50,6 +50,7 @@ export default async function ExperimentPage({
       canManageMaterials={data.canManageMaterials}
       canEdit={data.canEdit}
       canManageMembers={data.canEdit}
+      sessionUid={session.uid}
     />
       </div>
     </div>

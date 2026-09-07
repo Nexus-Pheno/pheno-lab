@@ -21,6 +21,7 @@ import { TeamStrip } from "./TeamStrip";
 import { ScienceStrip } from "./ScienceStrip";
 import { TestPlanCard } from "./TestPlanCard";
 import { SettingsModal } from "./SettingsModal";
+import { CommentsPanel } from "./CommentsPanel";
 import { StepCard, CharCard } from "./cards";
 import { StepInspector, CharInspector, EmptyInspector } from "./inspectors";
 
@@ -41,6 +42,7 @@ export default function Designer({
   canManageMaterials,
   canEdit,
   canManageMembers,
+  sessionUid,
 }: {
   initial: ExperimentFull;
   processes: Process[];
@@ -55,6 +57,7 @@ export default function Designer({
   canManageMaterials: boolean;
   canEdit: boolean;
   canManageMembers: boolean;
+  sessionUid: string;
 }) {
   const t = useT();
   const tt = useTerm();
@@ -507,6 +510,12 @@ export default function Designer({
               </div>
             )}
           </div>
+
+          <CommentsPanel
+            experimentId={exp.id}
+            users={orgUsers}
+            sessionUid={sessionUid}
+          />
         </section>
 
         {/* Inspector — side panel on desktop, bottom sheet on phones */}

@@ -19,6 +19,8 @@ export type NotificationKind =
   | "feedback_commented"
   | "assigned"
   | "member_added"
+  | "experiment_commented"
+  | "mentioned"
   | "material_edit_requested"
   | "material_edit_approved"
   | "material_edit_rejected"
