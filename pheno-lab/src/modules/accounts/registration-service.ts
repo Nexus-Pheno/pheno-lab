@@ -22,6 +22,7 @@ import {
 import { entityIdSchema } from "@/modules/runs/schema";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { log } from "@/infrastructure/logging/logger";
+import { sendGroupNotice } from "@/modules/notifications/group-service";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
 
@@ -130,7 +131,7 @@ export async function verifyRegistration(data: {
     return { ok: false, error: "exists" };
 
   const passwordHash = await bcrypt.hash(clean.password, 10);
-  await db.$transaction(async (tx) => {
+  const pendingApproval = await db.$transaction(async (tx) => {
     await tx.otpCode.update({
       where: { id: otp.id },
       data: { usedAt: new Date() },
@@ -168,7 +169,10 @@ export async function verifyRegistration(data: {
         metadata: { role: user.role, pendingApproval: user.pendingApproval },
       },
     });
+    return user.pendingApproval;
   });
+  if (pendingApproval)
+    await sendGroupNotice(otp.organizationId, "registration_pending");
   return { ok: true };
 }
 

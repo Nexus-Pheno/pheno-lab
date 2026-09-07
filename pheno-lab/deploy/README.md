@@ -358,6 +358,68 @@ sudo stat -c '%U %G %a %n' /etc/pheno-lab/pheno-lab.env
 `.env.production`、`.env.local`、`pheno-lab.env.new` 或任何按 release 复制的 env；systemd
 持续通过 `EnvironmentFile=/etc/pheno-lab/pheno-lab.env` 加载这一份文件。
 
+#### Batch 2：群通知、早间摘要与审批权限
+
+本节描述待发布代码的启用条件，不表示已在生产执行。群归属已确认是 **Pheno 现象创新**。
+`DINGTALK_WEBHOOK_URL` 与 `DINGTALK_ORGANIZATION_SLUG` 必须同时配置，且 slug 必须精确匹配
+该组织的 ACTIVE 数据库记录；缺少任一值时自动通知和摘要均不发送。不得按组织显示名模糊匹配或
+默认选择第一个组织。可选 `DINGTALK_WEBHOOK_SECRET` 是加签密钥；单独配置密钥会使校验失败。
+
+URL 必须是 `https://oapi.dingtalk.com/robot/send`，只包含一个非空 `access_token`，不得带
+用户信息、fragment、其他参数或预计算的 `timestamp` / `sign`。加签时 adapter 在每次请求中
+生成时间戳和 HMAC-SHA256 签名。无 signing secret 时，机器人必须使用已批准的关键词或 IP
+安全设置；关键词模式须允许消息前缀中的 `Pheno Lab`。协议参考
+[钉钉安全设置](https://open.dingtalk.com/document/robots/customize-robot-security-settings)与
+[群消息接口](https://open.dingtalk.com/document/development/custom-robots-send-group-messages)。
+
+请求超时为 10 秒，不跟随重定向，不自动重试。只有 HTTP 成功且响应包含 `errcode: 0`
+（或字符串 `"0"`）才算成功。失败日志仅记录固定原因、HTTP 状态或数值错误码，不包含 webhook、
+签名、响应错误文本或消息正文。
+
+当前业务触发点是新访问申请、新任务分配、待审批注册、材料修改建议和待审批配方。每个成功的
+业务操作只发一次群提示，不按站内通知的收件人数广播。重复的未处理访问申请和不变的任务分配
+不再次发送；测试实验的分配不外发。提示是固定文字，不包含姓名、邮箱、申请理由、实验名称、配方或材料正文。
+业务通知在事务提交后发送；失败不会回滚已经提交的数据。HTTP 最多占用请求尾部 10 秒；这是
+best-effort，不是持久消息队列，进程中断、限流或网络故障可能丢失提示。站内通知和审计仍是事实源。
+不能在 `notify()` 的事务内直接发送 HTTP 请求。
+
+`scripts/send-morning-digest.ts` 已实现以下组织内汇总，计划由批准的调度在北京时间 08:30 调用：
+
+- 昨日北京时间 00:00（含）至今日 00:00（不含）的完成审计事件，按实验去重，排除测试实验；
+- 同一时间窗内、已匹配到本组织非测试实验的 LIGHT 扫描，数值有限且介于 0–100 的最高 PCE；
+  消息明确标注“最高有效光照扫描 PCE”，不声称是稳态效率或已经科学复核的冠军器件；
+- 当前待审批注册、实验访问申请、材料修改建议、配方，以及未匹配扫描的数量。
+
+摘要不包含原始数据、对象 key、实验/样品名称、人员身份或配方内容。但组织级统计/PCE 仍会向整个
+群外发，启用时须核对群成员可接收这些已列明字段。每个组织、每个北京时间日期最多**尝试**一次：
+在发送前原子写入唯一 `notifications.digest.attempted` 审计，再记录 `sent` 或 `failed`。并发或重复
+调用跳过已尝试日期。失败/进程中断不会当天自动重试，不能删除审计来强制重发，也不能把
+`attempted` 或脚本退出码 0（可能表示 disabled/skipped）当作送达证明。
+
+调度命令沿用已有维护脚本的 source 工作目录和唯一 env；在获批、备份并加载现有环境后执行：
+
+```bash
+cd /srv/pheno-lab/source/pheno-lab
+NODE_OPTIONS=--conditions=react-server pnpm exec tsx scripts/send-morning-digest.ts
+```
+
+本次没有安装 cron、创建服务或发送测试群消息。Louis 批准执行窗口、运行身份、现有 env 的加载方式
+及 Asia/Shanghai 调度后才能接通；不要依赖主机当前时区恰好为北京时间。现有 cron 清单不因代码
+中存在此脚本而增加一项。停用时撤下获批摘要调度，并从现有 env 撤销这三个配置后走既有发布流程。
+
+本批次有两个 additive migrations：`20260908010000_experiment_template_pin` 和
+`20260908020000_library_reviews`。旧实验默认不置顶；旧配方默认 APPROVED，以保持已上线内容
+的兼容读取。新 `recipeSteward` 默认 false，迁移不批量授予真实用户权限。部署批准后，由管理员
+在现有组织管理界面对已批准的初始负责人（经理）设置 `materialAdmin` / `recipeSteward`，并验证
+以后可单独撤销；不把 MANAGER 角色硬编码成永久负责人。不重做生产 seed 或 bootstrap。
+
+DDL 向后兼容不代表权限语义可安全回滚：旧应用不识别 pending 配方和分离的 stewardship，可能
+把待审批内容作为普通配方展示给旧 recipeAccess 用户。产生审批数据后如需回滚，必须先由 Louis
+明确停写/访问限制和这些记录的处置方案；不要自动删除、回填或“批准全部”来恢复旧语义。
+
+生产启用必须按第 0.2/0.3 节取得批准、备份后增量修改现有 env 并沿用 release 流程；不得新增
+env 文件或未经批准的 cron。不要把聊天中收到的真实 webhook 写入仓库、文档、测试或日志。
+
 ### 3.8 安装 systemd 单元
 
 同样只用于首次部署；已有 unit 的服务器不得重复初始化或另建 `pheno-lab-v2.service`。

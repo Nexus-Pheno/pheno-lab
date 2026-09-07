@@ -42,6 +42,7 @@ import {
   saveStepPreset as saveStepPresetService,
   setExperimentTestMode as setExperimentTestModeService,
   setSamples as setSamplesService,
+  setTemplatePin as setTemplatePinService,
   updateExperimentMeta as updateExperimentMetaService,
   updatePreset as updatePresetService,
 } from "@/modules/experiments/service";
@@ -125,6 +126,22 @@ export async function duplicateExperiment(id: string) {
   const row = await duplicateExperimentService(await requireSession(), id);
   revalidatePath("/");
   return row;
+}
+
+/** Start-from-template/previous: duplicate and jump straight into the copy. */
+export async function createExperimentFrom(sourceId: string) {
+  const row = await duplicateExperimentService(await requireSession(), sourceId);
+  revalidatePath("/");
+  redirect(`/experiments/${row.id}`);
+}
+
+export async function setTemplatePin(id: string, pinned: boolean) {
+  await setTemplatePinService(
+    await requireSession(),
+    id,
+    z.boolean().parse(pinned),
+  );
+  revalidatePath("/");
 }
 
 export async function addMember(experimentId: string, userId: string) {

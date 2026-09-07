@@ -14,6 +14,24 @@ const optionalBoolean = z.preprocess((value) => {
   return value;
 }, z.boolean().optional());
 
+const dingTalkWebhookUrl = z.string().refine((value) => {
+  try {
+    const url = new URL(value);
+    return (
+      url.origin === "https://oapi.dingtalk.com" &&
+      url.pathname === "/robot/send" &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      url.searchParams.getAll("access_token").length === 1 &&
+      Boolean(url.searchParams.get("access_token")?.trim()) &&
+      [...url.searchParams.keys()].every((key) => key === "access_token")
+    );
+  } catch {
+    return false;
+  }
+}, "DINGTALK_WEBHOOK_URL must be an HTTPS DingTalk robot URL with one access_token and no other parameters");
+
 const rawServerConfigSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -53,6 +71,9 @@ const rawServerConfigSchema = z.object({
   SMTP_USER: optionalString,
   SMTP_PASS: optionalString,
   SMTP_FROM: optionalString,
+  DINGTALK_WEBHOOK_URL: optionalString.pipe(dingTalkWebhookUrl.optional()),
+  DINGTALK_WEBHOOK_SECRET: optionalString,
+  DINGTALK_ORGANIZATION_SLUG: optionalString,
 });
 
 export type ServerConfig = Readonly<
@@ -126,6 +147,26 @@ export function parseServerConfig(
   const config = parsed.data;
   assertPostgresUrl(config.DATABASE_URL);
   assertAllOrNone(config, ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"]);
+  if (config.DINGTALK_WEBHOOK_SECRET && !config.DINGTALK_WEBHOOK_URL) {
+    throw new Error(
+      "DINGTALK_WEBHOOK_URL is required when DINGTALK_WEBHOOK_SECRET is set",
+    );
+  }
+  if (config.NODE_ENV === "production") {
+    assertProductionSecret(
+      "DINGTALK_WEBHOOK_SECRET",
+      config.DINGTALK_WEBHOOK_SECRET,
+    );
+    if (config.DINGTALK_WEBHOOK_URL) {
+      const token = new URL(config.DINGTALK_WEBHOOK_URL).searchParams.get(
+        "access_token",
+      );
+      assertProductionSecret(
+        "DINGTALK_WEBHOOK_URL access_token",
+        token ?? undefined,
+      );
+    }
+  }
 
   let uploadDir = config.UPLOAD_DIR;
   const backupDir =

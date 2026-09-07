@@ -5,7 +5,6 @@ import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin, assertStaff } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
-import { assertStewardship } from "@/modules/stewardship/service";
 import { assertEdit } from "./access";
 import { assertPresetReferences } from "./plan-service";
 import {
@@ -108,7 +107,9 @@ export async function quickCreateMaterial(
   rawName: unknown,
   processId: string | null,
 ) {
-  await assertStewardship(actor, "materialAdmin");
+  await db.user.findFirstOrThrow({
+    where: { id: actor.uid, organizationId: actor.org, active: true },
+  });
   const name = presetNameSchema.parse(rawName);
   if (processId) processId = experimentIdSchema.parse(processId);
   return db.$transaction(async (tx) => {
@@ -211,7 +212,10 @@ export async function setExperimentTestMode(
   const id = experimentIdSchema.parse(rawId);
   await assertEdit(actor, id);
   await db.$transaction(async (tx) => {
-    await tx.experiment.update({ where: { id }, data: { isTest } });
+    await tx.experiment.update({
+      where: { id },
+      data: { isTest, ...(isTest ? { templatePinnedAt: null } : {}) },
+    });
     await recordUserAudit(tx, {
       actor,
       action: "experiment.test-mode.updated",

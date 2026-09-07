@@ -8,6 +8,7 @@ export const stewardshipKinds = [
   "equipmentAdmin",
   "facilityAdmin",
   "recipeAccess",
+  "recipeSteward",
 ] as const;
 
 export type Stewardship = (typeof stewardshipKinds)[number];
@@ -49,6 +50,7 @@ export async function getStewardships(
       equipmentAdmin: true,
       facilityAdmin: true,
       recipeAccess: true,
+      recipeSteward: true,
     };
   }
   return db.user.findFirstOrThrow({
@@ -58,6 +60,7 @@ export async function getStewardships(
       equipmentAdmin: true,
       facilityAdmin: true,
       recipeAccess: true,
+      recipeSteward: true,
     },
   });
 }

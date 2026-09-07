@@ -2,10 +2,22 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
+import { sendGroupNotice } from "@/modules/notifications/group-service";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin, assertStaff } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
-import { assertStewardship } from "@/modules/stewardship/service";
+import {
+  assertStewardship,
+  getStewardships,
+  hasStewardship,
+} from "@/modules/stewardship/service";
+import { canReadRecipeContents } from "./recipe-policy";
+import { notifyLibraryReview } from "./review-service";
+export {
+  submitMaterialEdit,
+  reviewMaterialEdit,
+  reviewRecipe,
+} from "./review-service";
 import {
   categoryCreateSchema,
   categoryDeleteSchema,
@@ -245,7 +257,9 @@ export async function updateEnvironment(actor: Actor, raw: unknown) {
 }
 
 export async function createLibraryMaterial(actor: Actor, raw: unknown) {
-  await assertStewardship(actor, "materialAdmin");
+  await db.user.findFirstOrThrow({
+    where: { id: actor.uid, organizationId: actor.org, active: true },
+  });
   const input = libraryMaterialCreateSchema.parse(raw);
   return db.$transaction(async (tx) => {
     await requireOrgProcess(tx, actor, input.processId);
@@ -288,7 +302,11 @@ export async function saveMaterialCard(
   id: string | null,
   raw: unknown,
 ) {
-  await assertStewardship(actor, "materialAdmin");
+  if (id) await assertStewardship(actor, "materialAdmin");
+  else
+    await db.user.findFirstOrThrow({
+      where: { id: actor.uid, organizationId: actor.org, active: true },
+    });
   const card = materialCardSchema.parse(raw);
   return db.$transaction(async (tx) => {
     await requireOrgProcess(tx, actor, card.processId);
@@ -339,8 +357,12 @@ export async function setMaterialArchived(
 }
 
 export async function saveRecipe(actor: Actor, raw: unknown) {
-  await assertStewardship(actor, "recipeAccess");
   const { id, data } = recipeSaveSchema.parse(raw);
+  const steward = await hasStewardship(actor, "recipeSteward");
+  if (id) await assertStewardship(actor, "recipeSteward");
+  await db.user.findFirstOrThrow({
+    where: { id: actor.uid, organizationId: actor.org, active: true },
+  });
   const clean = {
     name: data.name,
     summary: data.summary,
@@ -349,7 +371,7 @@ export async function saveRecipe(actor: Actor, raw: unknown) {
       components: data.payload.components.filter((item) => item.material),
     } as Prisma.InputJsonValue,
   };
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     const row = id
       ? await tx.recipe.update({
           where: { id, organizationId: actor.org },
@@ -360,6 +382,7 @@ export async function saveRecipe(actor: Actor, raw: unknown) {
             ...clean,
             organizationId: actor.org,
             createdById: actor.uid,
+            approvalStatus: steward ? "APPROVED" : "PENDING",
           },
         });
     await recordUserAudit(tx, {
@@ -367,10 +390,21 @@ export async function saveRecipe(actor: Actor, raw: unknown) {
       action: id ? "library.recipe.updated" : "library.recipe.created",
       entityType: "Recipe",
       entityId: row.id,
-      changes: { name: row.name, summary: row.summary },
+      changes: { name: row.name },
     });
+    if (!id && !steward)
+      await notifyLibraryReview(
+        tx,
+        actor,
+        "recipe_approval_requested",
+        row.name,
+        "recipeSteward",
+      );
     return row;
   });
+  if (!id && !steward)
+    await sendGroupNotice(actor.org, "recipe_approval_requested");
+  return result;
 }
 
 export async function setRecipeArchived(
@@ -378,7 +412,7 @@ export async function setRecipeArchived(
   id: string,
   archived: boolean,
 ) {
-  await assertStewardship(actor, "recipeAccess");
+  await assertStewardship(actor, "recipeSteward");
   await db.$transaction(async (tx) => {
     const result = await tx.recipe.updateMany({
       where: { id, organizationId: actor.org },
@@ -395,11 +429,18 @@ export async function setRecipeArchived(
 }
 
 export async function getRecipePayload(actor: Actor, id: string) {
-  await assertStewardship(actor, "recipeAccess");
+  const grants = await getStewardships(actor);
   const row = await db.recipe.findFirst({
     where: { id, organizationId: actor.org },
-    select: { payload: true },
+    select: {
+      organizationId: true,
+      createdById: true,
+      approvalStatus: true,
+      payload: true,
+    },
   });
+  if (row && !canReadRecipeContents(actor, row, grants))
+    throw new Error("Recipe contents are restricted.");
   return row?.payload ?? null;
 }
 

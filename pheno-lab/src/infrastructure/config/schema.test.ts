@@ -137,4 +137,88 @@ describe("parseServerConfig", () => {
       parseServerConfig({ ...base, SMTP_HOST: "smtp.example.com" }),
     ).toThrow(/configured together/);
   });
+
+  it("keeps DingTalk optional and normalizes blank settings", () => {
+    const config = parseServerConfig({
+      ...base,
+      DINGTALK_WEBHOOK_URL: " ",
+      DINGTALK_WEBHOOK_SECRET: " ",
+    });
+    expect(config.DINGTALK_WEBHOOK_URL).toBeUndefined();
+    expect(config.DINGTALK_WEBHOOK_SECRET).toBeUndefined();
+  });
+
+  it("accepts an unsigned or signed DingTalk robot configuration", () => {
+    const webhookUrl =
+      "https://oapi.dingtalk.com/robot/send?access_token=unit-test-token";
+    for (const secret of [undefined, "SECunit-test-secret"]) {
+      const config = parseServerConfig({
+        ...base,
+        DINGTALK_WEBHOOK_URL: ` ${webhookUrl} `,
+        DINGTALK_WEBHOOK_SECRET: secret,
+      });
+      expect(config.DINGTALK_WEBHOOK_URL).toBe(webhookUrl);
+      expect(config.DINGTALK_WEBHOOK_SECRET).toBe(secret);
+    }
+  });
+
+  it.each([
+    "not-a-url",
+    "http://oapi.dingtalk.com/robot/send?access_token=unit-test-token",
+    "https://example.test/robot/send?access_token=unit-test-token",
+    "https://oapi.dingtalk.com.example.test/robot/send?access_token=unit-test-token",
+    "https://127.0.0.1/robot/send?access_token=unit-test-token",
+    "https://oapi.dingtalk.com:8443/robot/send?access_token=unit-test-token",
+    "https://user:password@oapi.dingtalk.com/robot/send?access_token=unit-test-token",
+    "https://oapi.dingtalk.com/other?access_token=unit-test-token",
+    "https://oapi.dingtalk.com/robot/send",
+    "https://oapi.dingtalk.com/robot/send?access_token=",
+    "https://oapi.dingtalk.com/robot/send?access_token=%20",
+    "https://oapi.dingtalk.com/robot/send?access_token=one&access_token=two",
+    "https://oapi.dingtalk.com/robot/send?access_token=unit-test-token#fragment",
+    "https://oapi.dingtalk.com/robot/send?access_token=unit-test-token&sign=stale&timestamp=1",
+  ])("rejects an unsafe or incomplete DingTalk URL: %s", (webhookUrl) => {
+    expect(() =>
+      parseServerConfig({ ...base, DINGTALK_WEBHOOK_URL: webhookUrl }),
+    ).toThrow(/DINGTALK_WEBHOOK_URL/);
+  });
+
+  it("rejects a signing secret without a webhook", () => {
+    expect(() =>
+      parseServerConfig({
+        ...base,
+        DINGTALK_WEBHOOK_SECRET: "SECunit-test-secret",
+      }),
+    ).toThrow(/DINGTALK_WEBHOOK_URL is required/);
+  });
+
+  it("does not include invalid webhook credentials in validation errors", () => {
+    const token = "private-unit-test-token";
+    try {
+      parseServerConfig({
+        ...base,
+        DINGTALK_WEBHOOK_URL: `https://example.test/?access_token=${token}`,
+      });
+      expect.fail("Expected invalid webhook configuration to be rejected");
+    } catch (error) {
+      expect(String(error)).toContain("DINGTALK_WEBHOOK_URL");
+      expect(String(error)).not.toContain(token);
+    }
+  });
+
+  it.each([
+    {
+      DINGTALK_WEBHOOK_URL:
+        "https://oapi.dingtalk.com/robot/send?access_token=replace-with-robot-token",
+    },
+    {
+      DINGTALK_WEBHOOK_URL:
+        "https://oapi.dingtalk.com/robot/send?access_token=unit-test-token",
+      DINGTALK_WEBHOOK_SECRET: "replace-with-robot-signing-secret",
+    },
+  ])("rejects production DingTalk placeholders", (dingTalkConfig) => {
+    expect(() =>
+      parseServerConfig({ ...base, NODE_ENV: "production", ...dingTalkConfig }),
+    ).toThrow(/DINGTALK_WEBHOOK.*example value/);
+  });
 });

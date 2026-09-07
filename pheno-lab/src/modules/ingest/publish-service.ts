@@ -109,6 +109,9 @@ export async function publishIngestItem(
   });
   if (!item) throw new Error("Item not found or already reviewed.");
   const kind = ingestKindSchema.parse(item.kind);
+  if (kind === "FORMULA") await assertStewardship(actor, "recipeSteward");
+  if (kind === "MATERIAL" && resolution.mode === "UPDATE")
+    await assertStewardship(actor, "materialAdmin");
 
   const updateTargetId =
     resolution.mode === "UPDATE" ? resolution.targetId : null;
@@ -243,9 +246,6 @@ export async function publishIngestItem(
         await attachDocuments(tx, { equipmentId: rec.id }, d.documents);
         publishedId = rec.id;
       } else if (item.kind === "FORMULA") {
-        // Formulas are proprietary — publishing one needs recipe access, not just
-        // staff.
-        await assertStewardship(actor, "recipeAccess");
         const d = parseIngestDraft(kind, payload) as FormulaDraft;
         const name = d.name?.trim();
         if (!name) throw new Error("Formula name is required.");
@@ -261,6 +261,7 @@ export async function publishIngestItem(
         const data = {
           name,
           summary: (d.summary ?? "").trim(),
+          approvalStatus: "APPROVED" as const,
           payload: {
             components,
             solvents: d.solvents ?? "",

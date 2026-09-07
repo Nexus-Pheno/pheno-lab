@@ -6,6 +6,7 @@ import { canReadExperiment } from "@/modules/authorization/policy";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { notify } from "@/modules/notifications/service";
+import { sendGroupNotice } from "@/modules/notifications/group-service";
 import {
   accessDecisionSchema,
   accessRequestSchema,
@@ -85,7 +86,7 @@ export async function getExperimentPeek(
 
 export async function requestAccess(actor: Actor, raw: unknown): Promise<void> {
   const { experimentId, message } = accessRequestSchema.parse(raw);
-  await db.$transaction(async (tx) => {
+  const created = await db.$transaction(async (tx) => {
     const resource = await tx.experiment.findFirst({
       where: { id: experimentId, organizationId: actor.org, isTest: false },
       select: RESOURCE_SELECT,
@@ -93,6 +94,7 @@ export async function requestAccess(actor: Actor, raw: unknown): Promise<void> {
     if (!resource) throw new Error("No such experiment.");
     if (canReadExperiment(actor, resource))
       throw new Error("You already have access to this experiment.");
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`access-request:${actor.org}:${experimentId}:${actor.uid}`}, 0))`;
     const open = await tx.accessRequest.findFirst({
       where: { experimentId, requesterId: actor.uid, status: "open" },
       select: { id: true },
@@ -127,7 +129,9 @@ export async function requestAccess(actor: Actor, raw: unknown): Promise<void> {
       entityId: experimentId,
       changes: {},
     });
+    return true;
   });
+  if (created) await sendGroupNotice(actor.org, "access_requested");
 }
 
 export type OpenAccessRequest = {

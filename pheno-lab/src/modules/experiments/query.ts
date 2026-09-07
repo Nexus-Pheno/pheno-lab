@@ -9,8 +9,9 @@ import {
   experimentListScope,
   experimentVisibilityScope,
 } from "@/modules/authorization/scope";
-import { hasStewardship } from "@/modules/stewardship/service";
 import { experimentIdSchema } from "./schema";
+import { getStewardships } from "@/modules/stewardship/service";
+import { canReadRecipeContents } from "@/modules/library/recipe-policy";
 
 export async function listDashboardExperiments(actor: Actor) {
   // The whole lab's board: everyone sees every card; opening is gated.
@@ -41,6 +42,7 @@ export async function listDashboardExperiments(actor: Actor) {
     // Whether this actor may change it (drag, rename, delete): staff, or the
     // technician who created it.
     editable: staff || row.createdById === actor.uid,
+    isTemplate: row.templatePinnedAt !== null,
     createdBy: row.createdBy.name,
     members: row.members.map((member) => member.user.name),
     labels: row.labels.map((label) => label.label.name),
@@ -78,7 +80,7 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     presets,
     orgUsers,
     recipes,
-    canManageMaterials,
+    stewardships,
     layers,
     categoryLayers,
   ] = await Promise.all([
@@ -113,10 +115,17 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     }),
     db.recipe.findMany({
       where: { organizationId: actor.org, archived: false },
-      select: { id: true, name: true, summary: true },
+      select: {
+        id: true,
+        name: true,
+        summary: true,
+        organizationId: true,
+        createdById: true,
+        approvalStatus: true,
+      },
       orderBy: { name: "asc" },
     }),
-    hasStewardship(actor, "materialAdmin"),
+    getStewardships(actor),
     db.deviceLayer.findMany({
       where: { organizationId: actor.org },
       orderBy: { position: "asc" },
@@ -151,8 +160,14 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     environments,
     presets,
     orgUsers,
-    recipes,
-    canManageMaterials,
+    recipes: recipes.map((recipe) => ({
+      id: recipe.id,
+      name: recipe.name,
+      summary: canReadRecipeContents(actor, recipe, stewardships)
+        ? recipe.summary
+        : "",
+    })),
+    canManageMaterials: true,
     layers,
     categoryLayers,
     canEdit,

@@ -6,6 +6,7 @@ import type { Material } from "@prisma/client";
 import {
   saveMaterialCard, setMaterialArchived, saveRecipe, setRecipeArchived,
   createMaterialCategory, renameMaterialCategory, deleteMaterialCategory, moveMaterialCategory,
+  submitMaterialEdit, reviewRecipe,
 } from "@/lib/actions/materials";
 import type { MaterialCard, RecipePayload } from "@/lib/materials-meta";
 import { fuzzyFilter } from "@/lib/fuzzy";
@@ -97,7 +98,6 @@ export function MaterialsSection({
       <div className="bg-surface border border-line rounded-[6px] divide-y divide-line mt-2">
         {categories.map((cat) => {
           const items = visible.filter((m) => m.category === cat.code);
-          if (items.length === 0 && !canManage) return null;
           const catOpen = searching ? items.length > 0 : openCat === cat.code;
           return (
             <div key={cat.id}>
@@ -110,7 +110,7 @@ export function MaterialsSection({
                   <h3 className="text-[12.5px] font-semibold">{catLabel(cat)}</h3>
                   <span className="mono text-[11px] text-muted">{items.length}</span>
                 </button>
-                {canManage && (
+                {(
                   <button
                     onClick={() => setCreating(cat.code)}
                     className="text-[11px] font-semibold text-brand-deep flex items-center gap-0.5 shrink-0"
@@ -213,8 +213,9 @@ export function MaterialModal({
   });
   const [props, setProps] = useState<[string, string][]>(Object.entries(form.properties));
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const patch = (p: Partial<MaterialCard>) => setForm((f) => ({ ...f, ...p }));
-  const ro = !canManage;
+  const ro = Boolean(material?.archived && !canManage);
 
   const field = (label: string, key: keyof MaterialCard, mono = false) => (
     <div>
@@ -232,6 +233,7 @@ export function MaterialModal({
     <div className="fixed inset-0 z-50 bg-ink/30 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={onClose}>
       <div
         className="w-full sm:max-w-lg bg-surface rounded-t-[10px] sm:rounded-[10px] border border-line max-h-[88dvh] flex flex-col"
+        role="dialog" aria-modal="true" aria-label={material?.name ?? t("mat.new")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
@@ -313,9 +315,10 @@ export function MaterialModal({
               onChange={(e) => patch({ notes: e.target.value })} />
           </div>
         </div>
-        {canManage && (
+        {error && <p role="alert" className="px-4 text-sm text-danger">{error}</p>}
+        {!ro && (
           <div className="flex items-center gap-2 px-4 py-3 border-t border-line">
-            {material && (
+            {material && canManage && (
               <button
                 disabled={busy}
                 onClick={async () => {
@@ -337,16 +340,25 @@ export function MaterialModal({
               disabled={busy || !form.name.trim()}
               onClick={async () => {
                 setBusy(true);
-                const saved = await saveMaterialCard(material?.id ?? null, {
+                const card = {
                   ...form,
                   properties: Object.fromEntries(props.filter(([k]) => k.trim())),
-                });
-                setBusy(false);
-                onSaved(saved);
+                };
+                setError("");
+                try {
+                  if (material && !canManage) {
+                    await submitMaterialEdit(material.id, card);
+                    onSaved();
+                  } else {
+                    onSaved(await saveMaterialCard(material?.id ?? null, card));
+                  }
+                } catch {
+                  setError(t("review.failed"));
+                } finally { setBusy(false); }
               }}
               className="h-9 px-4 bg-brand text-[#243000] rounded-[4px] text-[12.5px] font-bold disabled:opacity-50"
             >
-              {t("insp.save")}
+              {t(material && !canManage ? "review.submit" : "insp.save")}
             </button>
           </div>
         )}
@@ -365,10 +377,12 @@ export type RecipeRow = {
   name: string;
   summary: string;
   archived: boolean;
+  approvalStatus: string;
+  canRead: boolean;
   payload: RecipePayload | null; // null when the viewer lacks access
 };
 
-export function RecipesSection({ recipes, canView }: { recipes: RecipeRow[]; canView: boolean }) {
+export function RecipesSection({ recipes, canManage }: { recipes: RecipeRow[]; canManage: boolean }) {
   const t = useT();
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -390,7 +404,7 @@ export function RecipesSection({ recipes, canView }: { recipes: RecipeRow[]; can
 
       {expanded && (
       <>
-      {canView && (
+      {(
         <div className="flex justify-end mt-2">
           <button
             onClick={() => setCreating(true)}
@@ -400,23 +414,24 @@ export function RecipesSection({ recipes, canView }: { recipes: RecipeRow[]; can
           </button>
         </div>
       )}
-      {!canView && <p className="text-[10.5px] text-muted mt-2 mb-2">{t("rec.lockedHint")}</p>}
+      <p className="text-[10.5px] text-muted mt-2 mb-2">{t("rec.lockedHint")}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
         {recipes.filter((r) => !r.archived).map((r) => (
           <button
             key={r.id}
-            onClick={() => canView && setOpen(r)}
+            onClick={() => r.canRead && setOpen(r)}
             className={
               "text-left bg-surface border border-line rounded-[6px] p-3 " +
-              (canView ? "hover:border-charcoal/40" : "cursor-default")
+              (r.canRead ? "hover:border-charcoal/40" : "cursor-default")
             }
           >
             <div className="flex items-center gap-1.5">
               <span className="text-[12.5px] font-bold flex-1 truncate">{r.name}</span>
-              {!canView && <Icon name="Lock" size={12} className="text-muted shrink-0" />}
+              {!r.canRead && <Icon name="Lock" size={12} className="text-muted shrink-0" />}
             </div>
             <div className="text-[11px] text-muted mt-0.5">{r.summary || "—"}</div>
-            {!canView && (
+            {r.approvalStatus !== "APPROVED" && <span className="text-xs text-warn">{t(r.approvalStatus === "PENDING" ? "review.pending" : "review.rejected")}</span>}
+            {!r.canRead && (
               <div className="text-[10px] text-warn mt-1.5">{t("rec.hidden")}</div>
             )}
           </button>
@@ -428,9 +443,10 @@ export function RecipesSection({ recipes, canView }: { recipes: RecipeRow[]; can
       </>
       )}
 
-      {canView && (open || creating) && (
+      {(open || creating) && (
         <RecipeModal
           recipe={open}
+          canManage={canManage}
           onClose={() => { setOpen(null); setCreating(false); }}
           onSaved={() => { setOpen(null); setCreating(false); router.refresh(); }}
         />
@@ -440,9 +456,10 @@ export function RecipesSection({ recipes, canView }: { recipes: RecipeRow[]; can
 }
 
 function RecipeModal({
-  recipe, onClose, onSaved,
+  recipe, canManage, onClose, onSaved,
 }: {
   recipe: RecipeRow | null;
+  canManage: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -460,18 +477,21 @@ function RecipeModal({
   const [composition, setComposition] = useState(recipe?.payload?.composition ?? "");
   const [bandGap, setBandGap] = useState(recipe?.payload?.bandGap ?? "");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const canEdit = !recipe || canManage;
 
   return (
     <div className="fixed inset-0 z-50 bg-ink/30 flex items-end sm:items-center justify-center p-0 sm:p-6" onClick={onClose}>
       <div
         className="w-full sm:max-w-lg bg-surface rounded-t-[10px] sm:rounded-[10px] border border-line max-h-[88dvh] flex flex-col"
+        role="dialog" aria-modal="true" aria-label={recipe?.name ?? t("rec.new")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-line">
           <span className="text-[13px] font-bold truncate">{recipe ? recipe.name : t("rec.new")}</span>
           <button onClick={onClose} className="p-1.5 -m-1 text-muted hover:bg-subtle rounded-[4px]"><Icon name="X" size={16} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <fieldset disabled={!canEdit || busy} className="flex-1 overflow-y-auto p-4 space-y-3">
           <div>
             <FieldLabel>{t("rec.name")}</FieldLabel>
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
@@ -524,9 +544,19 @@ function RecipeModal({
             <FieldLabel>{t("rec.procedure")}</FieldLabel>
             <textarea className={inputCls + " resize-none"} rows={3} value={procedure} onChange={(e) => setProcedure(e.target.value)} />
           </div>
-        </div>
+        </fieldset>
+        {error && <p role="alert" className="px-4 text-sm text-danger">{error}</p>}
+        {recipe?.approvalStatus === "PENDING" && canManage && <div className="px-4 py-2 border-t border-line flex gap-3 items-center flex-wrap">
+          <span className="text-xs text-muted">{t("review.savedOnly")}</span>
+          {(["APPROVED", "REJECTED"] as const).map(decision => <button key={decision} disabled={busy} className="text-sm font-semibold text-brand-deep" onClick={async () => {
+            setBusy(true); setError("");
+            try { await reviewRecipe(recipe.id, decision); onSaved(); }
+            catch { setError(t("review.failed")); }
+            finally { setBusy(false); }
+          }}>{t(decision === "APPROVED" ? "review.approve" : "review.reject")}</button>)}
+        </div>}
         <div className="flex items-center gap-2 px-4 py-3 border-t border-line">
-          {recipe && (
+          {recipe && canManage && (
             <button
               disabled={busy}
               onClick={async () => {
@@ -544,11 +574,12 @@ function RecipeModal({
           <button onClick={onClose} className="h-9 px-4 border border-line rounded-[4px] text-[12.5px] font-semibold text-charcoal">
             {t("insp.cancel")}
           </button>
-          <button
+          {canEdit && <button
             disabled={busy || !name.trim()}
             onClick={async () => {
               setBusy(true);
-              await saveRecipe(recipe?.id ?? null, {
+              setError("");
+              try { await saveRecipe(recipe?.id ?? null, {
                 name, summary,
                 // Spread the stored payload first so ingested fields with no
                 // editor here (e.g. source notes) survive a save.
@@ -557,13 +588,14 @@ function RecipeModal({
                   components, solvents, concentration, procedure, composition, bandGap,
                 },
               });
-              setBusy(false);
               onSaved();
+              } catch { setError(t("review.failed")); }
+              finally { setBusy(false); }
             }}
             className="h-9 px-4 bg-brand text-[#243000] rounded-[4px] text-[12.5px] font-bold disabled:opacity-50"
           >
-            {t("insp.save")}
-          </button>
+            {t(!recipe && !canManage ? "review.submit" : "insp.save")}
+          </button>}
         </div>
       </div>
     </div>
