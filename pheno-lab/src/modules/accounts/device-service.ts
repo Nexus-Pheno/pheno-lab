@@ -166,15 +166,16 @@ export async function claimDevice(
 
 /**
  * The quick-pick name tiles on a registered tablet's login screen. Only ever
- * called with a verified device — team names and emails stay off the public
- * login page.
+ * called with a verified device, and deliberately WITHOUT emails — tapping a
+ * name selects the account by id; the email never appears on a shared screen
+ * (Michael, 2026-09-07).
  */
 export async function quickUsersForDevice(
   organizationId: string,
-): Promise<{ name: string; email: string }[]> {
+): Promise<{ id: string; name: string }[]> {
   const users = await db.user.findMany({
     where: { organizationId, active: true },
-    select: { name: true, email: true },
+    select: { id: true, name: true },
     orderBy: { name: "asc" },
     take: 30,
   });

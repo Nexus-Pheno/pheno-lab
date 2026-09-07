@@ -8,6 +8,7 @@ import {
   setEmailDomains as setEmailDomainsService,
   setUserActive as setUserActiveService,
   setUserRole as setUserRoleService,
+  updateUserIdentity as updateUserIdentityService,
   verifyRegistration as verifyRegistrationService,
 } from "@/modules/accounts/registration-service";
 
@@ -38,6 +39,22 @@ export async function setUserRole(
   role: "ADMIN" | "MANAGER" | "TECHNICIAN",
 ) {
   await setUserRoleService(await requireSession(), userId, role);
+}
+
+export async function updateUserIdentity(
+  userId: string,
+  name: string,
+  email: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await updateUserIdentityService(await requireSession(), userId, {
+      name,
+      email,
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 export async function setUserActive(userId: string, active: boolean) {

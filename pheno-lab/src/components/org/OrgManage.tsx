@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setUserRole, setUserActive, setEmailDomains, createUserAccount } from "@/lib/actions/registration";
+import { setUserRole, setUserActive, setEmailDomains, createUserAccount, updateUserIdentity } from "@/lib/actions/registration";
 import { setUserPermission } from "@/lib/actions/materials";
 import { renameOwnOrganization } from "@/lib/actions/orgs";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -55,6 +55,14 @@ export function OrgManage({
   const [name, setName] = useState(orgName);
   const [domains, setDomains] = useState(initialDomains);
   const [savedFlash, setSavedFlash] = useState("");
+  // Inline name/email editor — the lab is normalizing everyone onto English
+  // names and the szpheno.com domain.
+  const [editing, setEditing] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
+  const [editError, setEditError] = useState("");
 
   const flash = (msg: string) => {
     setSavedFlash(msg);
@@ -178,11 +186,65 @@ export function OrgManage({
             {users.map((u) => (
               <tr key={u.id} className={"border-b border-line last:border-0 " + (u.active ? "" : "opacity-45")}>
                 <td className="px-3.5 py-2.5">
-                  <div className="font-medium">
-                    {u.name}
-                    {u.id === sessionUid && <span className="text-muted"> ({t("org.you")})</span>}
-                  </div>
-                  <div className="mono text-[10.5px] text-muted">{u.email}</div>
+                  {editing?.id === u.id ? (
+                    <div className="space-y-1">
+                      <input
+                        className="w-full h-7 border border-line rounded-[3px] px-1.5 text-[12px]"
+                        value={editing.name}
+                        placeholder={t("users.name")}
+                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                      />
+                      <input
+                        className="w-full h-7 border border-line rounded-[3px] px-1.5 text-[11px] mono"
+                        value={editing.email}
+                        placeholder={t("users.email")}
+                        onChange={(e) => setEditing({ ...editing, email: e.target.value })}
+                      />
+                      {editError && <p className="text-[10.5px] text-danger">{editError}</p>}
+                      <div className="flex gap-1">
+                        <button
+                          disabled={busy || !editing.name.trim() || !editing.email.includes("@")}
+                          onClick={async () => {
+                            setBusy(true);
+                            setEditError("");
+                            const res = await updateUserIdentity(u.id, editing.name, editing.email);
+                            setBusy(false);
+                            if (!res.ok) {
+                              setEditError(t(res.error === "exists" ? "users.emailTaken" : "users.badInput"));
+                              return;
+                            }
+                            setEditing(null);
+                            router.refresh();
+                          }}
+                          className="h-6 px-2 text-[11px] font-bold text-brand-deep border border-brand/40 bg-brand-soft rounded-[3px] disabled:opacity-50"
+                        >
+                          {t("insp.save")}
+                        </button>
+                        <button
+                          onClick={() => { setEditing(null); setEditError(""); }}
+                          className="h-6 px-2 text-[11px] text-muted border border-line rounded-[3px]"
+                        >
+                          {t("users.cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="font-medium flex items-center gap-1">
+                        {u.name}
+                        {u.id === sessionUid && <span className="text-muted"> ({t("org.you")})</span>}
+                        <button
+                          disabled={busy}
+                          title={t("users.editIdentity")}
+                          onClick={() => { setEditError(""); setEditing({ id: u.id, name: u.name, email: u.email }); }}
+                          className="text-muted hover:text-brand-deep"
+                        >
+                          <Icon name="Pencil" size={11} />
+                        </button>
+                      </div>
+                      <div className="mono text-[10.5px] text-muted">{u.email}</div>
+                    </>
+                  )}
                 </td>
                 <td className="px-3.5 py-2.5">
                   <select

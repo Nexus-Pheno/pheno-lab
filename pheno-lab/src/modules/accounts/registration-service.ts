@@ -16,6 +16,7 @@ import {
   emailSchema,
   registrationSchema,
   roleSchema,
+  userIdentitySchema,
 } from "@/modules/accounts/schema";
 import { entityIdSchema } from "@/modules/runs/schema";
 import { recordUserAudit } from "@/modules/audit/writer";
@@ -269,6 +270,49 @@ export async function setUserRole(
       entityType: "User",
       entityId: id,
       changes: { role: nextRole },
+    });
+  });
+}
+
+/**
+ * Admin normalizes a teammate's name and sign-in email — the lab is unifying
+ * everyone onto English names and the szpheno.com domain. The email is the
+ * login identifier, so uniqueness is checked; sessions and NFC badges keep
+ * working because both key on the user id.
+ */
+export async function updateUserIdentity(
+  actor: Actor,
+  userId: string,
+  raw: unknown,
+) {
+  assertAdmin(actor);
+  const id = entityIdSchema.parse(userId);
+  const { name, email } = userIdentitySchema.parse(raw);
+  await db.$transaction(async (tx) => {
+    const current = await tx.user.findFirst({
+      where: { id, organizationId: actor.org },
+      select: { name: true, email: true },
+    });
+    if (!current) throw new Error("User not found.");
+    if (email !== current.email) {
+      const taken = await tx.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (taken) throw new Error("exists");
+    }
+    await tx.user.update({ where: { id }, data: { name, email } });
+    await recordUserAudit(tx, {
+      actor,
+      action: "user.identity.update",
+      entityType: "User",
+      entityId: id,
+      changes: {
+        name,
+        email,
+        previousName: current.name,
+        previousEmail: current.email,
+      },
     });
   });
 }

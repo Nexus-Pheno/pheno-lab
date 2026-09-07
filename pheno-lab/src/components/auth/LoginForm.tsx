@@ -10,8 +10,9 @@ import { BadgeLogin } from "./BadgeLogin";
 
 /**
  * The sign-in card. On a registered shared tablet it grows a kiosk badge and
- * tap-to-pick name tiles (prefilling the email — the password is still
- * theirs to type), and warns that the session auto-signs-out when idle.
+ * tap-to-pick name tiles: tapping a name selects the account (by id — the
+ * email never appears on a shared screen) and leaves just a password field.
+ * Typing an email the normal way is always available underneath.
  */
 export function LoginForm({
   device,
@@ -19,11 +20,13 @@ export function LoginForm({
   claim,
 }: {
   device: { label: string } | null;
-  quickUsers: { name: string; email: string }[];
+  quickUsers: { id: string; name: string }[];
   claim: string;
 }) {
   const [state, formAction, pending] = useActionState(login, null);
-  const [email, setEmail] = useState("");
+  const [selected, setSelected] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const t = useT();
 
   return (
@@ -64,12 +67,14 @@ export function LoginForm({
               <div className="flex flex-wrap gap-1 mt-2">
                 {quickUsers.map((u) => (
                   <button
-                    key={u.email}
+                    key={u.id}
                     type="button"
-                    onClick={() => setEmail(u.email)}
+                    onClick={() =>
+                      setSelected(selected?.id === u.id ? null : u)
+                    }
                     className={
                       "h-6 px-2.5 rounded-full text-[10.5px] font-bold border " +
-                      (email === u.email
+                      (selected?.id === u.id
                         ? "bg-ink text-white border-ink"
                         : "bg-surface text-brand-deep border-brand/40")
                     }
@@ -84,24 +89,43 @@ export function LoginForm({
         )}
 
         <form action={formAction} className="space-y-4">
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-[11px] font-bold uppercase text-muted mb-1"
-            >
-              {t("login.email")}
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-line rounded-[4px] px-3 py-2 text-sm"
-            />
-          </div>
+          {selected ? (
+            <div>
+              <input type="hidden" name="userId" value={selected.id} />
+              <div className="flex items-center gap-2 border border-line rounded-[4px] px-3 py-2 bg-subtle">
+                <span className="h-6 px-2 rounded-full bg-brand-soft border border-brand/40 text-[10px] font-bold text-brand-deep flex items-center">
+                  {selected.name.trim().split(/\s+/)[0] || selected.name}
+                </span>
+                <span className="text-sm font-semibold flex-1 truncate">
+                  {selected.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="text-[11px] font-semibold text-brand-deep hover:underline shrink-0"
+                >
+                  {t("login.switchUser")}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-[11px] font-bold uppercase text-muted mb-1"
+              >
+                {t("login.email")}
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="username"
+                className="w-full border border-line rounded-[4px] px-3 py-2 text-sm"
+              />
+            </div>
+          )}
           <div>
             <label
               htmlFor="password"
