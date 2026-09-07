@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { OrgManage, type OrgUserRow } from "@/components/org/OrgManage";
 import { Icon } from "@/components/ui";
@@ -11,6 +11,7 @@ import { getOrganizationAdminData } from "@/modules/organizations/query";
 // equipment and facilities.
 export default async function OrganizationPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
 

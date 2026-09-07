@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { FeedbackBoard } from "@/components/feedback/FeedbackBoard";
 import { listFeedback } from "@/modules/accounts/query";
@@ -8,6 +8,7 @@ import { listFeedback } from "@/modules/accounts/query";
 // profile page; approved items here are the agent's implementation queue.
 export default async function FeedbackPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   if (session.role !== "ADMIN") notFound();
   const isAdmin = true;
   const t = await getT();

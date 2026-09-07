@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { Icon } from "@/components/ui";
 import { InstrumentsView } from "@/components/instruments/InstrumentsView";
@@ -9,6 +9,7 @@ import { getInstrumentsPageData } from "@/modules/instruments/query";
 // this page has to be run for ingestion to happen.
 export default async function InstrumentsPage() {
   const session = await requireSession();
+  assertPersonalDevice(session);
   const t = await getT();
 
   const data = await getInstrumentsPageData(session);

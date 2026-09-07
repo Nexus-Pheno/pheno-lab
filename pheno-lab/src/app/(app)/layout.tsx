@@ -6,6 +6,7 @@ import { getLang, getT } from "@/lib/i18n/server";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 import { BackButton } from "@/components/BackButton";
 import { ErrorCollector } from "@/components/ErrorCollector";
+import { IdleGuard } from "@/components/kiosk/IdleGuard";
 import { getOrganizationName } from "@/modules/organizations/query";
 
 function ClipboardPenIcon() {
@@ -40,6 +41,7 @@ export default async function AppLayout({
   return (
     <LanguageProvider lang={lang}>
       <ErrorCollector />
+      {session.device && <IdleGuard />}
       <div className="h-dvh flex flex-col">
         <header
           id="app-header"
@@ -73,7 +75,7 @@ export default async function AppLayout({
               {t("nav.data")}
             </Link>
             {/* Triage board is the admin's; teammates submit from /profile. */}
-            {session.role === "ADMIN" && (
+            {session.role === "ADMIN" && !session.device && (
               <Link
                 href="/feedback"
                 className="px-2 py-1 rounded-[4px] hover:bg-subtle"
@@ -96,6 +98,15 @@ export default async function AppLayout({
             <ClipboardPenIcon />
           </Link>
           <div className="flex-1" />
+          {/* Shared-tablet badge: who's borrowed the tablet is never a mystery. */}
+          {session.device && (
+            <span
+              className="text-[10.5px] font-bold text-brand-deep bg-brand-soft border border-brand/40 rounded-full px-2.5 py-0.5 whitespace-nowrap"
+              title={t("kiosk.badgeHint")}
+            >
+              {session.device.label}
+            </span>
+          )}
           <span className="text-xs text-muted hidden sm:block">
             {organizationName}
           </span>
