@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { requireSession } from "@/lib/auth";
 import {
+  adminResetPassword as adminResetPasswordService,
   createUserAccount as createUserAccountService,
   requestRegistration as requestRegistrationService,
   setEmailDomains as setEmailDomainsService,
@@ -13,6 +14,10 @@ import {
   rejectRegistration as rejectRegistrationService,
   verifyRegistration as verifyRegistrationService,
 } from "@/modules/accounts/registration-service";
+import {
+  requestPasswordReset as requestPasswordResetService,
+  verifyPasswordReset as verifyPasswordResetService,
+} from "@/modules/accounts/password-reset-service";
 
 export async function requestRegistration(email: string) {
   return requestRegistrationService(email);
@@ -25,6 +30,27 @@ export async function verifyRegistration(data: {
   password: string;
 }) {
   return verifyRegistrationService(data);
+}
+
+export async function requestPasswordReset(email: string) {
+  return requestPasswordResetService(email);
+}
+
+export async function verifyPasswordReset(data: {
+  email: string;
+  code: string;
+  password: string;
+}) {
+  return verifyPasswordResetService(data);
+}
+
+export async function adminResetPassword(userId: string, password: string) {
+  try {
+    await adminResetPasswordService(await requireSession(), userId, password);
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const, error: "bad-input" };
+  }
 }
 
 export async function createUserAccount(data: {

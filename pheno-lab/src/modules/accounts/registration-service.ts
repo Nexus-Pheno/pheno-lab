@@ -14,6 +14,7 @@ import {
 import {
   createUserSchema,
   emailSchema,
+  passwordSchema,
   registrationSchema,
   roleSchema,
   registrationApprovalSchema,
@@ -58,7 +59,11 @@ export async function requestRegistration(
   // accidental mix of old and new valid codes.
   await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`registration:${email}`}, 0))`;
-    await tx.otpCode.deleteMany({ where: { email, usedAt: null } });
+    await tx.otpCode.deleteMany({
+      // Scoped by purpose: a registration request must not wipe a pending
+      // password-reset code for the same address, or vice versa.
+      where: { email, purpose: "register", usedAt: null },
+    });
     await tx.otpCode.create({
       data: {
         organizationId: org.id,
@@ -490,6 +495,36 @@ export async function updateUserIdentity(
         previousName: current.name,
         previousEmail: current.email,
       },
+    });
+  });
+}
+
+/**
+ * Admin fallback for a forgotten password: set a new one directly, shown
+ * once to the admin who relays it. The user can change it afterwards via
+ * their profile.
+ */
+export async function adminResetPassword(
+  actor: Actor,
+  userId: string,
+  rawPassword: unknown,
+) {
+  assertAdmin(actor);
+  const id = entityIdSchema.parse(userId);
+  const password = passwordSchema.parse(rawPassword);
+  const passwordHash = await bcrypt.hash(password, 10);
+  await db.$transaction(async (tx) => {
+    const user = await tx.user.findFirst({
+      where: { id, organizationId: actor.org },
+      select: { id: true },
+    });
+    if (!user) throw new Error("User not found.");
+    await tx.user.update({ where: { id }, data: { passwordHash } });
+    await recordUserAudit(tx, {
+      actor,
+      action: "user.password.reset.admin",
+      entityType: "User",
+      entityId: id,
     });
   });
 }

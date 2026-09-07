@@ -30,6 +30,7 @@ export async function proxy(req: NextRequest) {
   if (
     pathname === "/login" ||
     pathname === "/register" ||
+    pathname === "/reset" ||
     pathname === "/onboard" ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
