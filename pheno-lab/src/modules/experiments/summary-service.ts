@@ -39,7 +39,7 @@ const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
 /** Numbers arrive as numbers (instrument JSON) or strings (capture inputs). */
-const numish = (v: unknown): number | null => {
+export const numish = (v: unknown): number | null => {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   if (typeof v === "string" && v.trim()) {
     const n = parseFloat(v);
@@ -48,11 +48,11 @@ const numish = (v: unknown): number | null => {
   return null;
 };
 
-const METRICS = ["pce", "voc", "jsc", "ff"] as const;
-type MetricKey = (typeof METRICS)[number];
+export const METRICS = ["pce", "voc", "jsc", "ff"] as const;
+export type MetricKey = (typeof METRICS)[number];
 
 /** "PCE (%)" → pce, "Voc (V)" → voc — result rows label their metrics. */
-const metricKeyOf = (label: string): MetricKey | null => {
+export const metricKeyOf = (label: string): MetricKey | null => {
   if (/pce|efficiency|^eff/i.test(label)) return "pce";
   if (/voc/i.test(label)) return "voc";
   if (/jsc/i.test(label)) return "jsc";
