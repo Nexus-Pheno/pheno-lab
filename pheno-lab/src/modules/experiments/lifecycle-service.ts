@@ -5,6 +5,7 @@ import { db } from "@/infrastructure/db/client";
 import { experimentInclude } from "@/lib/types";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertStaff } from "@/modules/authorization/policy";
+import { requireExperimentPermission } from "@/modules/authorization/service";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { syncSampleSerials } from "@/modules/instruments/sample-serial-service";
 import { assertEdit } from "./access";
@@ -31,7 +32,9 @@ async function nextExperimentCode(
 }
 
 export async function createExperiment(actor: Actor, isTest = false) {
-  assertStaff(actor);
+  // Everyone runs their own experiments now (Michael, 2026-09-07); only the
+  // test-data sandbox stays staff-only.
+  if (isTest) assertStaff(actor);
   const exp = await db.$transaction(async (tx) => {
     const code = await nextExperimentCode(tx, actor);
     const created = await tx.experiment.create({
@@ -102,8 +105,9 @@ export async function deleteExperiment(actor: Actor, rawId: unknown) {
 
 /** Phase 2: duplicate an experiment as a template — full plan, no run data. */
 export async function duplicateExperiment(actor: Actor, rawId: unknown) {
-  assertStaff(actor);
   const id = experimentIdSchema.parse(rawId);
+  // Copying a plan requires being able to open the source experiment.
+  await requireExperimentPermission(actor, id, "read");
   const src = await db.experiment.findUniqueOrThrow({
     where: { id },
     include: experimentInclude,

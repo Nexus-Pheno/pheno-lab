@@ -111,6 +111,7 @@ model User {
   ingestReviews       IngestItem[]
   ownedMeasurements   JvMeasurement[]    @relation("MeasurementOwner")
   sharedDeviceLogins  SharedDevice[]     @relation("SharedDeviceUser")
+  accessRequests      AccessRequest[]    @relation("AccessRequester")
 }
 
 // A registered shared lab tablet. The browser carries a signed cookie naming
@@ -294,10 +295,29 @@ model Experiment {
   updatedAt         DateTime           @updatedAt
 
   @@unique([organizationId, shortCode])
+  accessRequests   AccessRequest[]
 }
 
 // Users involved in an experiment. Managers/admins grant access by adding
 // members; technicians only see experiments they are members of.
+// A technician knocking on a colleague's experiment: the owner (or any
+// manager/admin) approves — which adds them as a member — or declines.
+model AccessRequest {
+  id           String     @id @default(cuid())
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  requesterId  String
+  requester    User       @relation("AccessRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  message      String     @default("")
+  status       String     @default("open") // open | approved | declined
+  createdAt    DateTime   @default(now())
+  decidedById  String?
+  decidedAt    DateTime?
+
+  @@index([experimentId, status])
+  @@index([requesterId])
+}
+
 model ExperimentMember {
   experimentId String
   experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)

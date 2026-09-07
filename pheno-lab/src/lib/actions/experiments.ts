@@ -15,6 +15,10 @@ import type {
 } from "@/lib/types";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 import {
+  requestAccess as requestAccessService,
+  decideAccessRequest as decideAccessRequestService,
+} from "@/modules/experiments/access-request-service";
+import {
   addCharacterization as addCharacterizationService,
   addMember as addMemberService,
   addStep as addStepService,
@@ -50,6 +54,34 @@ export async function canViewWhere(
     await requireSession(),
     z.boolean().parse(includeTest),
   );
+}
+
+export async function requestExperimentAccess(
+  experimentId: string,
+  message: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requestAccessService(await requireSession(), {
+      experimentId,
+      message,
+    });
+    revalidatePath(`/experiments/${experimentId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function decideAccessRequest(
+  requestId: string,
+  approve: boolean,
+  experimentId: string,
+): Promise<void> {
+  await decideAccessRequestService(await requireSession(), {
+    requestId,
+    approve,
+  });
+  revalidatePath(`/experiments/${experimentId}`);
 }
 
 export async function createExperiment(isTest = false) {

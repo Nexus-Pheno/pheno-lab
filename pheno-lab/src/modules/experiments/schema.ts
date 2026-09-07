@@ -159,3 +159,14 @@ export const orderedIdsSchema = z
   .array(experimentIdSchema)
   .max(1_000)
   .refine((ids) => new Set(ids).size === ids.length, "Duplicate ids supplied.");
+
+// Access requests (the knock on a colleague's experiment).
+export const accessRequestSchema = z.object({
+  experimentId: z.string().min(1).max(128),
+  message: z.string().trim().max(2000).default(""),
+});
+
+export const accessDecisionSchema = z.object({
+  requestId: z.string().min(1).max(128),
+  approve: z.boolean(),
+});

@@ -15,7 +15,7 @@ export function isStaff(actor: Actor): boolean {
 
 export function assertStaff(actor: Actor): void {
   if (!isStaff(actor)) {
-    throw new AuthorizationError("Technicians have read-only access.");
+    throw new AuthorizationError("Managers or admins only.");
   }
 }
 
@@ -42,22 +42,35 @@ function isCreatorOrMember(
   );
 }
 
+function isInvolved(actor: Actor, resource: ExperimentAccessResource): boolean {
+  return (
+    resource.assigneeId === actor.uid || isCreatorOrMember(actor, resource)
+  );
+}
+
+// Michael's model (2026-09-07): every experiment is LISTED to the whole lab,
+// but opening one is gated — technicians open only experiments they created,
+// are assigned to, or were granted membership of (via an access request the
+// owner approved); managers and admins open everything.
 export function canReadExperiment(
   actor: Actor,
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
-  if (actor.role === "ADMIN") return true;
-  if (actor.role === "MANAGER") return isCreatorOrMember(actor, resource);
-  return resource.members.some((member) => member.userId === actor.uid);
+  if (isStaff(actor)) return true;
+  return isInvolved(actor, resource);
 }
 
+// Managers edit every experiment in the lab; technicians edit the ones they
+// created. Granted membership means collaborate (read + capture), not
+// redesign — the owner keeps the pen on the test plan.
 export function canManageExperiment(
   actor: Actor,
   resource: ExperimentAccessResource,
 ): boolean {
-  if (!sameOrganization(actor, resource) || !isStaff(actor)) return false;
-  return actor.role === "ADMIN" || isCreatorOrMember(actor, resource);
+  if (!sameOrganization(actor, resource)) return false;
+  if (isStaff(actor)) return true;
+  return resource.createdById === actor.uid;
 }
 
 export function canCaptureExperiment(
@@ -65,7 +78,7 @@ export function canCaptureExperiment(
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
-  return actor.role === "ADMIN" || isCreatorOrMember(actor, resource);
+  return isStaff(actor) || isInvolved(actor, resource);
 }
 
 export function canSubmitExperiment(
@@ -73,11 +86,7 @@ export function canSubmitExperiment(
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
-  return (
-    actor.role === "ADMIN" ||
-    resource.assigneeId === actor.uid ||
-    isCreatorOrMember(actor, resource)
-  );
+  return isStaff(actor) || isInvolved(actor, resource);
 }
 
 export function assertExperimentPermission(

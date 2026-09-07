@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import Designer from "@/components/designer/Designer";
+import { RequestAccess } from "@/components/experiments/RequestAccess";
+import { AccessRequestsBanner } from "@/components/experiments/AccessRequestsBanner";
 import { getExperimentDesignerData } from "@/modules/experiments/query";
+import {
+  getExperimentPeek,
+  listOpenRequests,
+} from "@/modules/experiments/access-request-service";
 
 export default async function ExperimentPage({
   params,
@@ -12,9 +18,24 @@ export default async function ExperimentPage({
   const session = await requireSession();
 
   const data = await getExperimentDesignerData(session, id);
-  if (!data) notFound();
+  if (!data) {
+    // Exists in this lab but is not theirs to open: knock on the door.
+    const peek = await getExperimentPeek(session, id);
+    if (!peek) notFound();
+    return <RequestAccess experiment={peek} />;
+  }
+
+  // Whoever can edit also answers the knocks.
+  const openRequests = data.canEdit
+    ? await listOpenRequests(session, id).catch(() => [])
+    : [];
 
   return (
+    <div className="h-full flex flex-col min-h-0">
+      {openRequests.length > 0 && (
+        <AccessRequestsBanner experimentId={id} requests={openRequests} />
+      )}
+      <div className="flex-1 min-h-0">
     <Designer
       initial={data.experiment}
       processes={data.processes}
@@ -30,5 +51,7 @@ export default async function ExperimentPage({
       canEdit={data.canEdit}
       canManageMembers={data.canEdit}
     />
+      </div>
+    </div>
   );
 }
