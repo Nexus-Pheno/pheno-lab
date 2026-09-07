@@ -21,6 +21,8 @@ const KIND_ICON: Record<string, string> = {
   feedback_commented: "MessageSquare",
   assigned: "ClipboardList",
   member_added: "Users",
+  experiment_commented: "MessagesSquare",
+  mentioned: "AtSign",
 };
 
 const ago = (iso: string, justNow: string): string => {

@@ -124,6 +124,7 @@ model User {
   notifications         Notification[]           @relation("NotificationRecipient")
   materialEdits         MaterialEditSuggestion[] @relation("MaterialEditAuthor")
   reviewedMaterialEdits MaterialEditSuggestion[] @relation("MaterialEditReviewer")
+  experimentComments    ExperimentComment[]      @relation("CommentAuthor")
 }
 
 // A registered shared lab tablet. The browser carries a signed cookie naming
@@ -312,8 +313,24 @@ model Experiment {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   accessRequests    AccessRequest[]
+  comments          ExperimentComment[]
 
   @@unique([organizationId, shortCode])
+}
+
+// Discussion on an experiment — anyone who can read it can comment.
+// @mentions are resolved client-side to user ids and only produce
+// notifications; being mentioned grants no access by itself.
+model ExperimentComment {
+  id           String     @id @default(cuid())
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User       @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body         String
+  createdAt    DateTime   @default(now())
+
+  @@index([experimentId, createdAt])
 }
 
 // Users involved in an experiment. Managers/admins grant access by adding
