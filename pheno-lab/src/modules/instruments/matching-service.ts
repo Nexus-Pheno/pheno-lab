@@ -35,6 +35,57 @@ const unmatched = (matchNote: string): MatchResult => ({
   matchNote,
 });
 
+// Short-lived per-organization cache of every sample's serials (with their
+// canonical forms precomputed) for the zero-insensitive fallback. 10 s is
+// long enough to cover one whole rematch sweep and short enough that a
+// freshly created sample becomes matchable on the next sweep.
+type CachedSample = {
+  id: string;
+  code: string;
+  instrumentCodes: string[];
+  canonicalCodes: string[];
+  experimentId: string;
+  experiment: { code: string; runs: { id: string }[] };
+};
+const SAMPLE_CACHE_TTL_MS = 10_000;
+const sampleCache = new Map<string, { at: number; rows: CachedSample[] }>();
+
+async function allSamplesCached(
+  organizationId: string,
+): Promise<CachedSample[]> {
+  const hit = sampleCache.get(organizationId);
+  if (hit && Date.now() - hit.at < SAMPLE_CACHE_TTL_MS) return hit.rows;
+  const rows = await prisma.sample.findMany({
+    where: {
+      experiment: { organizationId },
+      NOT: { instrumentCodes: { isEmpty: true } },
+    },
+    select: {
+      id: true,
+      code: true,
+      instrumentCodes: true,
+      experimentId: true,
+      experiment: {
+        select: {
+          code: true,
+          runs: {
+            where: { status: { not: "CANCELLED" } },
+            select: { id: true },
+            orderBy: { runNo: "desc" },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+  const cached = rows.map((row) => ({
+    ...row,
+    canonicalCodes: row.instrumentCodes.map(canonicalSerialKey),
+  }));
+  sampleCache.set(organizationId, { at: Date.now(), rows: cached });
+  return cached;
+}
+
 /**
  * Fallback for labs that keep their own serial scheme ("CELL17-5-2") instead of
  * typing the Pheno sample ID: a sample can declare the serial base it answers
@@ -104,20 +155,15 @@ async function matchByInstrumentCode(
 
   // Zero-insensitive rescue: "26A010" typed for sample 26A10. Postgres cannot
   // compare canonical forms, so every serial in the lab is pulled and compared
-  // in code — acceptable because only still-unexplained serials reach this
-  // point, and only an unambiguous canonical hit may claim the scan.
-  const all = await prisma.sample.findMany({
-    where: {
-      experiment: { organizationId },
-      NOT: { instrumentCodes: { isEmpty: true } },
-    },
-    select: SAMPLE_SELECT,
-  });
+  // in code. The fetch is cached briefly: the rematch sweep calls this once
+  // per unmatched scan, and re-pulling every sample per scan made the cron
+  // sweep time out against hundreds of legacy orphans (2026-09-07).
+  const all = await allSamplesCached(organizationId);
   for (const candidate of candidates) {
     const canon = canonicalSerialKey(candidate);
     if (!canon) continue;
     const hits = all.filter((s) =>
-      s.instrumentCodes.some((code) => canonicalSerialKey(code) === canon),
+      s.canonicalCodes.some((code) => code === canon),
     );
     if (!hits.length) continue;
     if (hits.length > 1) {
