@@ -18,7 +18,8 @@ export async function getOrganizationAdminData(actor: Actor) {
   const [organization, users, pending] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: actor.org } }),
     db.user.findMany({
-      where: { organizationId: actor.org },
+      // Registrations awaiting approval live in their own section, not here.
+      where: { organizationId: actor.org, pendingApproval: false },
       orderBy: [{ role: "asc" }, { userNumber: "asc" }],
       select: {
         id: true,

@@ -143,7 +143,9 @@ export function LoginForm({
             />
           </div>
           {state?.error && (
-            <p className="text-sm text-danger">{t("login.invalid")}</p>
+            <p className="text-sm text-danger">
+              {t(state.error === "pending" ? "login.pending" : "login.invalid")}
+            </p>
           )}
           <button
             type="submit"

@@ -53,6 +53,16 @@ export const userIdentitySchema = z.object({
   email: emailSchema,
 });
 
+// The admin's approval of a self-registration, with corrections applied and
+// an optional legacy dataset claimed in the same stroke.
+export const registrationApprovalSchema = z.object({
+  userId: z.string().min(1).max(128),
+  name: z.string().trim().min(1).max(200),
+  handle: z.string().trim().max(100).default(""),
+  email: emailSchema,
+  legacyUserId: z.string().max(128).default(""),
+});
+
 export const profileSchema = z.object({
   name: z.string().trim().min(1).max(200),
   handle: z.string().trim().max(100),

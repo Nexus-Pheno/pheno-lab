@@ -75,6 +75,9 @@ model User {
   language            String             @default("en") // "en" | "zh"
   passwordHash        String
   active              Boolean            @default(true) // deactivated users cannot sign in
+  // New self-registrations wait here (inactive) until an admin approves them —
+  // fixing the name/email styling and optionally claiming a legacy dataset.
+  pendingApproval     Boolean            @default(false)
   userNumber          Int                @default(0) // sequential per organization, assigned at registration
   exportRequests      ExportRequest[]    @relation("ExportRequester")
   exportDecisions     ExportRequest[]    @relation("ExportDecider")

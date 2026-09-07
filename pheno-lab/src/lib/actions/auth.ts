@@ -32,6 +32,7 @@ export async function login(
       password: formData.get("password"),
     });
   }
+  if (result && "pending" in result) return { error: "pending" };
   if (!result) return { error: "Invalid email or password." };
   await createSession(result.actor);
   (await cookies()).set("pheno_lang", result.language, {

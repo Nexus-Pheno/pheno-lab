@@ -65,6 +65,7 @@ export async function authenticate(raw: unknown) {
       role: true,
       organizationId: true,
       active: true,
+      pendingApproval: true,
       passwordHash: true,
       language: true,
     },
@@ -73,6 +74,10 @@ export async function authenticate(raw: unknown) {
     parsed.data.password,
     user?.passwordHash ?? DUMMY_HASH,
   );
+  // Right password on an account still waiting for the admin: say so —
+  // "invalid password" would send the person on a futile reset hunt.
+  if (user && matches && user.pendingApproval)
+    return { pending: true as const };
   if (!user?.active || !matches) return null;
   return {
     actor: {
