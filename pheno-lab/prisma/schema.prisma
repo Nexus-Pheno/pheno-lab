@@ -31,17 +31,23 @@ enum ProcessKind {
   CHARACTERIZATION
 }
 
+enum LibraryReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // Every organization owns its own data: users, experiments, processes,
 // equipment, materials, environments, locations, presets, labels.
 model Organization {
-  id             String                @id @default(cuid())
+  id             String                   @id @default(cuid())
   name           String
-  slug           String                @unique
-  orgNumber      Int                   @default(1) // organization number in experiment codes (Pheno = 001)
-  nextShortNo    Int                   @default(1) // hands out Experiment.shortCode
-  emailDomains   String[]              @default([]) // registration allowed only for these domains
-  status         String                @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
-  createdAt      DateTime              @default(now())
+  slug           String                   @unique
+  orgNumber      Int                      @default(1) // organization number in experiment codes (Pheno = 001)
+  nextShortNo    Int                      @default(1) // hands out Experiment.shortCode
+  emailDomains   String[]                 @default([]) // registration allowed only for these domains
+  status         String                   @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
+  createdAt      DateTime                 @default(now())
   users          User[]
   experiments    Experiment[]
   processes      Process[]
@@ -64,56 +70,60 @@ model Organization {
   jvMeasurements JvMeasurement[]
   sharedDevices  SharedDevice[]
   notifications  Notification[]
+  materialEdits  MaterialEditSuggestion[]
 }
 
 model User {
-  id                  String             @id @default(cuid())
-  organizationId      String
-  organization        Organization       @relation(fields: [organizationId], references: [id])
-  email               String             @unique
-  name                String
-  handle              String             @default("") // short display handle, e.g. @mike
-  language            String             @default("en") // "en" | "zh"
-  passwordHash        String
-  active              Boolean            @default(true) // deactivated users cannot sign in
+  id                    String                   @id @default(cuid())
+  organizationId        String
+  organization          Organization             @relation(fields: [organizationId], references: [id])
+  email                 String                   @unique
+  name                  String
+  handle                String                   @default("") // short display handle, e.g. @mike
+  language              String                   @default("en") // "en" | "zh"
+  passwordHash          String
+  active                Boolean                  @default(true) // deactivated users cannot sign in
   // New self-registrations wait here (inactive) until an admin approves them —
   // fixing the name/email styling and optionally claiming a legacy dataset.
-  pendingApproval     Boolean            @default(false)
-  userNumber          Int                @default(0) // sequential per organization, assigned at registration
-  exportRequests      ExportRequest[]    @relation("ExportRequester")
-  exportDecisions     ExportRequest[]    @relation("ExportDecider")
-  nextExpSeq          Int                @default(1) // this user's next experiment number — never reused, no ceiling
-  role                Role               @default(TECHNICIAN)
+  pendingApproval       Boolean                  @default(false)
+  userNumber            Int                      @default(0) // sequential per organization, assigned at registration
+  exportRequests        ExportRequest[]          @relation("ExportRequester")
+  exportDecisions       ExportRequest[]          @relation("ExportDecider")
+  nextExpSeq            Int                      @default(1) // this user's next experiment number — never reused, no ceiling
+  role                  Role                     @default(TECHNICIAN)
   // Presence: refreshed (throttled) whenever a signed-in request arrives, so
   // the admin activity monitor can show who is online.
-  lastSeenAt          DateTime?
+  lastSeenAt            DateTime?
   // NFC badge (NTAG213 sticker on the work ID): tap-to-sign-in on shared
   // tablets. The UID is read from the chip; the secret is a random token the
   // bind flow writes onto the card, stored here only as a hash. Both must
   // match at login, and only on a registered shared device.
-  badgeUid            String?            @unique // canonical lowercase hex, no separators
-  badgeSecretHash     String             @default("") // sha256 of the on-card token; "" = UID-only badge
-  badgeBoundAt        DateTime?
+  badgeUid              String?                  @unique // canonical lowercase hex, no separators
+  badgeSecretHash       String                   @default("") // sha256 of the on-card token; "" = UID-only badge
+  badgeBoundAt          DateTime?
   // Stewardships: who is responsible for each part of the lab's library.
-  materialAdmin       Boolean            @default(false) // materials library (purchasing/stock owner)
-  equipmentAdmin      Boolean            @default(false) // equipment & machine parameters
-  facilityAdmin       Boolean            @default(false) // locations & lab environments
-  recipeAccess        Boolean            @default(false) // may view/edit recipe contents
-  createdAt           DateTime           @default(now())
-  experiments         Experiment[]
-  memberships         ExperimentMember[]
-  presets             Preset[]
-  runs                Run[]
-  feedback            Feedback[]
-  reviewedFeedback    Feedback[]         @relation("FeedbackReviewer")
-  recipes             Recipe[]
-  assignedExperiments Experiment[]       @relation("ExperimentAssignee")
-  approvedExperiments Experiment[]       @relation("ExperimentApprover")
-  ingestReviews       IngestItem[]
-  ownedMeasurements   JvMeasurement[]    @relation("MeasurementOwner")
-  sharedDeviceLogins  SharedDevice[]     @relation("SharedDeviceUser")
-  accessRequests      AccessRequest[]    @relation("AccessRequester")
-  notifications       Notification[]     @relation("NotificationRecipient")
+  materialAdmin         Boolean                  @default(false) // materials library (purchasing/stock owner)
+  equipmentAdmin        Boolean                  @default(false) // equipment & machine parameters
+  facilityAdmin         Boolean                  @default(false) // locations & lab environments
+  recipeAccess          Boolean                  @default(false) // may view/edit recipe contents
+  recipeSteward         Boolean                  @default(false)
+  createdAt             DateTime                 @default(now())
+  experiments           Experiment[]
+  memberships           ExperimentMember[]
+  presets               Preset[]
+  runs                  Run[]
+  feedback              Feedback[]
+  reviewedFeedback      Feedback[]               @relation("FeedbackReviewer")
+  recipes               Recipe[]
+  assignedExperiments   Experiment[]             @relation("ExperimentAssignee")
+  approvedExperiments   Experiment[]             @relation("ExperimentApprover")
+  ingestReviews         IngestItem[]
+  ownedMeasurements     JvMeasurement[]          @relation("MeasurementOwner")
+  sharedDeviceLogins    SharedDevice[]           @relation("SharedDeviceUser")
+  accessRequests        AccessRequest[]          @relation("AccessRequester")
+  notifications         Notification[]           @relation("NotificationRecipient")
+  materialEdits         MaterialEditSuggestion[] @relation("MaterialEditAuthor")
+  reviewedMaterialEdits MaterialEditSuggestion[] @relation("MaterialEditReviewer")
 }
 
 // A registered shared lab tablet. The browser carries a signed cookie naming
@@ -270,6 +280,9 @@ model Experiment {
   // Test runs live alongside real work but are excluded from every real view
   // and can be cleared in one action. Chosen when the experiment is created.
   isTest            Boolean            @default(false)
+  // Pinned as an org-wide template: anyone may start a new experiment from a
+  // copy of its plan, even without read access to the original. Staff-set.
+  templatePinnedAt  DateTime?
   observation       String             @default("")
   problem           String             @default("")
   hypothesis        String             @default("")
@@ -295,9 +308,9 @@ model Experiment {
   jvMeasurements    JvMeasurement[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  accessRequests    AccessRequest[]
 
   @@unique([organizationId, shortCode])
-  accessRequests   AccessRequest[]
 }
 
 // Users involved in an experiment. Managers/admins grant access by adding
@@ -512,27 +525,47 @@ model LabEnvironment {
 // Materials are categorized under a process: under PVD you only see PVD
 // materials, not inks that belong to spin coating.
 model Material {
-  id              String              @id @default(cuid())
+  id              String                   @id @default(cuid())
   organizationId  String
-  organization    Organization        @relation(fields: [organizationId], references: [id])
+  organization    Organization             @relation(fields: [organizationId], references: [id])
   processId       String?
-  process         Process?            @relation(fields: [processId], references: [id])
+  process         Process?                 @relation(fields: [processId], references: [id])
   name            String
   // Wiki card: managed by material administrators only.
-  category        String              @default("OTHER") // SAM | PRECURSOR | EVAPORATION | SPUTTER | ALD | SOLVENT | OTHER
-  composition     String              @default("") // molecular/structural formula
-  smiles          String              @default("") // SMILES — renders the 2D structure for organics
-  casNumber       String              @default("")
-  molecularWeight String              @default("") // g/mol
-  purity          String              @default("")
-  supplier        String              @default("") // vendor
-  lot             String              @default("") // batch number
+  category        String                   @default("OTHER") // SAM | PRECURSOR | EVAPORATION | SPUTTER | ALD | SOLVENT | OTHER
+  composition     String                   @default("") // molecular/structural formula
+  smiles          String                   @default("") // SMILES — renders the 2D structure for organics
+  casNumber       String                   @default("")
+  molecularWeight String                   @default("") // g/mol
+  purity          String                   @default("")
+  supplier        String                   @default("") // vendor
+  lot             String                   @default("") // batch number
   properties      Json? // characteristics: HOMO/LUMO, band gap, bp, density, storage…
-  notes           String              @default("")
-  archived        Boolean             @default(false)
-  createdAt       DateTime            @default(now())
+  notes           String                   @default("")
+  archived        Boolean                  @default(false)
+  createdAt       DateTime                 @default(now())
   stepMaterials   StepMaterial[]
   executions      ExecutionMaterial[]
+  editSuggestions MaterialEditSuggestion[]
+}
+
+model MaterialEditSuggestion {
+  id             String              @id @default(cuid())
+  organizationId String
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  materialId     String
+  material       Material            @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User                @relation("MaterialEditAuthor", fields: [createdById], references: [id])
+  reviewedById   String?
+  reviewedBy     User?               @relation("MaterialEditReviewer", fields: [reviewedById], references: [id])
+  status         LibraryReviewStatus @default(PENDING)
+  baseSnapshot   Json
+  changes        Json
+  createdAt      DateTime            @default(now())
+  reviewedAt     DateTime?
+
+  @@index([organizationId, status, createdAt])
 }
 
 // Material categories are org-defined: the lab adds, renames and reorders
@@ -570,19 +603,20 @@ model DeviceLayer {
 }
 
 // Proprietary perovskite recipes: everyone can pick them by name for
-// planning; contents (payload) are visible/editable only with recipeAccess.
+// planning; creation, approved-content access and stewardship are separate.
 model Recipe {
-  id             String        @id @default(cuid())
+  id             String              @id @default(cuid())
   organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organization   Organization        @relation(fields: [organizationId], references: [id])
   name           String
-  summary        String        @default("") // public one-liner (e.g. "1.68 eV wide-gap triple-cation")
+  summary        String              @default("")
   payload        Json? // secret contents: components, solvents, concentration, notes
   createdById    String?
-  createdBy      User?         @relation(fields: [createdById], references: [id])
-  archived       Boolean       @default(false)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdBy      User?               @relation(fields: [createdById], references: [id])
+  archived       Boolean             @default(false)
+  approvalStatus LibraryReviewStatus @default(APPROVED)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   steps          ProcessStep[]
 }
 

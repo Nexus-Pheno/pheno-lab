@@ -90,6 +90,22 @@ new organizations can be added later without schema changes.
   Production sets `BACKUP_MODE=external`; backup and restore jobs run on the
   independent PostgreSQL server, while `/system` reports that external mode
   instead of writing database dumps to the application CVM.
+- Batch 2: templates/start-from-previous copy plans into new drafts without copying runs.
+  Everyone can create materials and recipes; material edits by non-stewards require
+  approval. Recipe creation by non-stewards is pending; creators and stewards can
+  read contents, while `recipeAccess` reads approved contents only. Only
+  `recipeSteward` holders (or admins) edit/approve/archive recipes. Intake and
+  designer paths enforce the same boundaries. Initial manager grants require
+  approved setup; the migration does not silently grant them.
+- DingTalk: optional post-commit notices cover access requests, assignments,
+  pending registrations, material suggestions and recipe submissions. Both a
+  webhook and the approved organization's exact slug are required. Notices omit
+  identities and research details; the morning digest includes aggregate counts
+  and the highest valid light-scan PCE from the previous Beijing day.
+  `scripts/send-morning-digest.ts` is ready for an approved 08:30 scheduler;
+  scheduling and production enablement have not been performed by this buildout.
+  Configuration, at-most-once digest attempts and rollback caveats are documented
+  in [`deploy/README.md`](deploy/README.md).
 - Ubuntu/systemd deployment, immutable releases, health checks, and rollback are
   documented in [`deploy/README.md`](deploy/README.md). The longer-term modular
   monolith and COS plan lives in [`../docs/architecture-refactor.md`](../docs/architecture-refactor.md).

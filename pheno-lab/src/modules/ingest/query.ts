@@ -3,12 +3,17 @@ import "server-only";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertStaff } from "@/modules/authorization/policy";
+import { hasStewardship } from "@/modules/stewardship/service";
 
 export async function getIngestReviewData(actor: Actor) {
   assertStaff(actor);
+  const formulaSteward = await hasStewardship(actor, "recipeSteward");
   const [items, processes, categories, materials] = await Promise.all([
     db.ingestItem.findMany({
-      where: { organizationId: actor.org },
+      where: {
+        organizationId: actor.org,
+        ...(formulaSteward ? {} : { kind: { not: "FORMULA" } }),
+      },
       orderBy: [{ createdAt: "desc" }],
       select: {
         id: true,

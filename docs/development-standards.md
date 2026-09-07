@@ -88,6 +88,7 @@ revalidate。它不应复制权限、组织 scope、事务或领域状态转换�
 - `src/infrastructure/storage/**`：Local/COS storage adapter、key 和 credential provider。
 - `src/infrastructure/crypto/**`：凭据加密。
 - `src/infrastructure/mail/**`：SMTP adapter。
+- `src/infrastructure/push/**`：可选 DingTalk 群机器人 adapter；通知模块按显式组织 slug 路由，业务事件只在事务成功提交后外发，不在 `notify()` 内执行 HTTP。群通知只发固定提示，摘要只发允许的统计字段；没有生产凭据的测试不得触发真实群消息。
 - `src/infrastructure/logging/**`：结构化日志。
 
 基础设施实现不应在 Client Component 中出现；业务调用 adapter/interface，不直接散落 SDK 调用。

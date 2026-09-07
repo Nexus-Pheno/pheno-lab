@@ -13,7 +13,7 @@ export const experimentInclude = {
       environment: true,
       materials: { orderBy: { position: "asc" }, include: { material: true } },
       parameters: { orderBy: { position: "asc" }, include: { variations: true } },
-      recipe: { select: { id: true, name: true, summary: true } },
+      recipe: { select: { id: true, name: true } },
     },
   },
   characterizations: {

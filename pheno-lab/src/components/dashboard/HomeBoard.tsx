@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentStatus } from "@prisma/client";
-import { updateExperimentMeta, createExperiment, duplicateExperiment, deleteExperiment } from "@/lib/actions/experiments";
+import { updateExperimentMeta, createExperiment, createExperimentFrom, duplicateExperiment, deleteExperiment, setTemplatePin } from "@/lib/actions/experiments";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon } from "@/components/ui";
 import { usePointerDrag } from "@/lib/usePointerDrag";
@@ -12,6 +12,7 @@ import { usePointerDrag } from "@/lib/usePointerDrag";
 export type ExpRow = {
   openable: boolean;
   editable: boolean;
+  isTemplate: boolean;
   id: string;
   code: string;
   title: string;
@@ -52,6 +53,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [newMode, setNewMode] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [confirmingCopy, setConfirmingCopy] = useState<string | null>(null);
   // Per-row rights come from the server; creation is open to everyone now.
@@ -137,9 +139,31 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
     router.refresh();
   };
 
-  // Shared row actions: capture, duplicate, delete-with-local-confirm.
+  const togglePin = async (id: string, pinned: boolean) => {
+    setExperiments((es) =>
+      es.map((e) => (e.id === id ? { ...e, isTemplate: pinned } : e)),
+    );
+    await setTemplatePin(id, pinned);
+    router.refresh();
+  };
+
+  // Shared row actions: pin-as-template (staff), capture, duplicate,
+  // delete-with-local-confirm.
   const RowActions = ({ e }: { e: ExpRow }) => (
     <span className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+      {staff && (
+        <button
+          onClick={() => togglePin(e.id, !e.isTemplate)}
+          disabled={busy}
+          title={t(e.isTemplate ? "dash.unpinTpl" : "dash.pinTpl")}
+          className={
+            "p-1 rounded-[3px] hover:bg-subtle disabled:opacity-40 " +
+            (e.isTemplate ? "text-brand-deep" : "text-muted/60 hover:text-ink")
+          }
+        >
+          <Icon name="Pin" size={13} />
+        </button>
+      )}
       {e.status === "IN_LAB" && (
         <Link href={`/experiments/${e.id}/capture`} title={t("dash.capture")}
           className="p-1 rounded-[3px] text-brand-deep hover:bg-brand-soft">
@@ -203,6 +227,11 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
       <Link href={`/experiments/${e.id}`} className="block">
         <div className="flex items-center gap-2 mb-1">
           <span className="mono text-[11px] font-bold text-brand-deep">{e.code}</span>
+          {e.isTemplate && (
+            <span className="text-[9px] font-bold px-1 py-px rounded-[3px] bg-brand-soft border border-brand/40 text-brand-deep">
+              {t("dash.tplChip")}
+            </span>
+          )}
           {!e.openable && (
             <Icon name="Lock" size={11} className="text-muted" />
           )}
@@ -297,6 +326,14 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                         {t("dash.newTest")}
                       </button>
                     )}
+                    <button
+                      disabled={busy}
+                      onClick={() => { setNewMode(false); setPickerOpen(true); }}
+                      className="h-7 px-2.5 border border-line bg-surface text-charcoal rounded-[4px] text-[11.5px] font-bold flex items-center gap-1"
+                    >
+                      <Icon name="Copy" size={12} />
+                      {t("dash.fromTpl")}
+                    </button>
                     <button onClick={() => setNewMode(false)} className="p-1 text-muted">
                       <Icon name="X" size={13} />
                     </button>
@@ -310,6 +347,67 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                     <Icon name="Plus" size={14} />
                     {t("dash.new")}
                   </button>
+                )}
+                {pickerOpen && (
+                  <div
+                    className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+                    onClick={() => setPickerOpen(false)}
+                  >
+                    <div
+                      className="w-full max-w-md max-h-[80vh] overflow-y-auto bg-surface border border-line rounded-[8px] p-4"
+                      onClick={(ev) => ev.stopPropagation()}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <p className="text-sm font-bold text-charcoal">{t("dash.fromTpl")}</p>
+                        <button onClick={() => setPickerOpen(false)} className="ml-auto p-1 text-muted">
+                          <Icon name="X" size={14} />
+                        </button>
+                      </div>
+                      {(() => {
+                        const templates = experiments.filter((e) => e.isTemplate);
+                        const recent = experiments
+                          .filter((e) => e.editable && !e.isTemplate)
+                          .slice(0, 8);
+                        const SourceRow = ({ e }: { e: ExpRow }) => (
+                          <button
+                            disabled={busy}
+                            onClick={async () => { setBusy(true); await createExperimentFrom(e.id); }}
+                            className="w-full text-left border border-line rounded-[6px] p-2.5 hover:border-brand hover:bg-brand-soft/30 disabled:opacity-50"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="mono text-[11px] font-bold text-brand-deep">{e.code}</span>
+                              <span className="ml-auto mono text-[10px] text-muted">
+                                {e.samples} {t("designer.samples")} · {e.steps} {t("list.steps").toLowerCase()}
+                              </span>
+                            </div>
+                            <div className="text-[12.5px] font-medium leading-snug">{e.title}</div>
+                          </button>
+                        );
+                        return templates.length === 0 && recent.length === 0 ? (
+                          <p className="text-[12px] text-muted py-6 text-center">{t("dash.tplEmpty")}</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {templates.length > 0 && (
+                              <div>
+                                <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">{t("dash.tplSection")}</p>
+                                <div className="space-y-1.5">
+                                  {templates.map((e) => <SourceRow key={e.id} e={e} />)}
+                                </div>
+                              </div>
+                            )}
+                            {recent.length > 0 && (
+                              <div>
+                                <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">{t("dash.recentSection")}</p>
+                                <div className="space-y-1.5">
+                                  {recent.map((e) => <SourceRow key={e.id} e={e} />)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 )}
               </>
             )}

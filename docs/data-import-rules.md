@@ -53,6 +53,13 @@ backup 是不同权限域；是否新增 archive/backup bucket 必须由 Louis �
 不得为了快而降级到 raw SQL、`createMany({ skipDuplicates: true })`、直接 COS 控制台上传或
 `pg_restore` 覆盖生产库。越过业务入口必须有明确理由、映射方案和额外验收。
 
+Batch 2 的 library 审批规则同样适用于 quality gate：新材料仍可由现有审核角色发布，但 UPDATE
+已有材料需要 `materialAdmin`。FORMULA 队列的读取、对比、修改及审核需要 `recipeSteward`
+（ADMIN 保留管理权限）；`recipeAccess` 只授予已批准配方的内容读取，不能代替发布/编辑权限。
+批量发布和重复记录 REPLACE 不得绕过这些条件。初始负责人授权是经批准的单独操作，不由
+importer、migration 或 seed 自动补齐。普通用户新建配方走应用的 PENDING 审批流程，不将其
+伪装为已审核导入来直接写 APPROVED。本次规则更新不授权重新导入既有 archive 或修改生产数据。
+
 ## 3. 生产导入的绝对前置门槛
 
 以下任一项未完成时，只能盘点、开发 importer 和在隔离环境演练，不能 `--apply` 到生产：

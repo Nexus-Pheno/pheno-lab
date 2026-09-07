@@ -5,6 +5,7 @@ import { db } from "@/infrastructure/db/client";
 import { assertExperimentPermission } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { notify } from "@/modules/notifications/service";
+import { sendGroupNotice } from "@/modules/notifications/group-service";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertStaff } from "@/modules/authorization/policy";
 import {
@@ -26,6 +27,7 @@ async function loadForWorkflow(actor: Actor, id: string) {
       organizationId: true,
       createdById: true,
       status: true,
+      isTest: true,
       assigneeId: true,
       members: { select: { userId: true } },
     },
@@ -89,6 +91,13 @@ export async function assignExperiment(actor: Actor, raw: unknown) {
       changes: { assigneeId: userId },
     });
   });
+  if (
+    !exp.isTest &&
+    userId &&
+    userId !== actor.uid &&
+    userId !== exp.assigneeId
+  )
+    await sendGroupNotice(actor.org, "assigned");
 }
 
 /** Manager/admin: release to the lab. Requires an assignee. */

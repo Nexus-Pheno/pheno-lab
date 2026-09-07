@@ -2,7 +2,11 @@ import { Prisma } from "@prisma/client";
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
-import { duplicateExperiment } from "@/modules/experiments/service";
+import {
+  duplicateExperiment,
+  setTemplatePin,
+  setExperimentTestMode,
+} from "@/modules/experiments/service";
 import { publishIngestItem } from "@/modules/ingest/service";
 import { getDatabaseSummary } from "@/modules/insights/query";
 import { createEquipment } from "@/modules/library/service";
@@ -63,6 +67,7 @@ describe("domain service integrity", () => {
         createEquipment(orgA.actor, {
           processId: foreignProcess.id,
           name: "Cross-org equipment",
+          nickname: "",
           make: "",
           model: "",
           assetTag: "",
@@ -174,13 +179,16 @@ describe("domain service integrity", () => {
           title: "Source plan",
           createdById: fixture.user.id,
           samples: {
-            create: [{ code: "S1", instrumentCodes: ["E999-S1"] }],
+            create: [
+              { code: "S1", note: "edge chip", instrumentCodes: ["E999-S1"] },
+            ],
           },
           steps: {
             create: {
               position: 0,
               processId: process.id,
               name: "Spin",
+              layer: "PVK",
               parameters: {
                 create: {
                   position: 0,
@@ -215,9 +223,11 @@ describe("domain service integrity", () => {
       });
       expect(copy.code).not.toBe(source.code);
       expect(copy.steps).toHaveLength(1);
+      expect(copy.steps[0].layer).toBe("PVK");
       expect(copy.steps[0].parameters).toHaveLength(1);
       expect(copy.characterizations).toHaveLength(1);
       expect(copy.runs).toHaveLength(0);
+      expect(copy.samples[0].note).toBe("edge chip");
       expect(copy.samples[0].instrumentCodes[0]).toMatch(/^E\d+-S1$/);
       expect(copy.samples[0].instrumentCodes).not.toContain("E999-S1");
       expect(
@@ -234,19 +244,80 @@ describe("domain service integrity", () => {
     }
   });
 
+  it("lets anyone copy a pinned template but not an unshared experiment", async () => {
+    const fixture = await organizationWithAdmin("template-gate");
+    try {
+      const outsider = await db.user.create({
+        data: {
+          organizationId: fixture.organization.id,
+          email: `template-gate-tech-${crypto.randomUUID()}@example.test`,
+          name: "Gate Tech",
+          passwordHash: "test-only",
+          role: "TECHNICIAN",
+        },
+      });
+      const technician: Actor = {
+        uid: outsider.id,
+        org: fixture.organization.id,
+        role: "TECHNICIAN",
+      };
+      const source = await db.experiment.create({
+        data: {
+          organizationId: fixture.organization.id,
+          code: `TPL-${crypto.randomUUID()}`,
+          title: "Baseline NIP",
+          createdById: fixture.user.id,
+        },
+      });
+
+      // Not involved, not pinned: the plan stays private.
+      await expect(
+        duplicateExperiment(technician, source.id),
+      ).rejects.toThrow();
+
+      await setTemplatePin(fixture.actor, source.id, true);
+      const copied = await duplicateExperiment(technician, source.id);
+      const copy = await db.experiment.findUniqueOrThrow({
+        where: { id: copied.id },
+      });
+      expect(copy.createdById).toBe(outsider.id);
+      // The copy is the technician's own experiment, not a second template.
+      expect(copy.templatePinnedAt).toBeNull();
+      expect(copy.title).toBe("Baseline NIP");
+
+      // Pinning itself is staff-only.
+      await expect(
+        setTemplatePin(technician, source.id, false),
+      ).rejects.toThrow();
+      await setExperimentTestMode(fixture.actor, source.id, true);
+      expect(
+        (await db.experiment.findUniqueOrThrow({ where: { id: source.id } }))
+          .templatePinnedAt,
+      ).toBeNull();
+      await expect(
+        setTemplatePin(fixture.actor, source.id, true),
+      ).rejects.toThrow();
+      await expect(
+        duplicateExperiment(technician, source.id),
+      ).rejects.toThrow();
+    } finally {
+      await removeOrganization(fixture.organization.id);
+    }
+  });
+
   it("computes experiment aggregates from the actor's visibility scope", async () => {
     const suffix = crypto.randomUUID();
     const organization = await db.organization.create({
       data: { name: "Summary Org", slug: `summary-${suffix}` },
     });
-    const [manager, otherManager] = await Promise.all([
+    const [technician, otherManager] = await Promise.all([
       db.user.create({
         data: {
           organizationId: organization.id,
-          email: `summary-manager-${suffix}@example.test`,
-          name: "Visible Manager",
+          email: `summary-tech-${suffix}@example.test`,
+          name: "Visible Tech",
           passwordHash: "test-only",
-          role: "MANAGER",
+          role: "TECHNICIAN",
         },
       }),
       db.user.create({
@@ -266,7 +337,7 @@ describe("domain service integrity", () => {
             organizationId: organization.id,
             code: `VISIBLE-${suffix}`,
             title: "Visible experiment",
-            createdById: manager.id,
+            createdById: technician.id,
             samples: { create: [{ code: "S1" }] },
           },
         }),
@@ -290,14 +361,26 @@ describe("domain service integrity", () => {
         }),
       ]);
 
+      // A technician's numbers cover only what they are involved in…
       const summary = await getDatabaseSummary({
-        uid: manager.id,
+        uid: technician.id,
         org: organization.id,
-        role: "MANAGER",
+        role: "TECHNICIAN",
       });
       expect(summary.experiments).toBe(1);
       expect(summary.samples).toBe(1);
       expect(summary.testExperiments).toBe(0);
+
+      // …while staff aggregates span the whole organization (2026-09-07
+      // permissions revamp: managers see everything).
+      const staffSummary = await getDatabaseSummary({
+        uid: otherManager.id,
+        org: organization.id,
+        role: "MANAGER",
+      });
+      expect(staffSummary.experiments).toBe(2);
+      expect(staffSummary.samples).toBe(3);
+      expect(staffSummary.testExperiments).toBe(1);
     } finally {
       await removeOrganization(organization.id);
     }

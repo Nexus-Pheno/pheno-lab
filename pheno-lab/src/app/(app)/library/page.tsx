@@ -9,6 +9,7 @@ import {
 } from "@/components/library/MaterialsRecipes";
 import { PresetsSection } from "@/components/library/PresetsSection";
 import { getLibraryPageData } from "@/modules/library/query";
+import { MaterialReviews } from "@/components/library/MaterialReviews";
 
 export default async function LibraryPage() {
   const session = await requireSession();
@@ -29,8 +30,8 @@ export default async function LibraryPage() {
           canManage={data.materialAdmin}
         />
 
-        {/* Recipe contents never leave the server without recipeAccess. */}
-        <RecipesSection canView={data.recipeAccess} recipes={data.recipes} />
+        <MaterialReviews rows={data.materialEdits} canManage={data.materialAdmin} />
+        <RecipesSection canManage={data.stewardships.recipeSteward} recipes={data.recipes} />
 
         <ProcessLibrary
           processes={data.processes}

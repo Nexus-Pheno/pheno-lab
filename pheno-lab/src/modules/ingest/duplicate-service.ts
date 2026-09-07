@@ -6,6 +6,7 @@ import { assertStaff } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { findDuplicates } from "./duplicate-query";
 import { publishIngestItem } from "./publish-service";
+import { assertIngestItemStewardship } from "./queue-service";
 import {
   duplicateActionSchema,
   ingestIdSchema,
@@ -185,6 +186,7 @@ export async function markIngestDuplicate(
   const id = ingestIdSchema.parse(rawId);
   const reviewNote = ingestReviewNoteSchema.parse(rawNote);
   const targetId = rawTargetId ? ingestIdSchema.parse(rawTargetId) : undefined;
+  await assertIngestItemStewardship(actor, id);
   await db.$transaction(async (tx) => {
     const result = await tx.ingestItem.updateMany({
       where: { id, organizationId: actor.org, status: "PENDING" },
@@ -210,6 +212,7 @@ export async function markIngestDuplicate(
 export async function deleteIngestItem(actor: Actor, rawId: unknown) {
   assertReviewer(actor);
   const id = ingestIdSchema.parse(rawId);
+  await assertIngestItemStewardship(actor, id);
   await db.$transaction(async (tx) => {
     const result = await tx.ingestItem.deleteMany({
       where: { id, organizationId: actor.org },

@@ -263,14 +263,16 @@ describe("instrument measurement visibility against PostgreSQL", () => {
       expect(forManager.has(orphan.id)).toBe(true);
       expect(forManager.has(ownedByTech.id)).toBe(false);
 
-      // A manager who is not on the experiment must not read its results —
-      // this is the leak that existed when the page filtered on org alone.
+      // A manager off the experiment still reads its results — the 2026-09-07
+      // permissions revamp gave staff org-wide experiment visibility. Scans
+      // handed to a technician stay off every manager's pile, though.
       const forOtherManager = await visibleTo({
         uid: otherManager.id,
         role: "MANAGER",
       });
-      expect(forOtherManager.has(attached.id)).toBe(false);
+      expect(forOtherManager.has(attached.id)).toBe(true);
       expect(forOtherManager.has(orphan.id)).toBe(true);
+      expect(forOtherManager.has(ownedByTech.id)).toBe(false);
 
       // The member technician: their experiment and their own handed-over scan,
       // but never the shared orphan queue.

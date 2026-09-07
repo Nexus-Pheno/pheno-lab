@@ -5,6 +5,8 @@ import type { RecipePayload } from "@/lib/materials-meta";
 import type { Actor } from "@/modules/authorization/actor";
 import { isStaff } from "@/modules/authorization/policy";
 import { getStewardships, hasStewardship } from "@/modules/stewardship/service";
+import { canReadRecipeContents } from "./recipe-policy";
+import { listMaterialEdits } from "./review-service";
 
 export async function getLibraryPageData(actor: Actor) {
   const where = { organizationId: actor.org };
@@ -79,7 +81,10 @@ export async function getLibraryPageData(actor: Actor) {
       name: true,
       summary: true,
       archived: true,
-      ...(recipeAccess ? { payload: true } : {}),
+      organizationId: true,
+      createdById: true,
+      approvalStatus: true,
+      payload: true,
     },
   });
   return {
@@ -92,18 +97,22 @@ export async function getLibraryPageData(actor: Actor) {
     categories,
     materialAdmin,
     recipeAccess,
+    materialEdits: await listMaterialEdits(actor),
     stewardships,
     layers,
     canEdit: isStaff(actor),
     recipes: recipes.map((recipe) => ({
       id: recipe.id,
       name: recipe.name,
-      summary: recipe.summary,
+      summary: canReadRecipeContents(actor, recipe, stewardships)
+        ? recipe.summary
+        : "",
       archived: recipe.archived,
-      payload:
-        recipeAccess && "payload" in recipe
-          ? ((recipe.payload as RecipePayload | null) ?? null)
-          : null,
+      approvalStatus: recipe.approvalStatus,
+      canRead: canReadRecipeContents(actor, recipe, stewardships),
+      payload: canReadRecipeContents(actor, recipe, stewardships)
+        ? ((recipe.payload as RecipePayload | null) ?? null)
+        : null,
     })),
   };
 }

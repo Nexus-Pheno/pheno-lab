@@ -4,6 +4,7 @@ import { db } from "@/infrastructure/db/client";
 import type { RecipeComponent } from "@/lib/materials-meta";
 import { nameKey, sameName } from "@/lib/name-match";
 import type { Actor } from "@/modules/authorization/actor";
+import { assertStewardship } from "@/modules/stewardship/service";
 import {
   ingestIdSchema,
   ingestKindSchema,
@@ -79,6 +80,7 @@ export async function findDuplicates(
   rawSelfId?: unknown,
 ): Promise<DuplicateCandidate[]> {
   const kind = ingestKindSchema.parse(rawKind);
+  if (kind === "FORMULA") await assertStewardship(actor, "recipeSteward");
   const payload = ingestPayloadSchema.parse(rawPayload);
   const selfId = rawSelfId ? ingestIdSchema.parse(rawSelfId) : undefined;
   const org = actor.org;

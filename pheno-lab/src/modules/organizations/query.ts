@@ -32,6 +32,7 @@ export async function getOrganizationAdminData(actor: Actor) {
         equipmentAdmin: true,
         facilityAdmin: true,
         recipeAccess: true,
+        recipeSteward: true,
       },
     }),
     db.otpCode.findMany({

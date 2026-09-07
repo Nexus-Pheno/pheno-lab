@@ -7,6 +7,10 @@ import type { Actor } from "@/modules/authorization/actor";
 import { assertStaff } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
 import {
+  assertStewardship,
+  hasStewardship,
+} from "@/modules/stewardship/service";
+import {
   ingestIdSchema,
   ingestPayloadSchema,
   ingestReviewNoteSchema,
@@ -57,7 +61,7 @@ export type MaterialDraft = {
 /** A perovskite ink/solution formula, published into the Recipe library. */
 export type FormulaDraft = {
   name: string;
-  summary: string; // public one-liner; contents stay behind recipe access
+  summary: string;
   composition: string; // ABX3 stoichiometry
   bandGap: string; // eV
   components: RecipeComponent[];
@@ -133,8 +137,12 @@ function assertReviewer(actor: Actor): void {
 }
 
 export async function listIngestItems(actor: Actor) {
+  const formulaSteward = await hasStewardship(actor, "recipeSteward");
   return db.ingestItem.findMany({
-    where: { organizationId: actor.org },
+    where: {
+      organizationId: actor.org,
+      ...(formulaSteward ? {} : { kind: { not: "FORMULA" } }),
+    },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: { reviewedBy: { select: { name: true } } },
   });
@@ -189,9 +197,18 @@ export async function getIngestPayload(
   const id = ingestIdSchema.parse(rawId);
   const item = await db.ingestItem.findFirst({
     where: { id, organizationId: actor.org },
-    select: { payload: true },
+    select: { kind: true, payload: true },
   });
+  if (item?.kind === "FORMULA") await assertStewardship(actor, "recipeSteward");
   return (item?.payload ?? {}) as Record<string, unknown>;
+}
+
+export async function assertIngestItemStewardship(actor: Actor, id: string) {
+  const item = await db.ingestItem.findFirstOrThrow({
+    where: { id, organizationId: actor.org },
+    select: { kind: true },
+  });
+  if (item.kind === "FORMULA") await assertStewardship(actor, "recipeSteward");
 }
 
 /** Save reviewer edits without publishing. */
@@ -205,6 +222,7 @@ export async function updateIngestPayload(
   const id = ingestIdSchema.parse(rawId);
   const payload = ingestPayloadSchema.parse(rawPayload);
   const reviewNote = ingestReviewNoteSchema.parse(rawNote);
+  await assertIngestItemStewardship(actor, id);
   await db.$transaction(async (tx) => {
     const result = await tx.ingestItem.updateMany({
       where: { id, organizationId: actor.org, status: "PENDING" },
@@ -228,6 +246,7 @@ export async function rejectIngestItem(
   assertReviewer(actor);
   const id = ingestIdSchema.parse(rawId);
   const reviewNote = ingestReviewNoteSchema.parse(rawNote);
+  await assertIngestItemStewardship(actor, id);
   await db.$transaction(async (tx) => {
     const result = await tx.ingestItem.updateMany({
       where: { id, organizationId: actor.org, status: "PENDING" },

@@ -134,11 +134,22 @@ export const recipeSaveSchema = z.object({
   }),
 });
 
+export const materialEditSchema = z.object({
+  materialId: idSchema,
+  changes: materialCardSchema,
+});
+
+export const libraryReviewSchema = z.object({
+  id: idSchema,
+  decision: z.enum(["APPROVED", "REJECTED"]),
+});
+
 export const permissionSchema = z.enum([
   "materialAdmin",
   "equipmentAdmin",
   "facilityAdmin",
   "recipeAccess",
+  "recipeSteward",
 ]);
 
 export const categoryCreateSchema = z.object({

@@ -20,6 +20,7 @@ export type OrgUserRow = {
   equipmentAdmin: boolean;
   facilityAdmin: boolean;
   recipeAccess: boolean;
+  recipeSteward: boolean;
 };
 
 type PendingRow = { email: string; code: string; expiresAt: string };
@@ -35,12 +36,13 @@ export type ApprovalRow = {
 
 export type LegacyOptionRow = { id: string; name: string; experiments: number };
 
-// The three stewardships an organization assigns, plus recipe access.
+// The four stewardships an organization assigns, plus recipe access.
 const STEWARDSHIPS = [
   { key: "materialAdmin", label: "org.stewMaterials", hint: "org.stewMaterialsHint", icon: "FlaskConical" },
   { key: "equipmentAdmin", label: "org.stewEquipment", hint: "org.stewEquipmentHint", icon: "Wrench" },
   { key: "facilityAdmin", label: "org.stewFacilities", hint: "org.stewFacilitiesHint", icon: "Building2" },
   { key: "recipeAccess", label: "org.stewRecipes", hint: "org.stewRecipesHint", icon: "BookLock" },
+  { key: "recipeSteward", label: "org.recipeSteward", hint: "org.recipeStewardHint", icon: "BookOpen" },
 ] as const;
 
 type StewardKey = (typeof STEWARDSHIPS)[number]["key"];
