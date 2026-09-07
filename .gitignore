@@ -33,3 +33,4 @@ coverage/
 
 # compiled Go binary left in the module directory (build output is never committed)
 pheno-bridge/pheno-bridge
+/*.html

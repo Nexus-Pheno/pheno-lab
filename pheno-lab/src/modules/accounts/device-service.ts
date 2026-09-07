@@ -62,18 +62,19 @@ export async function listDevices(actor: Actor): Promise<SharedDeviceRow[]> {
   return rows.map(toRow);
 }
 
-export async function createDevice(
-  actor: Actor,
-  rawLabel: unknown,
-): Promise<SharedDeviceRow> {
+/**
+ * Mint a registration link. The admin does not name the tablet — the
+ * technician who opens the link on the device names it on the spot, so the
+ * label reflects where the tablet actually ended up.
+ */
+export async function createDevice(actor: Actor): Promise<SharedDeviceRow> {
   assertAdmin(actor);
-  const label = deviceLabelSchema.parse(rawLabel);
   const setupToken = randomBytes(24).toString("base64url");
   return db.$transaction(async (tx) => {
     const device = await tx.sharedDevice.create({
       data: {
         organizationId: actor.org,
-        label,
+        label: "",
         setupToken,
         createdById: actor.uid,
       },
@@ -84,7 +85,7 @@ export async function createDevice(
       action: "device.created",
       entityType: "SharedDevice",
       entityId: device.id,
-      changes: { label },
+      changes: {},
     });
     return toRow(device);
   });
@@ -132,30 +133,34 @@ export async function peekSetupToken(
 
 /**
  * Consume a setup token — called by the confirm action on the tablet itself,
- * with no session. Returns the device to pin into the browser cookie.
+ * with no session. The technician holding the device names it here (e.g.
+ * "3号平板 · A2-202 蒸镀区"), and that name is what the admin's master list
+ * shows. Returns the device to pin into the browser cookie.
  */
 export async function claimDevice(
   rawToken: unknown,
+  rawLabel: unknown,
 ): Promise<{ id: string; label: string; organizationId: string } | null> {
   const token = setupTokenSchema.parse(rawToken);
+  const label = deviceLabelSchema.parse(rawLabel);
   return db.$transaction(async (tx) => {
     const device = await tx.sharedDevice.findFirst({
       where: { setupToken: token, revokedAt: null },
-      select: { id: true, label: true, organizationId: true },
+      select: { id: true, organizationId: true },
     });
     if (!device) return null;
     await tx.sharedDevice.update({
       where: { id: device.id },
-      data: { setupToken: null },
+      data: { setupToken: null, label },
     });
     await recordSystemAudit(tx, {
       organizationId: device.organizationId,
       action: "device.claimed",
       entityType: "SharedDevice",
       entityId: device.id,
-      metadata: { label: device.label },
+      metadata: { label },
     });
-    return device;
+    return { ...device, label };
   });
 }
 

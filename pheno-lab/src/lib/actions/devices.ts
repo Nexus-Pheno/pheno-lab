@@ -12,8 +12,8 @@ import {
 
 export type { SharedDeviceRow };
 
-export async function createDevice(label: string): Promise<SharedDeviceRow> {
-  const row = await createDeviceService(await requireSession(), label);
+export async function createDevice(): Promise<SharedDeviceRow> {
+  const row = await createDeviceService(await requireSession());
   revalidatePath("/kiosk");
   return row;
 }
@@ -23,9 +23,9 @@ export async function revokeDevice(id: string): Promise<void> {
   revalidatePath("/kiosk");
 }
 
-/** Runs ON the tablet, sessionless: consume the token, pin the cookie. */
-export async function claimDevice(token: string): Promise<void> {
-  const device = await claimDeviceService(token);
+/** Runs ON the tablet, sessionless: name it, consume the token, pin the cookie. */
+export async function claimDevice(token: string, label: string): Promise<void> {
+  const device = await claimDeviceService(token, label);
   if (!device) redirect("/login?claim=invalid");
   await setDeviceCookie(device.id);
   redirect("/login?claim=ok");
