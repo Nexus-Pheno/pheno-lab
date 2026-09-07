@@ -1,5 +1,7 @@
 import { requireSession } from "@/lib/auth";
+import { getLang } from "@/lib/i18n/server";
 import { loadDataPage } from "@/modules/data/query";
+import { AiAnalysis } from "@/components/data/AiAnalysis";
 import { DataTable } from "@/components/data/DataTable";
 import { DatabaseSummaryBar } from "@/components/dashboard/DatabaseSummary";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
@@ -22,21 +24,23 @@ export default async function DataPage({
   const page = Math.max(1, Number(pageParam) || 1);
   const query = (q ?? "").slice(0, 120);
 
-  const [data, summary] = await Promise.all([
+  const [data, summary, lang] = await Promise.all([
     loadDataPage(experimentVisibilityScope(session), {
       page,
       perPage: PER_PAGE,
       q: query,
     }),
     getDatabaseSummary(session),
+    getLang(),
   ]);
 
   // The layout gives this route a fixed-height slot, so the summary sits in
   // its own band and the table takes the remaining space and scrolls inside.
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="shrink-0 px-5 pt-3">
+      <div className="shrink-0 px-5 pt-3 space-y-2">
         <DatabaseSummaryBar summary={summary} />
+        <AiAnalysis lang={lang} />
       </div>
       <div className="flex-1 min-h-0">
         <DataTable
