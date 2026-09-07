@@ -1133,6 +1133,9 @@ export const en = {
   "nfc.loginFailed":
     "Badge not recognized. Bind it on your profile page first, or sign in with your password.",
   "nfc.loginRetry": "Try again",
+  "users.editIdentity": "Edit name and email",
+  "users.cancel": "Cancel",
+  "login.switchUser": "Not you?",
   "jvr.unlinked": "{n} instrument scan(s) not linked to any sample",
   "jvr.hint":
     "A mistyped sample ID on the instrument leaves its scan unlinked. Pick the sample each scan belongs to and link it — the values fill in immediately.",
@@ -2198,6 +2201,9 @@ export const zh: Record<TKey, string> = {
   "nfc.loginChecking": "正在验证工牌…",
   "nfc.loginFailed": "未识别的工牌。请先在个人资料页绑定，或使用密码登录。",
   "nfc.loginRetry": "重试",
+  "users.editIdentity": "编辑姓名和邮箱",
+  "users.cancel": "取消",
+  "login.switchUser": "不是你？",
   "jvr.unlinked": "{n} 条仪器扫描未链接到样品",
   "jvr.hint":
     "在仪器上输错样品编号会导致扫描无法自动链接。为每条扫描选择所属样品并链接，数值会立即填入。",

@@ -47,6 +47,12 @@ export const feedbackReviewSchema = z
   })
   .refine((v) => Object.keys(v).length > 1, "No changes supplied.");
 
+// Admin normalizes a teammate's identity (English names, the szpheno domain).
+export const userIdentitySchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: emailSchema,
+});
+
 export const profileSchema = z.object({
   name: z.string().trim().min(1).max(200),
   handle: z.string().trim().max(100),
