@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { setUserRole, setUserActive, setEmailDomains, createUserAccount, updateUserIdentity } from "@/lib/actions/registration";
+import { setUserRole, setUserActive, setEmailDomains, createUserAccount, updateUserIdentity, approveRegistration, rejectRegistration } from "@/lib/actions/registration";
 import { setUserPermission } from "@/lib/actions/materials";
 import { renameOwnOrganization } from "@/lib/actions/orgs";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -24,6 +24,17 @@ export type OrgUserRow = {
 
 type PendingRow = { email: string; code: string; expiresAt: string };
 
+export type ApprovalRow = {
+  id: string;
+  name: string;
+  handle: string;
+  email: string;
+  createdAt: string;
+  suggestedLegacyId: string | null;
+};
+
+export type LegacyOptionRow = { id: string; name: string; experiments: number };
+
 // The three stewardships an organization assigns, plus recipe access.
 const STEWARDSHIPS = [
   { key: "materialAdmin", label: "org.stewMaterials", hint: "org.stewMaterialsHint", icon: "FlaskConical" },
@@ -35,6 +46,8 @@ const STEWARDSHIPS = [
 type StewardKey = (typeof STEWARDSHIPS)[number]["key"];
 
 export function OrgManage({
+  approvals,
+  legacyOptions,
   sessionUid,
   orgName,
   orgNumber,
@@ -42,6 +55,8 @@ export function OrgManage({
   domains: initialDomains,
   pending,
 }: {
+  approvals: ApprovalRow[];
+  legacyOptions: LegacyOptionRow[];
   sessionUid: string;
   orgName: string;
   orgNumber: number;
@@ -168,6 +183,27 @@ export function OrgManage({
           })}
         </div>
       </section>
+
+      {/* Registrations waiting for the admin's go-ahead */}
+      {approvals.length > 0 && (
+        <section className="bg-surface border-2 border-warn/40 rounded-[6px] p-4">
+          <h2 className="text-[13px] font-bold flex items-center gap-1.5 mb-1">
+            <Icon name="UserCheck" size={14} className="text-warn" /> {t("appr.title")}
+            <span className="text-[11px] font-bold text-warn">({approvals.length})</span>
+          </h2>
+          <p className="text-[11px] text-muted mb-3">{t("appr.hint")}</p>
+          <div className="space-y-3">
+            {approvals.map((a) => (
+              <ApprovalCard
+                key={a.id}
+                approval={a}
+                legacyOptions={legacyOptions}
+                onDone={() => router.refresh()}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* People & permissions matrix */}
       <section className="bg-surface border border-line rounded-[6px] overflow-x-auto">
@@ -323,6 +359,98 @@ export function OrgManage({
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+// One pending self-registration: the admin fixes the name/handle/email
+// styling here (English names, the szpheno.com domain) and may claim a
+// legacy imported dataset in the same approval.
+function ApprovalCard({
+  approval,
+  legacyOptions,
+  onDone,
+}: {
+  approval: ApprovalRow;
+  legacyOptions: LegacyOptionRow[];
+  onDone: () => void;
+}) {
+  const t = useT();
+  const [name, setName] = useState(approval.name);
+  const [handle, setHandle] = useState(approval.handle);
+  const [email, setEmail] = useState(approval.email);
+  const [legacyUserId, setLegacyUserId] = useState(approval.suggestedLegacyId ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  return (
+    <div className="border border-line rounded-[5px] p-3">
+      <p className="text-[11px] text-muted mb-2">
+        {t("appr.registered")} <span className="mono">{approval.email}</span> · {approval.createdAt}
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+        <div>
+          <FieldLabel>{t("users.name")}</FieldLabel>
+          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <FieldLabel>{t("appr.handle")}</FieldLabel>
+          <input className={inputCls} value={handle} placeholder="@joey" onChange={(e) => setHandle(e.target.value)} />
+        </div>
+        <div>
+          <FieldLabel>{t("users.email")}</FieldLabel>
+          <input type="email" className={inputCls + " mono"} value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+      </div>
+      <div className="mb-2.5">
+        <FieldLabel>{t("appr.legacy")}</FieldLabel>
+        <p className="text-[10.5px] text-muted mb-1">{t("appr.legacyHint")}</p>
+        <select
+          className="h-9 w-full sm:w-auto border border-line rounded-[4px] px-2 text-[12.5px] bg-surface"
+          value={legacyUserId}
+          onChange={(e) => setLegacyUserId(e.target.value)}
+        >
+          <option value="">{t("appr.noLegacy")}</option>
+          {legacyOptions.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name} · {t("appr.expCount", { n: String(l.experiments) })}
+              {l.id === approval.suggestedLegacyId ? ` (${t("appr.suggested")})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="text-[12px] text-danger mb-2">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          disabled={busy || !name.trim() || !email.includes("@")}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            const res = await approveRegistration({ userId: approval.id, name, handle, email, legacyUserId });
+            setBusy(false);
+            if (!res.ok) {
+              setError(t(res.error === "exists" ? "users.emailTaken" : "users.badInput"));
+              return;
+            }
+            onDone();
+          }}
+          className="h-9 px-4 bg-brand text-[#243000] rounded-[4px] text-[12.5px] font-bold disabled:opacity-50"
+        >
+          {t("appr.approve")}
+        </button>
+        <button
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            await rejectRegistration(approval.id);
+            setBusy(false);
+            onDone();
+          }}
+          className="h-9 px-3 text-[12px] font-semibold text-danger border border-danger/40 rounded-[4px] disabled:opacity-50"
+        >
+          {t("appr.reject")}
+        </button>
+      </div>
     </div>
   );
 }

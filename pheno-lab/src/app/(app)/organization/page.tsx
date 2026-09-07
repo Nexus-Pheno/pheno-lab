@@ -5,6 +5,7 @@ import { getT } from "@/lib/i18n/server";
 import { OrgManage, type OrgUserRow } from "@/components/org/OrgManage";
 import { Icon } from "@/components/ui";
 import { getOrganizationAdminData } from "@/modules/organizations/query";
+import { listRegistrationApprovals } from "@/modules/accounts/registration-service";
 
 // Each organization's admin manages their own org here: settings, the
 // people in it, their roles, and who is responsible for materials,
@@ -15,11 +16,11 @@ export default async function OrganizationPage() {
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
 
-  const {
-    organization: org,
-    users,
-    pending,
-  } = await getOrganizationAdminData(session);
+  const [{ organization: org, users, pending }, { approvals, legacyOptions }] =
+    await Promise.all([
+      getOrganizationAdminData(session),
+      listRegistrationApprovals(session),
+    ]);
 
   const rows: OrgUserRow[] = users.map((u) => ({
     ...u,
@@ -45,6 +46,8 @@ export default async function OrganizationPage() {
         </div>
 
         <OrgManage
+          approvals={approvals}
+          legacyOptions={legacyOptions}
           sessionUid={session.uid}
           orgName={org.name}
           orgNumber={org.orgNumber}

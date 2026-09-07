@@ -16,6 +16,7 @@ import {
   emailSchema,
   registrationSchema,
   roleSchema,
+  registrationApprovalSchema,
   userIdentitySchema,
 } from "@/modules/accounts/schema";
 import { entityIdSchema } from "@/modules/runs/schema";
@@ -142,30 +143,21 @@ export async function verifyRegistration(data: {
     });
     const isFirstUser = max._max.userNumber === null;
     const registeredName = clean.name || email.split("@")[0];
-    const legacy = await claimableLegacyUser(
-      tx,
-      otp.organizationId,
-      registeredName,
-    );
-    const user = legacy
-      ? // Claim the imported placeholder: its userNumber and every
-        // experiment it owns carry over untouched.
-        await tx.user.update({
-          where: { id: legacy.id },
-          data: { email, name: registeredName, passwordHash, active: true },
-        })
-      : await tx.user.create({
-          data: {
-            organizationId: otp.organizationId,
-            email,
-            name: registeredName,
-            passwordHash,
-            userNumber: (max._max.userNumber ?? 0) + 1,
-            // First member of an organization becomes its designated admin;
-            // everyone after starts as technician and is promoted by the admin.
-            role: isFirstUser ? "ADMIN" : "TECHNICIAN",
-          },
-        });
+    // Registrations wait for the admin, who fixes the name/email styling and
+    // may claim a legacy dataset during approval (Michael, 2026-09-07). The
+    // organization's very first member self-approves — there is no admin yet.
+    const user = await tx.user.create({
+      data: {
+        organizationId: otp.organizationId,
+        email,
+        name: registeredName,
+        passwordHash,
+        userNumber: (max._max.userNumber ?? 0) + 1,
+        role: isFirstUser ? "ADMIN" : "TECHNICIAN",
+        active: isFirstUser,
+        pendingApproval: !isFirstUser,
+      },
+    });
     await tx.auditEvent.create({
       data: {
         organizationId: otp.organizationId,
@@ -173,17 +165,198 @@ export async function verifyRegistration(data: {
         action: "user.register",
         entityType: "User",
         entityId: user.id,
-        metadata: legacy
-          ? {
-              role: user.role,
-              claimedLegacyUser: legacy.id,
-              legacyName: legacy.name,
-            }
-          : { role: user.role },
+        metadata: { role: user.role, pendingApproval: user.pendingApproval },
       },
     });
   });
   return { ok: true };
+}
+
+// ---- Admin: registration approval ----
+
+export type RegistrationApproval = {
+  id: string;
+  name: string;
+  handle: string;
+  email: string;
+  createdAt: string;
+  /** nameKey-matched placeholder, preselected in the approval form. */
+  suggestedLegacyId: string | null;
+};
+
+export type LegacyOption = {
+  id: string;
+  name: string;
+  experiments: number;
+};
+
+/** Pending self-registrations plus the claimable legacy datasets. */
+export async function listRegistrationApprovals(actor: Actor): Promise<{
+  approvals: RegistrationApproval[];
+  legacyOptions: LegacyOption[];
+}> {
+  assertAdmin(actor);
+  const [pendingUsers, placeholders] = await Promise.all([
+    db.user.findMany({
+      where: { organizationId: actor.org, pendingApproval: true },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        handle: true,
+        email: true,
+        createdAt: true,
+      },
+    }),
+    db.user.findMany({
+      where: {
+        organizationId: actor.org,
+        active: false,
+        pendingApproval: false,
+        passwordHash: "",
+        email: { contains: "@imported." },
+      },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        _count: { select: { experiments: true } },
+      },
+    }),
+  ]);
+  const legacyOptions = placeholders.map((p) => ({
+    id: p.id,
+    name: p.name,
+    experiments: p._count.experiments,
+  }));
+  return {
+    approvals: pendingUsers.map((u) => ({
+      id: u.id,
+      name: u.name,
+      handle: u.handle,
+      email: u.email,
+      createdAt: u.createdAt.toISOString().slice(0, 16).replace("T", " "),
+      suggestedLegacyId:
+        placeholders.find((p) => nameKey(p.name) === nameKey(u.name))?.id ??
+        null,
+    })),
+    legacyOptions,
+  };
+}
+
+/**
+ * Approve a registration, with the admin's corrections applied. When a legacy
+ * placeholder is selected, the approval CLAIMS it — the newcomer's credentials
+ * move into the placeholder row (so its userNumber and every imported
+ * experiment become theirs untouched) and the empty pending row is deleted.
+ * A pending user has never signed in, so that row owns nothing.
+ */
+export async function approveRegistration(
+  actor: Actor,
+  raw: unknown,
+): Promise<void> {
+  assertAdmin(actor);
+  const { userId, name, handle, email, legacyUserId } =
+    registrationApprovalSchema.parse(raw);
+  await db.$transaction(async (tx) => {
+    const pending = await tx.user.findFirst({
+      where: { id: userId, organizationId: actor.org, pendingApproval: true },
+      select: { id: true, email: true, passwordHash: true, language: true },
+    });
+    if (!pending) throw new Error("No such pending registration.");
+
+    if (legacyUserId) {
+      const legacy = await tx.user.findFirst({
+        where: {
+          id: legacyUserId,
+          organizationId: actor.org,
+          active: false,
+          pendingApproval: false,
+          passwordHash: "",
+          email: { contains: "@imported." },
+        },
+        select: { id: true, name: true },
+      });
+      if (!legacy) throw new Error("That legacy dataset is not claimable.");
+      // Delete first so the email can move without a unique-index collision.
+      await tx.user.delete({ where: { id: pending.id } });
+      if (email !== pending.email) {
+        const taken = await tx.user.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+        if (taken) throw new Error("exists");
+      }
+      await tx.user.update({
+        where: { id: legacy.id },
+        data: {
+          email,
+          name,
+          handle,
+          passwordHash: pending.passwordHash,
+          language: pending.language,
+          active: true,
+        },
+      });
+      await recordUserAudit(tx, {
+        actor,
+        action: "user.registration.approved",
+        entityType: "User",
+        entityId: legacy.id,
+        changes: {
+          name,
+          email,
+          claimedLegacyUser: legacy.id,
+          legacyName: legacy.name,
+          replacedPendingUser: pending.id,
+        },
+      });
+      return;
+    }
+
+    if (email !== pending.email) {
+      const taken = await tx.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (taken) throw new Error("exists");
+    }
+    await tx.user.update({
+      where: { id: pending.id },
+      data: { name, handle, email, active: true, pendingApproval: false },
+    });
+    await recordUserAudit(tx, {
+      actor,
+      action: "user.registration.approved",
+      entityType: "User",
+      entityId: pending.id,
+      changes: { name, email },
+    });
+  });
+}
+
+/** Reject (delete) a pending registration — the person can register again. */
+export async function rejectRegistration(
+  actor: Actor,
+  userId: string,
+): Promise<void> {
+  assertAdmin(actor);
+  const id = entityIdSchema.parse(userId);
+  await db.$transaction(async (tx) => {
+    const pending = await tx.user.findFirst({
+      where: { id, organizationId: actor.org, pendingApproval: true },
+      select: { id: true, email: true },
+    });
+    if (!pending) throw new Error("No such pending registration.");
+    await tx.user.delete({ where: { id: pending.id } });
+    await recordUserAudit(tx, {
+      actor,
+      action: "user.registration.rejected",
+      entityType: "User",
+      entityId: pending.id,
+      changes: { email: pending.email },
+    });
+  });
 }
 
 // ---- Admin: user management ----

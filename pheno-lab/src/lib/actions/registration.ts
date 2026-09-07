@@ -9,6 +9,8 @@ import {
   setUserActive as setUserActiveService,
   setUserRole as setUserRoleService,
   updateUserIdentity as updateUserIdentityService,
+  approveRegistration as approveRegistrationService,
+  rejectRegistration as rejectRegistrationService,
   verifyRegistration as verifyRegistrationService,
 } from "@/modules/accounts/registration-service";
 
@@ -39,6 +41,25 @@ export async function setUserRole(
   role: "ADMIN" | "MANAGER" | "TECHNICIAN",
 ) {
   await setUserRoleService(await requireSession(), userId, role);
+}
+
+export async function approveRegistration(data: {
+  userId: string;
+  name: string;
+  handle: string;
+  email: string;
+  legacyUserId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await approveRegistrationService(await requireSession(), data);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function rejectRegistration(userId: string): Promise<void> {
+  await rejectRegistrationService(await requireSession(), userId);
 }
 
 export async function updateUserIdentity(
