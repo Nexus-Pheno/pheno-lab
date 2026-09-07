@@ -66,7 +66,10 @@ export async function rematchMeasurements(opts: {
         : {}),
     },
     select: { id: true, serial: true, operator: true, assignedToId: true },
-    orderBy: { createdAt: "asc" },
+    // Newest first: with ~900 permanently-unmatched legacy scans in the
+    // queue, oldest-first starved fresh scans out of the batch entirely —
+    // the scheduled sweep would retry the same dead tail forever.
+    orderBy: { createdAt: "desc" },
     take: limit,
   });
 
