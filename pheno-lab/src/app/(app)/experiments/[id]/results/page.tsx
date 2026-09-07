@@ -6,6 +6,10 @@ import type { TestPlan } from "@/lib/library";
 import { isScientificSample, resultGroupLabels } from "@/lib/results";
 import { Icon } from "@/components/ui";
 import { SmartBack } from "@/components/SmartBack";
+import {
+  GroupBoxPlots,
+  type MetricPlot,
+} from "@/components/results/GroupBoxPlots";
 import { getResultsExperiment } from "@/modules/experiments/query";
 
 // Results comparison: measured metrics side by side across variation groups,
@@ -179,11 +183,33 @@ export default async function ResultsPage({
             (c.results.find((r) => r.sampleId === sampleId)?.metrics ??
               {}) as Record<string, string>;
 
+          // Box-plot data: per metric, each group's numeric values with the
+          // sample they came from.
+          const plots: MetricPlot[] = metricNames.map((m) => ({
+            metric: m,
+            groups: groups.map((g) => ({
+              label: g,
+              values: exp.samples
+                .filter(
+                  (s) =>
+                    s.variationGroup === g && scientificSampleIds.has(s.id),
+                )
+                .map((s) => ({
+                  value: parseFloat(resultFor(s.id)[m] ?? ""),
+                  code: s.code,
+                }))
+                .filter((v) => !isNaN(v.value)),
+            })),
+          }));
+
           return (
-            <section
-              key={c.id}
-              className="bg-surface border border-line rounded-[6px] p-3.5 overflow-x-auto"
-            >
+            <div key={c.id} className="space-y-5">
+              <GroupBoxPlots
+                plots={plots}
+                title={`${tt(c.name)} · ${t("res.dist")}`}
+                hint={t("res.distHint")}
+              />
+              <section className="bg-surface border border-line rounded-[6px] p-3.5 overflow-x-auto">
               <h2 className="text-[12.5px] font-bold flex items-center gap-1.5 mb-2">
                 <Icon
                   name={c.process.icon}
@@ -288,7 +314,8 @@ export default async function ResultsPage({
                   })}
                 </tbody>
               </table>
-            </section>
+              </section>
+            </div>
           );
         })}
       </div>

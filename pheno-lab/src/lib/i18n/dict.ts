@@ -912,6 +912,8 @@ export const en = {
     "No results captured yet — record them in the capture portal.",
   "res.variables": "Tested variables",
   "res.samples": "Samples",
+  "res.dist": "Distributions by group",
+  "res.distHint": "box = middle half · line = median · △ = mean · dots = samples",
   "res.open": "View results",
   "res.run": "Run",
   "rep.title": "Report",
@@ -1065,6 +1067,14 @@ export const en = {
   "jv.alias": "Also answers to",
   "jv.aliasAdd": "add another serial",
   "jv.aliasSaved": "Serial added",
+  "jvr.unlinked": "{n} instrument scan(s) not linked to any sample",
+  "jvr.hint":
+    "A mistyped sample ID on the instrument leaves its scan unlinked. Pick the sample each scan belongs to and link it — the values fill in immediately.",
+  "jvr.pick": "Sample…",
+  "jvr.suggested": "suggested",
+  "jvr.link": "Link",
+  "jvr.linked": "Linked — values filled in.",
+  "jvr.others": "Scans that look like other experiments",
 } as const;
 
 export type TKey = keyof typeof en;
@@ -1916,6 +1926,8 @@ export const zh: Record<TKey, string> = {
   "res.noResults": "暂无测量结果——请在采集页面录入。",
   "res.variables": "被测变量",
   "res.samples": "样品",
+  "res.dist": "分组分布图",
+  "res.distHint": "箱体 = 中间50% · 横线 = 中位数 · △ = 均值 · 圆点 = 各样品",
   "res.open": "查看结果",
   "res.run": "批次",
   "rep.title": "报告",
@@ -2062,6 +2074,14 @@ export const zh: Record<TKey, string> = {
   "jv.alias": "同时匹配",
   "jv.aliasAdd": "添加其他编号",
   "jv.aliasSaved": "编号已添加",
+  "jvr.unlinked": "{n} 条仪器扫描未链接到样品",
+  "jvr.hint":
+    "在仪器上输错样品编号会导致扫描无法自动链接。为每条扫描选择所属样品并链接，数值会立即填入。",
+  "jvr.pick": "选择样品…",
+  "jvr.suggested": "建议",
+  "jvr.link": "链接",
+  "jvr.linked": "已链接，数值已填入。",
+  "jvr.others": "疑似属于其他实验的扫描",
 };
 
 export type Lang = "en" | "zh";

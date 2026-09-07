@@ -19,6 +19,7 @@ import { SubstrateBoard } from "@/components/designer/SubstrateBoard";
 import type { TKey } from "@/lib/i18n/dict";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
+import { JvRescue } from "./JvRescue";
 
 type Execution = {
   stepId: string;
@@ -467,6 +468,7 @@ export function CaptureView({
                   charId={c.id}
                   name={c.name}
                   icon={c.process.icon}
+                  experimentId={exp.id}
                   expCode={exp.code}
                   samples={exp.samples}
                   runId={runId}
@@ -1397,6 +1399,7 @@ function PerSampleCharCapture({
   charId,
   name,
   icon,
+  experimentId,
   expCode,
   samples,
   runId,
@@ -1406,6 +1409,7 @@ function PerSampleCharCapture({
   charId: string;
   name: string;
   icon: string;
+  experimentId: string;
   expCode: string;
   samples: SampleRow[];
   runId: string;
@@ -1488,6 +1492,26 @@ function PerSampleCharCapture({
         <span className="mono text-[10.5px] text-muted shrink-0">{doneCount}/{samples.length}</span>
       </div>
       <p className="text-[10px] text-muted mb-2">{t("cap.perSampleHint")}</p>
+
+      {/* Unlinked instrument scans — the repair path for mistyped serials. */}
+      {/j-?v|solar/i.test(name) && (
+        <JvRescue
+          experimentId={experimentId}
+          expCode={expCode}
+          samples={samples}
+          onLinked={(sampleId, linkedMetrics) => {
+            onSaved({
+              characterizationId: charId,
+              sampleId,
+              metrics: linkedMetrics,
+              note: "",
+              source: "INSTRUMENT",
+            });
+            if (sampleId === activeSampleId)
+              setMetrics(Object.entries(linkedMetrics));
+          }}
+        />
+      )}
 
       {/* Sample selector — segmented group pills, wrapping (no side-scroll):
           active sample is dark, measured samples are green with a check */}

@@ -3,7 +3,10 @@ import "server-only";
 import { db as prisma } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import { requireExperimentPermission } from "@/modules/authorization/service";
-import { normalizeSerial } from "@/lib/instruments/normalize";
+import {
+  canonicalSerialKey,
+  normalizeSerial,
+} from "@/lib/instruments/normalize";
 import type { JvMetrics } from "@/lib/instruments/types";
 
 export { normalizeSerial } from "@/lib/instruments/normalize";
@@ -49,34 +52,31 @@ async function matchByInstrumentCode(
     parts.slice(0, parts.length - i).join("-"),
   );
 
+  const SAMPLE_SELECT = {
+    id: true,
+    code: true,
+    instrumentCodes: true,
+    experimentId: true,
+    experiment: {
+      select: {
+        code: true,
+        runs: {
+          where: { status: { not: "CANCELLED" } },
+          select: { id: true },
+          orderBy: { runNo: "desc" },
+          take: 1,
+        },
+      },
+    },
+  } as const;
+
   const samples = await prisma.sample.findMany({
     where: {
       instrumentCodes: { hasSome: candidates },
       experiment: { organizationId },
     },
-    select: {
-      id: true,
-      code: true,
-      instrumentCodes: true,
-      experimentId: true,
-      experiment: {
-        select: {
-          code: true,
-          runs: {
-            where: { status: { not: "CANCELLED" } },
-            select: { id: true },
-            orderBy: { runNo: "desc" },
-            take: 1,
-          },
-        },
-      },
-    },
+    select: SAMPLE_SELECT,
   });
-  if (!samples.length) {
-    return unmatched(
-      `"${serial}" is not an experiment code (e.g. 2026-001-1-4-S1) and no sample answers to it.`,
-    );
-  }
 
   for (const candidate of candidates) {
     const hits = samples.filter((s) => s.instrumentCodes.includes(candidate));
@@ -100,6 +100,51 @@ async function matchByInstrumentCode(
         `Matched on serial "${candidate}"` +
         (pixel ? ` · pixel ${pixel} — recorded at sample level.` : "."),
     };
+  }
+
+  // Zero-insensitive rescue: "26A010" typed for sample 26A10. Postgres cannot
+  // compare canonical forms, so every serial in the lab is pulled and compared
+  // in code — acceptable because only still-unexplained serials reach this
+  // point, and only an unambiguous canonical hit may claim the scan.
+  const all = await prisma.sample.findMany({
+    where: {
+      experiment: { organizationId },
+      NOT: { instrumentCodes: { isEmpty: true } },
+    },
+    select: SAMPLE_SELECT,
+  });
+  for (const candidate of candidates) {
+    const canon = canonicalSerialKey(candidate);
+    if (!canon) continue;
+    const hits = all.filter((s) =>
+      s.instrumentCodes.some((code) => canonicalSerialKey(code) === canon),
+    );
+    if (!hits.length) continue;
+    if (hits.length > 1) {
+      const where = hits
+        .map((h) => `${h.experiment.code}-${h.code}`)
+        .join(", ");
+      return unmatched(
+        `"${serial}" could mean more than one sample once extra zeros are ignored (${where}); attach it by hand.`,
+      );
+    }
+    const hit = hits[0];
+    const pixel = key.slice(candidate.length).replace(/^-/, "");
+    return {
+      status: "MATCHED",
+      experimentId: hit.experimentId,
+      sampleId: hit.id,
+      runId: hit.experiment.runs[0]?.id ?? null,
+      matchNote:
+        `Matched "${candidate}" to sample serial ${hit.instrumentCodes[0] ?? hit.code} (extra zeros ignored)` +
+        (pixel ? ` · pixel ${pixel} — recorded at sample level.` : "."),
+    };
+  }
+
+  if (!samples.length) {
+    return unmatched(
+      `"${serial}" is not an experiment code (e.g. 2026-001-1-4-S1) and no sample answers to it.`,
+    );
   }
   return unmatched(
     `"${serial}" does not match any sample's instrument serial.`,
@@ -159,9 +204,18 @@ export async function matchSerial(
   }
 
   const [sampleCode, ...pixelParts] = rest.split("-");
-  const sample = experiment.samples.find(
+  let sample = experiment.samples.find(
     (s) => s.code.toUpperCase() === sampleCode,
   );
+  if (!sample) {
+    // "S010" typed for S10 — extra zeros are ignored when that leaves exactly
+    // one sample it could mean.
+    const canon = canonicalSerialKey(sampleCode);
+    const near = experiment.samples.filter(
+      (s) => canonicalSerialKey(s.code) === canon,
+    );
+    if (near.length === 1) sample = near[0];
+  }
   if (!sample) {
     const known = experiment.samples.map((s) => s.code).join(", ") || "none";
     return unmatched(
