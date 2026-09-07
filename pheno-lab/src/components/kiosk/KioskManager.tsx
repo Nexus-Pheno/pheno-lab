@@ -21,7 +21,6 @@ const ago = (iso: string | null, none: string): string => {
 export function KioskManager({ devices }: { devices: SharedDeviceRow[] }) {
   const t = useT();
   const [rows, setRows] = useState(devices);
-  const [label, setLabel] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -30,10 +29,13 @@ export function KioskManager({ devices }: { devices: SharedDeviceRow[] }) {
 
   const add = () =>
     start(async () => {
-      if (!label.trim()) return;
-      const row = await createDevice(label.trim());
+      const row = await createDevice();
       setRows((r) => [...r, row]);
-      setLabel("");
+      // The freshly minted link goes straight to the clipboard — the admin's
+      // whole job is handing it to a technician.
+      void navigator.clipboard.writeText(claimUrl(row.setupToken!));
+      setCopied(row.id);
+      setTimeout(() => setCopied(null), 2000);
     });
 
   const toggle = (id: string) =>
@@ -56,26 +58,18 @@ export function KioskManager({ devices }: { devices: SharedDeviceRow[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Register a new tablet */}
+      {/* Mint a registration link — the technician names the tablet on site. */}
       <div className="bg-surface border border-line rounded-[6px] p-4">
-        <h2 className="text-[13px] font-bold mb-2">{t("kiosk.add")}</h2>
-        <div className="flex gap-2">
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && add()}
-            placeholder={t("kiosk.labelPh")}
-            className="h-9 flex-1 border border-line rounded-[4px] px-2.5 text-[13px]"
-          />
+        <div className="flex items-center gap-3">
           <button
             onClick={add}
-            disabled={pending || !label.trim()}
-            className="h-9 px-3.5 bg-ink text-white rounded-[4px] text-[12.5px] font-semibold disabled:opacity-50"
+            disabled={pending}
+            className="h-9 px-3.5 bg-ink text-white rounded-[4px] text-[12.5px] font-semibold disabled:opacity-50 flex items-center gap-1.5"
           >
-            {t("kiosk.create")}
+            <Icon name="Plus" size={13} /> {t("kiosk.create")}
           </button>
+          <p className="text-[11px] text-muted flex-1">{t("kiosk.addHint")}</p>
         </div>
-        <p className="text-[11px] text-muted mt-2">{t("kiosk.addHint")}</p>
       </div>
 
       {/* Fleet */}
@@ -97,7 +91,7 @@ export function KioskManager({ devices }: { devices: SharedDeviceRow[] }) {
                   (d.revoked ? "text-muted line-through" : "text-ink")
                 }
               >
-                {d.label}
+                {d.label || t("kiosk.pendingName")}
               </div>
               <div className="text-[11px] text-muted">
                 {d.revoked
