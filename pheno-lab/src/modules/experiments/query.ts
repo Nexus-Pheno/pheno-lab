@@ -4,6 +4,7 @@ import { db } from "@/infrastructure/db/client";
 import { buildCaptureChoiceCatalog } from "@/lib/capture-fields";
 import { experimentInclude } from "@/lib/types";
 import type { Actor } from "@/modules/authorization/actor";
+import { canReadExperiment } from "@/modules/authorization/policy";
 import {
   experimentListScope,
   experimentVisibilityScope,
@@ -334,4 +335,53 @@ export async function getExperimentCode(actor: Actor, rawId: unknown) {
     where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
     select: { code: true },
   });
+}
+
+/** Everything the printable label sheet needs — nothing more. */
+export async function getLabelSheetData(actor: Actor, rawId: unknown) {
+  const id = experimentIdSchema.parse(rawId);
+  return db.experiment.findFirst({
+    where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
+    select: {
+      id: true,
+      code: true,
+      shortCode: true,
+      title: true,
+      samples: {
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, simCode: true, variationGroup: true },
+      },
+    },
+  });
+}
+
+/**
+ * Where a scanned label QR should land. Null when the sample does not exist
+ * in the actor's organization; `canRead: false` sends the scanner to the
+ * experiment page, which renders the request-access peek.
+ */
+export async function resolveSampleScan(
+  actor: Actor,
+  rawSampleId: unknown,
+): Promise<{ experimentId: string; canRead: boolean } | null> {
+  const sampleId = experimentIdSchema.parse(rawSampleId);
+  const sample = await db.sample.findFirst({
+    where: { id: sampleId, experiment: { organizationId: actor.org } },
+    select: {
+      experiment: {
+        select: {
+          id: true,
+          organizationId: true,
+          createdById: true,
+          assigneeId: true,
+          members: { select: { userId: true } },
+        },
+      },
+    },
+  });
+  if (!sample) return null;
+  return {
+    experimentId: sample.experiment.id,
+    canRead: canReadExperiment(actor, sample.experiment),
+  };
 }

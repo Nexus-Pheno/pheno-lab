@@ -5,6 +5,7 @@ import { setViewMode } from "@/lib/actions/view";
 import { getT } from "@/lib/i18n/server";
 import { Icon } from "@/components/ui";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { ScanButton } from "@/components/capture/ScanButton";
 import { listPortalExperiments } from "@/modules/experiments/query";
 
 // The mobile input portal: a touch-first landing that goes straight to data
@@ -51,6 +52,7 @@ export default async function PortalPage() {
         </div>
 
         <InstallAppButton />
+        <ScanButton variant="tile" />
 
         {inLab.length === 0 ? (
           <p className="text-center text-muted text-[13px] py-12 px-6">
