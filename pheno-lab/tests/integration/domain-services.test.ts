@@ -66,6 +66,7 @@ describe("domain service integrity", () => {
         createEquipment(orgA.actor, {
           processId: foreignProcess.id,
           name: "Cross-org equipment",
+          nickname: "",
           make: "",
           model: "",
           assetTag: "",
@@ -297,14 +298,14 @@ describe("domain service integrity", () => {
     const organization = await db.organization.create({
       data: { name: "Summary Org", slug: `summary-${suffix}` },
     });
-    const [manager, otherManager] = await Promise.all([
+    const [technician, otherManager] = await Promise.all([
       db.user.create({
         data: {
           organizationId: organization.id,
-          email: `summary-manager-${suffix}@example.test`,
-          name: "Visible Manager",
+          email: `summary-tech-${suffix}@example.test`,
+          name: "Visible Tech",
           passwordHash: "test-only",
-          role: "MANAGER",
+          role: "TECHNICIAN",
         },
       }),
       db.user.create({
@@ -324,7 +325,7 @@ describe("domain service integrity", () => {
             organizationId: organization.id,
             code: `VISIBLE-${suffix}`,
             title: "Visible experiment",
-            createdById: manager.id,
+            createdById: technician.id,
             samples: { create: [{ code: "S1" }] },
           },
         }),
@@ -348,14 +349,26 @@ describe("domain service integrity", () => {
         }),
       ]);
 
+      // A technician's numbers cover only what they are involved in…
       const summary = await getDatabaseSummary({
-        uid: manager.id,
+        uid: technician.id,
         org: organization.id,
-        role: "MANAGER",
+        role: "TECHNICIAN",
       });
       expect(summary.experiments).toBe(1);
       expect(summary.samples).toBe(1);
       expect(summary.testExperiments).toBe(0);
+
+      // …while staff aggregates span the whole organization (2026-09-07
+      // permissions revamp: managers see everything).
+      const staffSummary = await getDatabaseSummary({
+        uid: otherManager.id,
+        org: organization.id,
+        role: "MANAGER",
+      });
+      expect(staffSummary.experiments).toBe(2);
+      expect(staffSummary.samples).toBe(3);
+      expect(staffSummary.testExperiments).toBe(1);
     } finally {
       await removeOrganization(organization.id);
     }

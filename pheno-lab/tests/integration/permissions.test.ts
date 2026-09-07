@@ -121,20 +121,29 @@ describe("cross-organization writes", () => {
 });
 
 describe("manager scope inside one organization", () => {
-  it("limits managers to experiments they created or belong to", async () => {
+  it("lets any manager edit while uninvolved technicians stay out", async () => {
+    // 2026-09-07 permissions revamp: managers manage every experiment in the
+    // lab; a technician's write access still hinges on involvement.
     const organization = await createOrganization("manager-scope");
     try {
       const creator = await createUser(organization.id, "MANAGER", "creator");
       const member = await createUser(organization.id, "MANAGER", "member");
       const outsider = await createUser(organization.id, "MANAGER", "outsider");
+      const outsiderTech = await createUser(
+        organization.id,
+        "TECHNICIAN",
+        "outsider-tech",
+      );
       const admin = await createUser(organization.id, "ADMIN", "admin");
       const experiment = await createExperiment(organization.id, creator.uid, [
         member.uid,
       ]);
 
-      // Same organization, same role — membership is the only difference.
+      // Same organization — but an uninvolved technician has no pen.
       await expectRefused(
-        updateExperimentMeta(outsider, experiment.id, { title: "Outsider" }),
+        updateExperimentMeta(outsiderTech, experiment.id, {
+          title: "Outsider",
+        }),
         experiment.id,
       );
 
@@ -142,6 +151,10 @@ describe("manager scope inside one organization", () => {
         title: "By creator",
       });
       await updateExperimentMeta(member, experiment.id, { title: "By member" });
+      // An uninvolved manager may edit — staff manage the whole board.
+      await updateExperimentMeta(outsider, experiment.id, {
+        title: "By outsider manager",
+      });
       await updateExperimentMeta(admin, experiment.id, { title: "By admin" });
 
       const after = await db.experiment.findUniqueOrThrow({
@@ -153,7 +166,7 @@ describe("manager scope inside one organization", () => {
         await db.auditEvent.count({
           where: { entityId: experiment.id, action: "experiment.update" },
         }),
-      ).toBe(3);
+      ).toBe(4);
     } finally {
       await removeOrganization(organization.id);
     }
