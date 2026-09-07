@@ -15,10 +15,14 @@ export default async function CapturePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ run?: string; from?: string }>;
+  searchParams: Promise<{ run?: string; from?: string; sample?: string }>;
 }) {
   const { id } = await params;
-  const { run: runParam, from: fromParam } = await searchParams;
+  const {
+    run: runParam,
+    from: fromParam,
+    sample: sampleParam,
+  } = await searchParams;
   const session = await requireSession();
   const t = await getT();
 
@@ -71,6 +75,7 @@ export default async function CapturePage({
       captureChoiceCatalog={captureChoiceCatalog}
       runId={run.id}
       runNo={run.runNo}
+      initialSampleId={sampleParam ?? null}
       runs={runs.map((r) => ({ id: r.id, runNo: r.runNo }))}
       initialExecutions={executions.map((x) => ({
         stepId: x.stepId,

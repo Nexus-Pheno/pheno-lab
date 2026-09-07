@@ -20,6 +20,7 @@ import type { TKey } from "@/lib/i18n/dict";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
 import { JvRescue } from "./JvRescue";
+import { ScanButton } from "./ScanButton";
 
 type Execution = {
   stepId: string;
@@ -88,6 +89,7 @@ export function CaptureView({
   runId,
   runNo,
   runs,
+  initialSampleId,
   initialExecutions,
   initialResults,
 }: {
@@ -100,6 +102,8 @@ export function CaptureView({
   runId: string;
   runNo: number;
   runs: { id: string; runNo: number }[];
+  /** Preselect this sample on every card — set by a scanned label QR. */
+  initialSampleId?: string | null;
   initialExecutions: Execution[];
   initialResults: CharResult[];
 }) {
@@ -257,6 +261,7 @@ export function CaptureView({
           <span className="mono text-[12.5px] font-bold truncate min-w-0 flex-1">{exp.code}</span>
           <span className="hidden sm:inline text-[11px] text-muted shrink-0">{t("cap.title")}</span>
           <span className="mono text-[10.5px] text-muted shrink-0">{totalDone}/{totalNeeded}</span>
+          <ScanButton variant="compact" />
           <Link href={`/experiments/${exp.id}/results`} className="text-[11px] font-semibold text-charcoal shrink-0 py-1 px-1">
             {t("res.title")}
           </Link>
@@ -429,6 +434,7 @@ export function CaptureView({
                   assignments={assignments}
                   simCodes={Object.fromEntries(exp.samples.map((s) => [s.code, s.simCode]))}
                   onMoveSubstrate={moveSubstrate}
+                  initialSampleId={initialSampleId}
                   runId={runId}
                   executions={execsFor(step.id)}
                   onSaved={(list) => {
@@ -471,6 +477,7 @@ export function CaptureView({
                   experimentId={exp.id}
                   expCode={exp.code}
                   samples={exp.samples}
+                  initialSampleId={initialSampleId}
                   runId={runId}
                   results={results.filter((r) => r.characterizationId === c.id)}
                   onSaved={(r) => {
@@ -591,6 +598,7 @@ function BatchStepCapture({
   assignments,
   simCodes,
   onMoveSubstrate,
+  initialSampleId,
   runId,
   executions,
   onSaved,
@@ -607,6 +615,7 @@ function BatchStepCapture({
   assignments: Record<string, string>;
   simCodes: Record<string, string | null>;
   onMoveSubstrate: (code: string, zone: string) => void;
+  initialSampleId?: string | null;
   runId: string;
   executions: Execution[];
   onSaved: (list: Execution[]) => void;
@@ -621,10 +630,14 @@ function BatchStepCapture({
   // groups can be combined, and Extras/Trash remain selectable for notes and
   // photos after regrouping.
   // Only the first sample starts selected — the user widens the scope
-  // deliberately by tapping groups or "All samples".
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(samples.slice(0, 1).map((s) => s.id))
-  );
+  // deliberately by tapping groups or "All samples". A scanned label QR
+  // overrides the default with the sample in the technician's hand.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    const scanned = initialSampleId
+      ? samples.find((s) => s.id === initialSampleId)
+      : undefined;
+    return new Set((scanned ? [scanned] : samples.slice(0, 1)).map((s) => s.id));
+  });
   const [editing, setEditing] = useState(false);
 
   const targets = useMemo(() => samples.filter((s) => selectedIds.has(s.id)), [selectedIds, samples]);
@@ -1402,6 +1415,7 @@ function PerSampleCharCapture({
   experimentId,
   expCode,
   samples,
+  initialSampleId,
   runId,
   results,
   onSaved,
@@ -1412,6 +1426,7 @@ function PerSampleCharCapture({
   experimentId: string;
   expCode: string;
   samples: SampleRow[];
+  initialSampleId?: string | null;
   runId: string;
   results: CharResult[];
   onSaved: (r: CharResult) => void;
@@ -1423,9 +1438,11 @@ function PerSampleCharCapture({
     return !!r && Object.values(r.metrics).some((v) => v !== "");
   };
 
-  const [activeSampleId, setActiveSampleId] = useState<string>(
-    () => samples.find((s) => !hasResult(s.id))?.id ?? samples[0]?.id ?? ""
-  );
+  const [activeSampleId, setActiveSampleId] = useState<string>(() => {
+    if (initialSampleId && samples.some((s) => s.id === initialSampleId))
+      return initialSampleId;
+    return samples.find((s) => !hasResult(s.id))?.id ?? samples[0]?.id ?? "";
+  });
 
   // Samples bucketed by variation group; ungrouped ones trail in a plain pill.
   const sampleBuckets = useMemo(() => {

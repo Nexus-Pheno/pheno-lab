@@ -284,6 +284,15 @@ export default function Designer({
           </span>
         )}
         <div className="flex-1" />
+        {exp.samples.length > 0 && (
+          <Link
+            href={`/experiments/${exp.id}/labels`}
+            className="shrink-0 h-8 text-xs font-semibold text-charcoal border border-line rounded-[4px] px-3 hover:bg-subtle flex items-center gap-1.5"
+          >
+            <Icon name="QrCode" size={13} />
+            {t("labels.title")}
+          </Link>
+        )}
         {exp.status === "COMPLETE" && (
           <Link
             href={`/experiments/${exp.id}/report`}
