@@ -1,6 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import type { Actor } from "./actor";
 
+/**
+ * Which experiments an actor may OPEN (contents: plan, results, data, files).
+ * Managers and admins open everything in the lab; technicians open what they
+ * created, are assigned to, or joined (membership — including via an approved
+ * access request). Lists use experimentListScope below instead.
+ */
 export function experimentVisibilityScope(
   actor: Actor,
   includeTest = false,
@@ -9,17 +15,30 @@ export function experimentVisibilityScope(
     ? { organizationId: actor.org }
     : { organizationId: actor.org, isTest: false };
 
-  if (actor.role === "ADMIN") return base;
-  if (actor.role === "MANAGER") {
-    return {
-      ...base,
-      OR: [
-        { createdById: actor.uid },
-        { members: { some: { userId: actor.uid } } },
-      ],
-    };
-  }
-  return { ...base, members: { some: { userId: actor.uid } } };
+  if (actor.role === "ADMIN" || actor.role === "MANAGER") return base;
+  return {
+    ...base,
+    OR: [
+      { createdById: actor.uid },
+      { assigneeId: actor.uid },
+      { members: { some: { userId: actor.uid } } },
+    ],
+  };
+}
+
+/**
+ * Which experiments appear on the shared board: all of them, for everyone —
+ * the lab works in the open. Only the card metadata shows; opening one still
+ * goes through experimentVisibilityScope / canReadExperiment, and a
+ * technician clicking someone else's card lands on the request-access page.
+ */
+export function experimentListScope(
+  actor: Actor,
+  includeTest = false,
+): Prisma.ExperimentWhereInput {
+  return includeTest
+    ? { organizationId: actor.org }
+    : { organizationId: actor.org, isTest: false };
 }
 
 /**

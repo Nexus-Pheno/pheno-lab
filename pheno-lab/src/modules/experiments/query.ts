@@ -4,13 +4,17 @@ import { db } from "@/infrastructure/db/client";
 import { buildCaptureChoiceCatalog } from "@/lib/capture-fields";
 import { experimentInclude } from "@/lib/types";
 import type { Actor } from "@/modules/authorization/actor";
-import { experimentVisibilityScope } from "@/modules/authorization/scope";
+import {
+  experimentListScope,
+  experimentVisibilityScope,
+} from "@/modules/authorization/scope";
 import { hasStewardship } from "@/modules/stewardship/service";
 import { experimentIdSchema } from "./schema";
 
 export async function listDashboardExperiments(actor: Actor) {
+  // The whole lab's board: everyone sees every card; opening is gated.
   const rows = await db.experiment.findMany({
-    where: experimentVisibilityScope(actor),
+    where: experimentListScope(actor),
     orderBy: { updatedAt: "desc" },
     include: {
       createdBy: { select: { name: true } },
@@ -21,11 +25,21 @@ export async function listDashboardExperiments(actor: Actor) {
       },
     },
   });
+  const staff = actor.role === "ADMIN" || actor.role === "MANAGER";
   return rows.map((row) => ({
     id: row.id,
     code: row.code,
     title: row.title,
     status: row.status,
+    // Whether clicking the card opens it (vs. the request-access page).
+    openable:
+      staff ||
+      row.createdById === actor.uid ||
+      row.assigneeId === actor.uid ||
+      row.members.some((member) => member.userId === actor.uid),
+    // Whether this actor may change it (drag, rename, delete): staff, or the
+    // technician who created it.
+    editable: staff || row.createdById === actor.uid,
     createdBy: row.createdBy.name,
     members: row.members.map((member) => member.user.name),
     labels: row.labels.map((label) => label.label.name),

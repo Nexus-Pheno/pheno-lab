@@ -10,6 +10,8 @@ import { Icon } from "@/components/ui";
 import { usePointerDrag } from "@/lib/usePointerDrag";
 
 export type ExpRow = {
+  openable: boolean;
+  editable: boolean;
   id: string;
   code: string;
   title: string;
@@ -52,7 +54,8 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
   const [newMode, setNewMode] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [confirmingCopy, setConfirmingCopy] = useState<string | null>(null);
-  const canEdit = role !== "TECHNICIAN";
+  // Per-row rights come from the server; creation is open to everyone now.
+  const staff = role !== "TECHNICIAN";
   const dragRef = useRef<string | null>(null);
   const [dropCol, setDropCol] = useState<string | null>(null);
   // How many finished items are revealed per closed status ("view more").
@@ -143,7 +146,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
           <Icon name="ClipboardPen" size={14} />
         </Link>
       )}
-      {canEdit && (
+      {e.editable && (
         confirmingCopy === e.id ? (
           <span className="flex items-center gap-1 bg-surface border border-brand/50 rounded-[4px] px-1.5 py-0.5">
             <span className="text-[10px] font-semibold text-brand-deep">{t("dash.duplicate")}?</span>
@@ -161,7 +164,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
           </button>
         )
       )}
-      {canEdit && (
+      {e.editable && (
         confirmingDelete === e.id ? (
           <span className="flex items-center gap-1 bg-surface border border-warn-line rounded-[4px] px-1.5 py-0.5">
             <span className="text-[10px] font-semibold text-warn">{t("card.deleteQ")}</span>
@@ -190,7 +193,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
 
   const KanbanCard = ({ e }: { e: ExpRow }) => (
     <div
-      draggable={canEdit}
+      draggable={e.editable}
       onDragStart={(ev) => {
         dragRef.current = e.id;
         ev.dataTransfer.effectAllowed = "move";
@@ -200,8 +203,11 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
       <Link href={`/experiments/${e.id}`} className="block">
         <div className="flex items-center gap-2 mb-1">
           <span className="mono text-[11px] font-bold text-brand-deep">{e.code}</span>
+          {!e.openable && (
+            <Icon name="Lock" size={11} className="text-muted" />
+          )}
           <span className="ml-auto mono text-[10px] text-muted">{e.updatedAt}</span>
-          {canEdit && (
+          {e.editable && (
             <span
               onPointerDown={startCardDrag(e.id)}
               onClick={(ev) => ev.preventDefault()}
@@ -244,10 +250,10 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
             never reshuffles the top controls. */}
         <div className="mb-4 space-y-3">
           <div>
-            <h1 className="text-lg font-bold">{t(role === "TECHNICIAN" ? "dash.titleTech" : "dash.title")}</h1>
+            <h1 className="text-lg font-bold">{t("dash.title")}</h1>
             <p className="text-xs text-muted">
-              {t(role === "TECHNICIAN" ? "dash.subtitleTech" : "dash.subtitle")}
-              {canEdit && view === "kanban" && ` · ${t("dash.dragHint")}`}
+              {t("dash.subtitle")}
+              {view === "kanban" && ` · ${t("dash.dragHint")}`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -267,7 +273,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                 </button>
               ))}
             </div>
-            {canEdit && (
+            {(
               <>
                 <span className="flex-1" />
                 {/* Real or test is chosen up front — a test run never reaches
@@ -282,13 +288,15 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                     >
                       {t("dash.newReal")}
                     </button>
-                    <button
-                      disabled={busy}
-                      onClick={async () => { setBusy(true); await createExperiment(true); }}
-                      className="h-7 px-2.5 border border-warn-line bg-warn-soft text-warn rounded-[4px] text-[11.5px] font-bold"
-                    >
-                      {t("dash.newTest")}
-                    </button>
+                    {staff && (
+                      <button
+                        disabled={busy}
+                        onClick={async () => { setBusy(true); await createExperiment(true); }}
+                        className="h-7 px-2.5 border border-warn-line bg-warn-soft text-warn rounded-[4px] text-[11.5px] font-bold"
+                      >
+                        {t("dash.newTest")}
+                      </button>
+                    )}
                     <button onClick={() => setNewMode(false)} className="p-1 text-muted">
                       <Icon name="X" size={13} />
                     </button>
@@ -310,7 +318,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
 
         {filtered.length === 0 ? (
           <p className="text-center text-muted text-sm py-14">
-            {experiments.length === 0 ? t(canEdit ? "list.emptyStaff" : "list.emptyTech") : t("data.noRows")}
+            {experiments.length === 0 ? t("list.emptyStaff") : t("data.noRows")}
           </p>
         ) : view === "kanban" ? (
           <div
@@ -326,7 +334,6 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                   key={status}
                   data-drop-col={status}
                   onDragOver={(ev) => {
-                    if (!canEdit) return;
                     ev.preventDefault();
                     setDropCol(status);
                   }}

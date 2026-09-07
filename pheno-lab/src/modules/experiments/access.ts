@@ -3,7 +3,6 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
-import { assertStaff } from "@/modules/authorization/policy";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 
@@ -22,7 +21,6 @@ export async function assertEdit(
   actor: Actor,
   experimentId: string,
 ): Promise<void> {
-  assertStaff(actor);
   await requireExperimentPermission(actor, experimentId, "manage");
 }
 

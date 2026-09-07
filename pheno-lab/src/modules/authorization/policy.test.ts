@@ -32,13 +32,12 @@ describe("authorization policy", () => {
   });
 
   it("implements the experiment read matrix", () => {
+    // Managers and admins open everything; technicians open what they
+    // created, are assigned to, or joined (Michael's 2026-09-07 model).
     expect(canReadExperiment(actor("admin", "ADMIN"), resource)).toBe(true);
-    expect(canReadExperiment(actor("manager-owner", "MANAGER"), resource)).toBe(
+    expect(canReadExperiment(actor("manager-other", "MANAGER"), resource)).toBe(
       true,
     );
-    expect(
-      canReadExperiment(actor("manager-member", "MANAGER"), resource),
-    ).toBe(true);
     expect(
       canReadExperiment(actor("technician-member", "TECHNICIAN"), resource),
     ).toBe(true);
@@ -47,16 +46,21 @@ describe("authorization policy", () => {
     ).toBe(false);
   });
 
-  it("allows only involved staff to manage", () => {
+  it("lets managers edit everything and technicians edit only their own", () => {
     expect(canManageExperiment(actor("admin", "ADMIN"), resource)).toBe(true);
     expect(
-      canManageExperiment(actor("manager-member", "MANAGER"), resource),
-    ).toBe(true);
-    expect(
       canManageExperiment(actor("manager-other", "MANAGER"), resource),
-    ).toBe(false);
+    ).toBe(true);
+    // The creator manages their own experiment regardless of role.
+    expect(
+      canManageExperiment(actor("manager-owner", "TECHNICIAN"), resource),
+    ).toBe(true);
+    // Granted membership means collaborate, not redesign.
     expect(
       canManageExperiment(actor("technician-member", "TECHNICIAN"), resource),
+    ).toBe(false);
+    expect(
+      canManageExperiment(actor("technician-other", "TECHNICIAN"), resource),
     ).toBe(false);
   });
 
@@ -67,6 +71,9 @@ describe("authorization policy", () => {
     expect(
       canCaptureExperiment(actor("technician-other", "TECHNICIAN"), resource),
     ).toBe(false);
+    expect(
+      canCaptureExperiment(actor("manager-other", "MANAGER"), resource),
+    ).toBe(true);
   });
 
   it("allows an assignee to submit", () => {
