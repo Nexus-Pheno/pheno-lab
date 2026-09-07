@@ -3,7 +3,7 @@
 // 2026-09-07 reliability audit; Michael approved R1).
 //
 // Called by the server's nightly backup cron AFTER pg_dump succeeds:
-//   cd /srv/pheno-lab/current/pheno-lab
+//   cd /srv/pheno-lab/source/pheno-lab   (source has the tsconfig tsx needs)
 //   NODE_OPTIONS=--conditions=react-server \
 //     /usr/bin/node node_modules/tsx/dist/cli.mjs \
 //     scripts/upload-db-backup.ts /var/backups/pheno-lab/<dump>

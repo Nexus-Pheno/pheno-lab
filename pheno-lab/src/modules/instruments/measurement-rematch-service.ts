@@ -65,7 +65,13 @@ export async function rematchMeasurements(opts: {
         ? { OR: prefixes.map((p) => ({ serialKey: { startsWith: p } })) }
         : {}),
     },
-    select: { id: true, serial: true, operator: true, assignedToId: true },
+    select: {
+      id: true,
+      serial: true,
+      operator: true,
+      assignedToId: true,
+      matchNote: true,
+    },
     // Newest first: with ~900 permanently-unmatched legacy scans in the
     // queue, oldest-first starved fresh scans out of the batch entirely —
     // the scheduled sweep would retry the same dead tail forever.
@@ -94,6 +100,11 @@ export async function rematchMeasurements(opts: {
       const owner = m.assignedToId
         ? null
         : matchOperatorToUser(m.operator, staff);
+      // Nothing changed since the last attempt: skip the write AND the audit.
+      // Without this, ~900 permanently-unmatched legacy scans got a fresh
+      // matchNote update plus an audit row on every sweep — audit spam and
+      // enough serial writes to blow the cron timeout (2026-09-07).
+      if (!owner && result.matchNote === m.matchNote) continue;
       // Refresh the reason — the experiment may exist now but the sample not.
       await db.$transaction(async (transaction) => {
         await transaction.jvMeasurement.update({

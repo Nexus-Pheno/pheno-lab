@@ -470,7 +470,7 @@ unset DATABASE_URL SESSION_SECRET INGEST_CRON_SECRET HEALTHCHECK_TOKEN \
 App CVM 上有三个与本应用相关的 cron（均在 `/etc/cron.d/`，模式一致）：
 
 - `pheno-lab-db-backup`：每晚 03:30 `pg_dump` 到 `/var/backups/pheno-lab/`（本地保留 14 天），
-  随后调用 `scripts/upload-db-backup.ts`（经 current release 的 tsx，
+  随后调用 `scripts/upload-db-backup.ts`（在 `/srv/pheno-lab/source/pheno-lab` 下经 tsx 运行，
   `NODE_OPTIONS=--conditions=react-server`）把 dump 上传到 COS `backups/db/`（COS 保留 60 天）。
   本地和 COS 任何一侧失败都会在 `/var/log/pheno-db-backup.log` 留痕。
 - `pheno-lab-rematch`：每 15 分钟带 `INGEST_CRON_SECRET` 调用 `/api/ingest/rematch`，
