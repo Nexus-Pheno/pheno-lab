@@ -5,6 +5,7 @@ import { ProfileForms } from "@/components/profile/ProfileForms";
 import { Icon } from "@/components/ui";
 import { AiProviders } from "@/components/profile/AiProviders";
 import { FeedbackBoard } from "@/components/feedback/FeedbackBoard";
+import { BadgeBind } from "@/components/profile/BadgeBind";
 import { getProfileData, listMyFeedback } from "@/modules/accounts/query";
 import { getSystemStatus } from "@/modules/system/query";
 
@@ -111,6 +112,13 @@ export default async function ProfilePage() {
             createdAt: user.createdAt.toISOString().slice(0, 10),
           }}
           orgName={org.name}
+        />
+
+        {/* NFC work badge: bind once (ideally on a shared tablet), then tap
+            to sign in on any registered lab tablet. */}
+        <BadgeBind
+          bound={Boolean(user.badgeUid)}
+          boundAt={user.badgeBoundAt ? user.badgeBoundAt.toISOString() : null}
         />
 
         {/* The team's feedback channel: file one problem per item with
