@@ -465,6 +465,21 @@ unset DATABASE_URL SESSION_SECRET INGEST_CRON_SECRET HEALTHCHECK_TOKEN \
 `deploy-release.sh` 会校验 checksum / env，执行 `prisma migrate deploy`，切换 `current`，
 重启 systemd 并轮询 readiness。
 
+### 3.10.1 计划任务与告警（2026-09-07 起）
+
+App CVM 上有三个与本应用相关的 cron（均在 `/etc/cron.d/`，模式一致）：
+
+- `pheno-lab-db-backup`：每晚 03:30 `pg_dump` 到 `/var/backups/pheno-lab/`（本地保留 14 天），
+  随后调用 `scripts/upload-db-backup.ts`（经 current release 的 tsx，
+  `NODE_OPTIONS=--conditions=react-server`）把 dump 上传到 COS `backups/db/`（COS 保留 60 天）。
+  本地和 COS 任何一侧失败都会在 `/var/log/pheno-db-backup.log` 留痕。
+- `pheno-lab-rematch`：每 15 分钟带 `INGEST_CRON_SECRET` 调用 `/api/ingest/rematch`，
+  重试未匹配的仪器数据（sweep 为 newest-first，避免被历史遗留孤儿数据饿死）。
+- `pheno-lab-watchdog`：每分钟检查 `/api/health/ready`；连续两次失败则
+  `systemctl restart pheno-lab.service` 并通过 `scripts/send-alert-email.ts`（应用 SMTP）
+  邮件告警管理员；恢复后发送恢复通知。注意：watchdog 跑在同一台机器上，
+  只覆盖服务级故障；整机宕机需另配腾讯云监控告警。
+
 readiness 通过后，`deploy-release.sh` 会**自动裁剪 release 历史**：只保留最新 5 个
 `releases/<release-id>` 目录（含 `current` 指向的目录，脚本对其有显式保护），更早的目录
 直接删除。被删除的 release 随时可以从 git 对应 commit 重新构建——仓库才是事实来源。
