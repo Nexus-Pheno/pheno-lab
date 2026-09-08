@@ -38,6 +38,7 @@ export async function runMorningDigest(
       materialEdits,
       recipes,
       unmatched,
+      staleMentions,
     ] = await Promise.all([
       db.auditEvent.findMany({
         where: {
@@ -77,6 +78,17 @@ export async function runMorningDigest(
         where: { ...where, approvalStatus: "PENDING", archived: false },
       }),
       db.jvMeasurement.count({ where: { ...where, status: "UNMATCHED" } }),
+      // Stale mentions: someone was @-ed in a discussion over a day ago and
+      // has not opened the bell since — a gentle aggregate nudge, no names
+      // (团队反馈 2026-09-08: positive pressure only).
+      db.notification.count({
+        where: {
+          ...where,
+          kind: "mentioned",
+          readAt: null,
+          createdAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+        },
+      }),
     ]);
     const completed = await db.experiment.count({
       where: {
@@ -86,7 +98,7 @@ export async function runMorningDigest(
       },
     });
     const champion = championPce(measurements);
-    const content = `早间摘要 ${date}（北京时间）\n昨日完成实验：${completed}\n昨日最高有效光照扫描 PCE：${champion === null ? "暂无有效数据" : `${champion.toFixed(2)}%`}\n待审批注册：${registrations}\n待处理访问申请：${access}\n待审批材料修改：${materialEdits}\n待审批配方：${recipes}\n未匹配扫描：${unmatched}\n请登录 Pheno Lab 查看授权范围内的详情。`;
+    const content = `早间摘要 ${date}（北京时间）\n昨日完成实验：${completed}\n昨日最高有效光照扫描 PCE：${champion === null ? "暂无有效数据" : `${champion.toFixed(2)}%`}\n待审批注册：${registrations}\n待处理访问申请：${access}\n待审批材料修改：${materialEdits}\n待审批配方：${recipes}\n未匹配扫描：${unmatched}\n待回复 @提及（超24小时未读）：${staleMentions}\n请登录 Pheno Lab 查看授权范围内的详情。`;
     try {
       await db.auditEvent.create({
         data: {
