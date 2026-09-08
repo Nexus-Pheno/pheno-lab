@@ -13,7 +13,7 @@ import {
 const resource: ExperimentAccessResource = {
   organizationId: "org-a",
   createdById: "manager-owner",
-  assigneeId: "technician-member",
+  assigneeId: "technician-assignee",
   members: [{ userId: "manager-member" }, { userId: "technician-member" }],
 };
 
@@ -46,7 +46,7 @@ describe("authorization policy", () => {
     ).toBe(false);
   });
 
-  it("lets managers edit everything and technicians edit only their own", () => {
+  it("lets managers edit everything and technicians edit their own or assigned", () => {
     expect(canManageExperiment(actor("admin", "ADMIN"), resource)).toBe(true);
     expect(
       canManageExperiment(actor("manager-other", "MANAGER"), resource),
@@ -54,6 +54,10 @@ describe("authorization policy", () => {
     // The creator manages their own experiment regardless of role.
     expect(
       canManageExperiment(actor("manager-owner", "TECHNICIAN"), resource),
+    ).toBe(true);
+    // The assigned technician holds the pen too (Michael, 2026-09-08).
+    expect(
+      canManageExperiment(actor("technician-assignee", "TECHNICIAN"), resource),
     ).toBe(true);
     // Granted membership means collaborate, not redesign.
     expect(
@@ -77,6 +81,9 @@ describe("authorization policy", () => {
   });
 
   it("allows an assignee to submit", () => {
+    expect(
+      canSubmitExperiment(actor("technician-assignee", "TECHNICIAN"), resource),
+    ).toBe(true);
     expect(
       canSubmitExperiment(actor("technician-member", "TECHNICIAN"), resource),
     ).toBe(true);

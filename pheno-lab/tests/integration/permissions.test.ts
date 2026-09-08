@@ -210,6 +210,44 @@ describe("designer edit flag", () => {
 });
 
 describe("technician write boundary", () => {
+  it("lets the assigned technician edit the plan", async () => {
+    // Michael, 2026-09-08: the technician assigned to run an experiment can
+    // also edit its parameters — membership alone still cannot.
+    const organization = await createOrganization("assignee-edit");
+    try {
+      const manager = await createUser(organization.id, "MANAGER", "owner");
+      const assignee = await createUser(
+        organization.id,
+        "TECHNICIAN",
+        "assigned-tech",
+      );
+      const experiment = await db.experiment.create({
+        data: {
+          organizationId: organization.id,
+          code: `EXP-${crypto.randomUUID().slice(0, 8)}`,
+          title: "Baseline title",
+          createdById: manager.uid,
+          assigneeId: assignee.uid,
+        },
+      });
+
+      await updateExperimentMeta(assignee, experiment.id, {
+        title: "By assignee",
+      });
+      const after = await db.experiment.findUniqueOrThrow({
+        where: { id: experiment.id },
+        select: { title: true },
+      });
+      expect(after.title).toBe("By assignee");
+
+      // The designer flag agrees with the policy.
+      const view = await getExperimentDesignerData(assignee, experiment.id);
+      expect(view?.canEdit).toBe(true);
+    } finally {
+      await removeOrganization(organization.id);
+    }
+  });
+
   it("blocks plan edits but allows capture on an assigned experiment", async () => {
     const organization = await createOrganization("technician-boundary");
     try {
