@@ -9,6 +9,7 @@ import {
   setLanguage as setLanguageService,
   submitFeedback as submitFeedbackService,
   updateProfile as updateProfileService,
+  verifyFeedback as verifyFeedbackService,
 } from "@/modules/accounts/profile-service";
 
 export async function updateProfile(data: { name: string; handle: string }) {
@@ -51,10 +52,18 @@ export async function reviewFeedback(
   patch: {
     status?: "open" | "approved" | "rejected" | "implemented";
     adminNote?: string;
+    implementationNote?: string;
     title?: string;
     message?: string;
   },
 ) {
   await reviewFeedbackService(await requireSession(), { id, ...patch });
   revalidatePath("/feedback");
+}
+
+/** Reporter verdict on an implemented item: green light, or reopen + reason. */
+export async function verifyFeedback(id: string, accept: boolean, note = "") {
+  await verifyFeedbackService(await requireSession(), { id, accept, note });
+  revalidatePath("/feedback");
+  revalidatePath("/profile");
 }

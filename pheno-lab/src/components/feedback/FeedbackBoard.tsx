@@ -2,7 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { reviewFeedback, submitFeedback } from "@/lib/actions/profile";
+import {
+  reviewFeedback,
+  submitFeedback,
+  verifyFeedback,
+} from "@/lib/actions/profile";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon } from "@/components/ui";
 
@@ -21,6 +25,10 @@ export type FeedbackItem = {
   pageUrl: string;
   status: string;
   adminNote: string;
+  implementationNote: string;
+  implementedAt: string;
+  verifiedAuto: boolean;
+  disputeNote: string;
   reviewedBy: string;
   createdAt: string;
   userName: string;
@@ -33,6 +41,17 @@ const STATUS_TONE: Record<string, string> = {
   rejected: "bg-danger-soft text-danger border-danger-line",
   implemented: "bg-subtle text-muted border-line",
   resolved: "bg-subtle text-muted border-line",
+  verified: "bg-brand text-[#243000] border-brand",
+  reopened: "bg-danger-soft text-danger border-danger-line",
+};
+
+/** The date an untouched implemented item goes green on its own. */
+const autoVerifyDate = (implementedAt: string): string => {
+  const start = new Date(`${implementedAt}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return "";
+  return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
 };
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;
@@ -100,7 +119,9 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
               onClick={() => setKind(k)}
               className={
                 "px-3 h-7 text-[11.5px] font-semibold flex items-center gap-1.5 " +
-                (kind === k ? "bg-ink text-white" : "bg-surface text-charcoal hover:bg-subtle")
+                (kind === k
+                  ? "bg-ink text-white"
+                  : "bg-surface text-charcoal hover:bg-subtle")
               }
             >
               <Icon name={k === "bug" ? "Bug" : "Lightbulb"} size={12} />
@@ -127,7 +148,11 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
         {shots.map((s) => (
           <span key={s} className="relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/api/files/${s}`} alt="screenshot" className="h-14 w-20 object-cover rounded-[4px] border border-line" />
+            <img
+              src={`/api/files/${s}`}
+              alt="screenshot"
+              className="h-14 w-20 object-cover rounded-[4px] border border-line"
+            />
             <button
               onClick={() => setShots((arr) => arr.filter((x) => x !== s))}
               className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-ink text-white flex items-center justify-center"
@@ -136,22 +161,40 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
             </button>
           </span>
         ))}
-        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
-          onChange={(e) => e.target.files && upload(e.target.files)} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => e.target.files && upload(e.target.files)}
+        />
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading || shots.length >= 10}
           className="h-14 w-20 border border-dashed border-line rounded-[4px] flex flex-col items-center justify-center gap-0.5 text-muted hover:text-charcoal hover:bg-subtle disabled:opacity-50"
         >
-          <Icon name={uploading ? "LoaderCircle" : "ImagePlus"} size={15} className={uploading ? "animate-spin" : ""} />
+          <Icon
+            name={uploading ? "LoaderCircle" : "ImagePlus"}
+            size={15}
+            className={uploading ? "animate-spin" : ""}
+          />
           <span className="text-[9px] font-semibold">{t("fb.addShot")}</span>
         </button>
         <label className="flex items-center gap-1.5 text-[11.5px] text-charcoal">
-          <input type="checkbox" checked={includeErrors} onChange={(e) => setIncludeErrors(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={includeErrors}
+            onChange={(e) => setIncludeErrors(e.target.checked)}
+          />
           {t("fb.includeErrors")}
         </label>
         <span className="flex-1" />
-        {sent && <span className="text-[11.5px] text-brand-deep font-semibold">{t("fb.submitted")}</span>}
+        {sent && (
+          <span className="text-[11.5px] text-brand-deep font-semibold">
+            {t("fb.submitted")}
+          </span>
+        )}
         <button
           disabled={busy || !message.trim()}
           onClick={submit}
@@ -169,10 +212,15 @@ function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState(f.adminNote);
+  const [implNote, setImplNote] = useState(f.implementationNote);
+  const [disputing, setDisputing] = useState(false);
+  const [disputeText, setDisputeText] = useState("");
   const [busy, setBusy] = useState(false);
 
   const shots = [
-    ...(f.screenshotPath ? [{ id: "legacy", storedPath: f.screenshotPath, fileName: "screenshot" }] : []),
+    ...(f.screenshotPath
+      ? [{ id: "legacy", storedPath: f.screenshotPath, fileName: "screenshot" }]
+      : []),
     ...f.attachments,
   ];
 
@@ -186,14 +234,30 @@ function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
     }
   };
 
+  const verify = async (accept: boolean, reason = "") => {
+    setBusy(true);
+    try {
+      await verifyFeedback(f.id, accept, reason);
+      setDisputing(false);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="border-b border-line last:border-0">
       <button
         className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-subtle text-left"
         onClick={() => setOpen((v) => !v)}
       >
-        <Icon name={f.kind === "bug" ? "Bug" : "Lightbulb"} size={13}
-          className={(f.kind === "bug" ? "text-danger" : "text-data-cyan") + " shrink-0"} />
+        <Icon
+          name={f.kind === "bug" ? "Bug" : "Lightbulb"}
+          size={13}
+          className={
+            (f.kind === "bug" ? "text-danger" : "text-data-cyan") + " shrink-0"
+          }
+        />
         <span className="text-[12.5px] font-medium flex-1 truncate">
           {f.title || f.message}
         </span>
@@ -205,8 +269,12 @@ function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
         <span className="h-5 px-1.5 rounded-full bg-subtle border border-line text-[9px] font-bold text-charcoal shrink-0 max-w-16 truncate">
           {firstName(f.userName)}
         </span>
-        <span className="mono text-[10px] text-muted shrink-0 hidden sm:inline">{f.createdAt}</span>
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-[3px] border shrink-0 ${STATUS_TONE[f.status] ?? STATUS_TONE.open}`}>
+        <span className="mono text-[10px] text-muted shrink-0 hidden sm:inline">
+          {f.createdAt}
+        </span>
+        <span
+          className={`text-[10px] font-semibold px-2 py-0.5 rounded-[3px] border shrink-0 ${STATUS_TONE[f.status] ?? STATUS_TONE.open}`}
+        >
           {t(`fb.st.${f.status}` as "fb.st.open")}
         </span>
       </button>
@@ -218,26 +286,55 @@ function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
           {shots.length > 0 && (
             <div className="flex gap-2 flex-wrap">
               {shots.map((s) => (
-                <a key={s.id} href={`/api/files/${s.storedPath}`} target="_blank" rel="noreferrer">
+                <a
+                  key={s.id}
+                  href={`/api/files/${s.storedPath}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`/api/files/${s.storedPath}`} alt={s.fileName}
-                    className="h-28 rounded-[4px] border border-line hover:border-charcoal/50" />
+                  <img
+                    src={`/api/files/${s.storedPath}`}
+                    alt={s.fileName}
+                    className="h-28 rounded-[4px] border border-line hover:border-charcoal/50"
+                  />
                 </a>
               ))}
             </div>
           )}
           <div className="text-[11px] text-muted">
             {f.userName} · {f.userEmail}
-            {f.pageUrl && <> · <span className="mono">{f.pageUrl}</span></>}
+            {f.pageUrl && (
+              <>
+                {" "}
+                · <span className="mono">{f.pageUrl}</span>
+              </>
+            )}
           </div>
           {f.errorLog && (
-            <pre className="mono text-[10px] bg-ink text-brand-soft rounded-[4px] p-2.5 overflow-x-auto max-h-40">{f.errorLog}</pre>
+            <pre className="mono text-[10px] bg-ink text-brand-soft rounded-[4px] p-2.5 overflow-x-auto max-h-40">
+              {f.errorLog}
+            </pre>
+          )}
+
+          {/* The reporter's reason for sending an implementation back. */}
+          {f.status === "reopened" && f.disputeNote && (
+            <div className="bg-danger-soft/40 border border-danger-line rounded-[4px] p-2.5">
+              <div className="text-[10px] font-bold uppercase text-danger mb-1">
+                {t("fb.disputeNote")}
+              </div>
+              <p className="text-[12px] whitespace-pre-wrap text-charcoal">
+                {f.disputeNote}
+              </p>
+            </div>
           )}
 
           {/* The admin's verdict — reporters see it too, so the loop closes. */}
           {isAdmin ? (
             <div className="bg-surface border border-line rounded-[4px] p-2.5 space-y-2">
-              <div className="text-[10px] font-bold uppercase text-muted">{t("fb.adminNote")}</div>
+              <div className="text-[10px] font-bold uppercase text-muted">
+                {t("fb.adminNote")}
+              </div>
               <textarea
                 rows={2}
                 className="w-full border border-line rounded-[4px] px-2.5 py-1.5 text-[12px] resize-y"
@@ -245,49 +342,177 @@ function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
+              {(f.status === "approved" ||
+                f.status === "reopened" ||
+                f.status === "implemented") && (
+                <>
+                  <div className="text-[10px] font-bold uppercase text-muted">
+                    {t("fb.implNote")}
+                  </div>
+                  <textarea
+                    rows={2}
+                    className="w-full border border-line rounded-[4px] px-2.5 py-1.5 text-[12px] resize-y"
+                    placeholder={t("fb.implNotePh")}
+                    value={implNote}
+                    onChange={(e) => setImplNote(e.target.value)}
+                  />
+                </>
+              )}
               <div className="flex items-center gap-1.5 flex-wrap">
-                {f.status !== "approved" && (
-                  <button disabled={busy} onClick={() => review({ status: "approved", adminNote: note })}
-                    className="h-7 px-3 bg-brand text-[#243000] rounded-[4px] text-[11.5px] font-bold disabled:opacity-50">
+                {f.status !== "approved" && f.status !== "verified" && (
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      review({ status: "approved", adminNote: note })
+                    }
+                    className="h-7 px-3 bg-brand text-[#243000] rounded-[4px] text-[11.5px] font-bold disabled:opacity-50"
+                  >
                     {t("fb.approve")}
                   </button>
                 )}
-                {f.status !== "rejected" && (
-                  <button disabled={busy} onClick={() => review({ status: "rejected", adminNote: note })}
-                    className="h-7 px-3 border border-danger-line text-danger rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50">
+                {f.status !== "rejected" && f.status !== "verified" && (
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      review({ status: "rejected", adminNote: note })
+                    }
+                    className="h-7 px-3 border border-danger-line text-danger rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50"
+                  >
                     {t("fb.reject")}
                   </button>
                 )}
-                {f.status === "approved" && (
-                  <button disabled={busy} onClick={() => review({ status: "implemented", adminNote: note })}
-                    className="h-7 px-3 border border-line text-charcoal rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50">
+                {(f.status === "approved" || f.status === "reopened") && (
+                  <button
+                    disabled={busy || !implNote.trim()}
+                    title={
+                      implNote.trim() ? undefined : t("fb.implNoteRequired")
+                    }
+                    onClick={() =>
+                      review({
+                        status: "implemented",
+                        adminNote: note,
+                        implementationNote: implNote,
+                      })
+                    }
+                    className="h-7 px-3 border border-line text-charcoal rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50"
+                  >
                     {t("fb.markImplemented")}
                   </button>
                 )}
-                {(f.status === "rejected" || f.status === "implemented" || f.status === "resolved") && (
-                  <button disabled={busy} onClick={() => review({ status: "open", adminNote: note })}
-                    className="h-7 px-3 border border-line text-charcoal rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50">
+                {(f.status === "rejected" ||
+                  f.status === "implemented" ||
+                  f.status === "resolved" ||
+                  f.status === "verified") && (
+                  <button
+                    disabled={busy}
+                    onClick={() => review({ status: "open", adminNote: note })}
+                    className="h-7 px-3 border border-line text-charcoal rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50"
+                  >
                     {t("fb.reopen")}
                   </button>
                 )}
                 <span className="flex-1" />
                 {note !== f.adminNote && (
-                  <button disabled={busy} onClick={() => review({ adminNote: note })}
-                    className="h-7 px-3 bg-ink text-white rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50">
+                  <button
+                    disabled={busy}
+                    onClick={() => review({ adminNote: note })}
+                    className="h-7 px-3 bg-ink text-white rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50"
+                  >
                     {t("fb.saveNote")}
                   </button>
                 )}
               </div>
             </div>
           ) : (
-            (f.adminNote || f.reviewedBy) && (
-              <div className="bg-brand-soft/50 border border-brand/30 rounded-[4px] p-2.5">
-                <div className="text-[10px] font-bold uppercase text-brand-deep mb-1">
-                  {t("fb.adminNote")}{f.reviewedBy ? ` · ${firstName(f.reviewedBy)}` : ""}
+            <>
+              {(f.adminNote || f.reviewedBy) && (
+                <div className="bg-brand-soft/50 border border-brand/30 rounded-[4px] p-2.5">
+                  <div className="text-[10px] font-bold uppercase text-brand-deep mb-1">
+                    {t("fb.adminNote")}
+                    {f.reviewedBy ? ` · ${firstName(f.reviewedBy)}` : ""}
+                  </div>
+                  <p className="text-[12px] whitespace-pre-wrap text-charcoal">
+                    {f.adminNote || "—"}
+                  </p>
                 </div>
-                <p className="text-[12px] whitespace-pre-wrap text-charcoal">{f.adminNote || "—"}</p>
-              </div>
-            )
+              )}
+              {f.implementationNote && (
+                <div className="bg-surface border border-line rounded-[4px] p-2.5">
+                  <div className="text-[10px] font-bold uppercase text-muted mb-1">
+                    {t("fb.implNote")}
+                  </div>
+                  <p className="text-[12px] whitespace-pre-wrap text-charcoal">
+                    {f.implementationNote}
+                  </p>
+                </div>
+              )}
+              {f.status === "implemented" && (
+                <div className="bg-surface border border-brand/40 rounded-[4px] p-2.5 space-y-2">
+                  <div className="text-[11.5px] font-semibold text-charcoal">
+                    {t("fb.verifyAsk")}
+                  </div>
+                  {f.implementedAt && (
+                    <div className="text-[10.5px] text-muted">
+                      {t("fb.autoOn")} {autoVerifyDate(f.implementedAt)}
+                    </div>
+                  )}
+                  {disputing ? (
+                    <>
+                      <textarea
+                        rows={2}
+                        autoFocus
+                        className="w-full border border-line rounded-[4px] px-2.5 py-1.5 text-[12px] resize-y"
+                        placeholder={t("fb.verifyNoPh")}
+                        value={disputeText}
+                        onChange={(e) => setDisputeText(e.target.value)}
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          disabled={busy || !disputeText.trim()}
+                          onClick={() => verify(false, disputeText.trim())}
+                          className="h-7 px-3 border border-danger-line text-danger rounded-[4px] text-[11.5px] font-bold disabled:opacity-50"
+                        >
+                          {t("fb.verifySend")}
+                        </button>
+                        <button
+                          onClick={() => setDisputing(false)}
+                          className="h-7 px-3 text-[11.5px] text-muted"
+                        >
+                          {t("users.cancel")}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        disabled={busy}
+                        onClick={() => verify(true)}
+                        className="h-7 px-3 bg-brand text-[#243000] rounded-[4px] text-[11.5px] font-bold disabled:opacity-50"
+                      >
+                        {t("fb.verifyOk")}
+                      </button>
+                      <button
+                        disabled={busy}
+                        onClick={() => setDisputing(true)}
+                        className="h-7 px-3 border border-danger-line text-danger rounded-[4px] text-[11.5px] font-semibold disabled:opacity-50"
+                      >
+                        {t("fb.verifyNo")}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {f.status === "verified" && (
+                <div className="text-[11.5px] font-semibold text-brand-deep">
+                  ✅ {t(f.verifiedAuto ? "fb.verifiedAuto" : "fb.verifiedYou")}
+                </div>
+              )}
+              {f.status === "reopened" && (
+                <div className="text-[11.5px] text-warn">
+                  {t("fb.reopenedWait")}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -308,14 +533,26 @@ export function FeedbackBoard({
   const router = useRouter();
   const [tab, setTab] = useState<string>("open");
 
-  const TABS = ["open", "approved", "rejected", "implemented", "all"] as const;
-  const countFor = (s: string) =>
+  // "open" carries reopened items too — a disputed implementation lands
+  // straight back in the admin's inbox.
+  const matches = (s: string, f: FeedbackItem) =>
     s === "all"
-      ? items.length
-      : items.filter((f) => (s === "implemented" ? f.status === "implemented" || f.status === "resolved" : f.status === s)).length;
-  const visible = items.filter((f) =>
-    tab === "all" ? true : tab === "implemented" ? f.status === "implemented" || f.status === "resolved" : f.status === tab,
-  );
+      ? true
+      : s === "implemented"
+        ? f.status === "implemented" || f.status === "resolved"
+        : s === "open"
+          ? f.status === "open" || f.status === "reopened"
+          : f.status === s;
+  const TABS = [
+    "open",
+    "approved",
+    "rejected",
+    "implemented",
+    "verified",
+    "all",
+  ] as const;
+  const countFor = (s: string) => items.filter((f) => matches(s, f)).length;
+  const visible = items.filter((f) => matches(tab, f));
 
   return (
     <div className="space-y-4">
@@ -328,10 +565,13 @@ export function FeedbackBoard({
             onClick={() => setTab(s)}
             className={
               "h-7 px-3 rounded-full text-[11.5px] font-semibold border " +
-              (tab === s ? "bg-ink text-white border-ink" : "bg-surface text-charcoal border-line hover:bg-subtle")
+              (tab === s
+                ? "bg-ink text-white border-ink"
+                : "bg-surface text-charcoal border-line hover:bg-subtle")
             }
           >
-            {t(`fb.tab.${s}` as "fb.tab.open")} <span className="mono text-[10px] opacity-70">{countFor(s)}</span>
+            {t(`fb.tab.${s}` as "fb.tab.open")}{" "}
+            <span className="mono text-[10px] opacity-70">{countFor(s)}</span>
           </button>
         ))}
       </div>
@@ -341,7 +581,9 @@ export function FeedbackBoard({
           <ItemCard key={f.id} f={f} isAdmin={isAdmin} />
         ))}
         {visible.length === 0 && (
-          <p className="text-center text-muted text-[12.5px] py-8">{t("fb.none")}</p>
+          <p className="text-center text-muted text-[12.5px] py-8">
+            {t("fb.none")}
+          </p>
         )}
       </div>
     </div>

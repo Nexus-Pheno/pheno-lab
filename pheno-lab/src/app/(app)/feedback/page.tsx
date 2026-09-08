@@ -43,6 +43,12 @@ export default async function FeedbackPage() {
             pageUrl: f.pageUrl,
             status: f.status,
             adminNote: f.adminNote,
+            implementationNote: f.implementationNote,
+            implementedAt: f.implementedAt
+              ? f.implementedAt.toISOString().slice(0, 10)
+              : "",
+            verifiedAuto: f.verifiedAuto,
+            disputeNote: f.disputeNote,
             reviewedBy: f.reviewedBy?.name ?? "",
             createdAt: f.createdAt.toISOString().replace("T", " ").slice(0, 16),
             userName: f.user.name,

@@ -4,6 +4,7 @@ import { db } from "@/infrastructure/db/client";
 import { listAiProviders } from "@/modules/ai/service";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
+import { autoVerifyFeedback } from "@/modules/accounts/profile-service";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 
 const feedbackInclude = {
@@ -14,6 +15,7 @@ const feedbackInclude = {
 
 export async function listFeedback(actor: Actor) {
   assertAdmin(actor);
+  await autoVerifyFeedback(actor.org);
   return db.feedback.findMany({
     where: { organizationId: actor.org },
     orderBy: { createdAt: "desc" },
@@ -23,6 +25,7 @@ export async function listFeedback(actor: Actor) {
 
 /** A reporter's own submissions, with the admin's verdict and comments. */
 export async function listMyFeedback(actor: Actor) {
+  await autoVerifyFeedback(actor.org);
   return db.feedback.findMany({
     where: { organizationId: actor.org, userId: actor.uid },
     orderBy: { createdAt: "desc" },

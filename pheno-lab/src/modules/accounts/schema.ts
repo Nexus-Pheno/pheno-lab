@@ -48,10 +48,25 @@ export const feedbackReviewSchema = z
     id: z.string().min(1).max(128),
     status: z.enum(["open", "approved", "rejected", "implemented"]).optional(),
     adminNote: z.string().max(20_000).optional(),
+    implementationNote: z.string().trim().max(20_000).optional(),
     title: z.string().trim().max(300).optional(),
     message: z.string().trim().min(1).max(20_000).optional(),
   })
-  .refine((v) => Object.keys(v).length > 1, "No changes supplied.");
+  .refine((v) => Object.keys(v).length > 1, "No changes supplied.")
+  .refine(
+    (v) => v.status !== "implemented" || (v.implementationNote ?? "") !== "",
+    "Marking implemented requires patch notes for the reporter.",
+  );
+
+// The reporter's verdict on an implemented item: a green light, or a
+// reopen that must say why.
+export const feedbackVerifySchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    accept: z.boolean(),
+    note: z.string().trim().max(20_000).default(""),
+  })
+  .refine((v) => v.accept || v.note !== "", "Reopening requires a reason.");
 
 // Admin normalizes a teammate's identity (English names, the szpheno domain).
 export const userIdentitySchema = z.object({
