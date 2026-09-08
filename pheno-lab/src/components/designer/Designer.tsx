@@ -3,14 +3,38 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Equipment, Material, Preset, LabEnvironment, Process } from "@prisma/client";
-import type { ExperimentFull, StepFull, CharFull, StepDraft, CharDraft } from "@/lib/types";
+import type {
+  Equipment,
+  Material,
+  Preset,
+  LabEnvironment,
+  Process,
+} from "@prisma/client";
+import type {
+  ExperimentFull,
+  StepFull,
+  CharFull,
+  StepDraft,
+  CharDraft,
+} from "@/lib/types";
 import { STATUS_META, type TestPlan } from "@/lib/library";
+import { fmtBeijing } from "@/lib/datetime";
 import {
-  addStep, saveStep, deleteStep, reorderSteps,
-  addCharacterization, saveCharacterization, deleteCharacterization,
-  updateExperimentMeta, deleteExperiment, saveStepPreset, saveCharPreset,
-  addMember, removeMember, quickCreateMaterial, applyTestPlan,
+  addStep,
+  saveStep,
+  deleteStep,
+  reorderSteps,
+  addCharacterization,
+  saveCharacterization,
+  deleteCharacterization,
+  updateExperimentMeta,
+  deleteExperiment,
+  saveStepPreset,
+  saveCharPreset,
+  addMember,
+  removeMember,
+  quickCreateMaterial,
+  applyTestPlan,
 } from "@/lib/actions/experiments";
 import { Icon } from "@/components/ui";
 import type { CategoryRow } from "@/components/library/MaterialsRecipes";
@@ -25,7 +49,10 @@ import { CommentsPanel } from "./CommentsPanel";
 import { StepCard, CharCard } from "./cards";
 import { StepInspector, CharInspector, EmptyInspector } from "./inspectors";
 
-export type Selection = { kind: "none" } | { kind: "step"; id: string } | { kind: "char"; id: string };
+export type Selection =
+  | { kind: "none" }
+  | { kind: "step"; id: string }
+  | { kind: "char"; id: string };
 export type SaveState = "saved" | "saving" | "error";
 
 export default function Designer({
@@ -93,14 +120,25 @@ export default function Designer({
 
   const groups = useMemo(() => {
     const set = new Set<string>();
-    for (const s of exp.samples) if (s.variationGroup) set.add(s.variationGroup);
+    for (const s of exp.samples)
+      if (s.variationGroup) set.add(s.variationGroup);
     return [...set].sort();
   }, [exp.samples]);
 
-  const orderedSteps = useMemo(() => [...exp.steps].sort((a, b) => a.position - b.position), [exp.steps]);
-  const processingProcs = useMemo(() => processes.filter((p) => p.kind === "PROCESSING"), [processes]);
-  const charProcs = useMemo(() => processes.filter((p) => p.kind === "CHARACTERIZATION"), [processes]);
-  const testPlan = ((exp.metadata as { testPlan?: TestPlan } | null)?.testPlan) ?? null;
+  const orderedSteps = useMemo(
+    () => [...exp.steps].sort((a, b) => a.position - b.position),
+    [exp.steps],
+  );
+  const processingProcs = useMemo(
+    () => processes.filter((p) => p.kind === "PROCESSING"),
+    [processes],
+  );
+  const charProcs = useMemo(
+    () => processes.filter((p) => p.kind === "CHARACTERIZATION"),
+    [processes],
+  );
+  const testPlan =
+    (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan ?? null;
 
   // ---- steps ----
 
@@ -112,12 +150,25 @@ export default function Designer({
     }
   };
 
-  const handleSaveStep = async (stepId: string, draft: StepDraft, appliedPresetId: string | null) => {
+  const handleSaveStep = async (
+    stepId: string,
+    draft: StepDraft,
+    appliedPresetId: string | null,
+  ) => {
     const full = await track(saveStep(stepId, draft, appliedPresetId));
     if (full) {
-      setExp((e) => ({ ...e, steps: e.steps.map((s) => (s.id === stepId ? (full as StepFull) : s)) }));
+      setExp((e) => ({
+        ...e,
+        steps: e.steps.map((s) => (s.id === stepId ? (full as StepFull) : s)),
+      }));
       if (appliedPresetId) {
-        setPresets((ps) => ps.map((p) => (p.id === appliedPresetId ? { ...p, usageCount: p.usageCount + 1 } : p)));
+        setPresets((ps) =>
+          ps.map((p) =>
+            p.id === appliedPresetId
+              ? { ...p, usageCount: p.usageCount + 1 }
+              : p,
+          ),
+        );
       }
     }
   };
@@ -125,9 +176,12 @@ export default function Designer({
   const handleDeleteStep = async (stepId: string) => {
     setExp((e) => ({
       ...e,
-      steps: e.steps.filter((s) => s.id !== stepId).map((s, i) => ({ ...s, position: i })),
+      steps: e.steps
+        .filter((s) => s.id !== stepId)
+        .map((s, i) => ({ ...s, position: i })),
     }));
-    if (selection.kind === "step" && selection.id === stepId) setSelection({ kind: "none" });
+    if (selection.kind === "step" && selection.id === stepId)
+      setSelection({ kind: "none" });
     await track(deleteStep(stepId));
   };
 
@@ -166,27 +220,46 @@ export default function Designer({
   const handleAddChar = async (processId: string) => {
     const c = await track(addCharacterization(exp.id, processId));
     if (c) {
-      setExp((e) => ({ ...e, characterizations: [...e.characterizations, c as CharFull] }));
+      setExp((e) => ({
+        ...e,
+        characterizations: [...e.characterizations, c as CharFull],
+      }));
       setSelection({ kind: "char", id: c.id });
     }
   };
 
-  const handleSaveChar = async (id: string, draft: CharDraft, appliedPresetId: string | null) => {
+  const handleSaveChar = async (
+    id: string,
+    draft: CharDraft,
+    appliedPresetId: string | null,
+  ) => {
     const full = await track(saveCharacterization(id, draft, appliedPresetId));
     if (full) {
       setExp((e) => ({
         ...e,
-        characterizations: e.characterizations.map((c) => (c.id === id ? (full as CharFull) : c)),
+        characterizations: e.characterizations.map((c) =>
+          c.id === id ? (full as CharFull) : c,
+        ),
       }));
       if (appliedPresetId) {
-        setPresets((ps) => ps.map((p) => (p.id === appliedPresetId ? { ...p, usageCount: p.usageCount + 1 } : p)));
+        setPresets((ps) =>
+          ps.map((p) =>
+            p.id === appliedPresetId
+              ? { ...p, usageCount: p.usageCount + 1 }
+              : p,
+          ),
+        );
       }
     }
   };
 
   const handleDeleteChar = async (id: string) => {
-    setExp((e) => ({ ...e, characterizations: e.characterizations.filter((c) => c.id !== id) }));
-    if (selection.kind === "char" && selection.id === id) setSelection({ kind: "none" });
+    setExp((e) => ({
+      ...e,
+      characterizations: e.characterizations.filter((c) => c.id !== id),
+    }));
+    if (selection.kind === "char" && selection.id === id)
+      setSelection({ kind: "none" });
     await track(deleteCharacterization(id));
   };
 
@@ -209,17 +282,25 @@ export default function Designer({
 
   const handleAddMember = async (userId: string) => {
     const members = await track(addMember(exp.id, userId));
-    if (members) setExp((e) => ({ ...e, members: members as ExperimentFull["members"] }));
+    if (members)
+      setExp((e) => ({ ...e, members: members as ExperimentFull["members"] }));
   };
 
   const handleRemoveMember = async (userId: string) => {
     const members = await track(removeMember(exp.id, userId));
-    if (members) setExp((e) => ({ ...e, members: members as ExperimentFull["members"] }));
+    if (members)
+      setExp((e) => ({ ...e, members: members as ExperimentFull["members"] }));
   };
 
-  const handleCreateMaterial = async (name: string, processId: string | null) => {
+  const handleCreateMaterial = async (
+    name: string,
+    processId: string | null,
+  ) => {
     const m = await track(quickCreateMaterial(name, processId));
-    if (m) setMaterials((ms) => [...ms, m].sort((a, b) => a.name.localeCompare(b.name)));
+    if (m)
+      setMaterials((ms) =>
+        [...ms, m].sort((a, b) => a.name.localeCompare(b.name)),
+      );
     return m;
   };
 
@@ -238,8 +319,13 @@ export default function Designer({
         environmentId: draft.environmentId,
         environmentConditions: draft.environmentConditions,
         materials: draft.materials.filter((m) => m.materialId),
-        parameters: draft.parameters.map((p) => ({ name: p.name, unit: p.unit, value: p.value, source: p.source })),
-      })
+        parameters: draft.parameters.map((p) => ({
+          name: p.name,
+          unit: p.unit,
+          value: p.value,
+          source: p.source,
+        })),
+      }),
     );
     if (preset) setPresets((ps) => [...ps, preset]);
   };
@@ -255,20 +341,28 @@ export default function Designer({
         environmentConditions: draft.environmentConditions,
         settings: draft.settings,
         sampleScope: draft.sampleScope,
-      })
+      }),
     );
     if (preset) setPresets((ps) => [...ps, preset]);
   };
 
-  const selectedStep = selection.kind === "step" ? exp.steps.find((s) => s.id === selection.id) : undefined;
-  const selectedChar = selection.kind === "char" ? exp.characterizations.find((c) => c.id === selection.id) : undefined;
+  const selectedStep =
+    selection.kind === "step"
+      ? exp.steps.find((s) => s.id === selection.id)
+      : undefined;
+  const selectedChar =
+    selection.kind === "char"
+      ? exp.characterizations.find((c) => c.id === selection.id)
+      : undefined;
   const status = STATUS_META[exp.status];
 
   return (
     <div className="h-full flex flex-col">
       <div className="h-11 shrink-0 flex items-center gap-3 px-3 sm:px-4 border-b border-line bg-surface overflow-x-auto no-scrollbar whitespace-nowrap">
         <span className="mono font-bold text-[13px] shrink-0">{exp.code}</span>
-        <span className="text-[13px] text-charcoal truncate max-w-36 sm:max-w-96">{exp.title}</span>
+        <span className="text-[13px] text-charcoal truncate max-w-36 sm:max-w-96">
+          {exp.title}
+        </span>
         <span
           className={
             "shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-[4px] border " +
@@ -354,7 +448,9 @@ export default function Designer({
       <div className="flex-1 min-h-0 flex">
         {/* Process library rail — desktop only; phones use the add sheet */}
         <aside className="hidden lg:block w-60 shrink-0 border-r border-line bg-surface overflow-y-auto">
-          <h3 className="text-[11px] font-bold uppercase text-muted px-3.5 pt-3.5 pb-1">{t("designer.processLibrary")}</h3>
+          <h3 className="text-[11px] font-bold uppercase text-muted px-3.5 pt-3.5 pb-1">
+            {t("designer.processLibrary")}
+          </h3>
           <p className="text-[11px] text-muted px-3.5 pb-2 leading-snug">
             {t(canEdit ? "designer.railHintEdit" : "designer.railHintView")}
           </p>
@@ -366,14 +462,22 @@ export default function Designer({
                 onClick={() => handleAddStep(t.id)}
                 className="w-full flex items-center gap-2 border border-line rounded-[4px] px-2.5 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-subtle disabled:opacity-60 text-left"
               >
-                <Icon name={t.icon} size={14} className="shrink-0 text-charcoal" />
+                <Icon
+                  name={t.icon}
+                  size={14}
+                  className="shrink-0 text-charcoal"
+                />
                 {tt(t.name)}
-                {canEdit && <Icon name="Plus" size={12} className="ml-auto text-muted" />}
+                {canEdit && (
+                  <Icon name="Plus" size={12} className="ml-auto text-muted" />
+                )}
               </button>
             ))}
           </div>
           <div className="border-t border-line mt-1" />
-          <h3 className="text-[11px] font-bold uppercase text-muted px-3.5 pt-3 pb-1">{t("designer.characterization")}</h3>
+          <h3 className="text-[11px] font-bold uppercase text-muted px-3.5 pt-3 pb-1">
+            {t("designer.characterization")}
+          </h3>
           <div className="px-2.5 pb-4 space-y-1.5">
             {charProcs.map((t) => (
               <button
@@ -382,22 +486,35 @@ export default function Designer({
                 onClick={() => handleAddChar(t.id)}
                 className="w-full flex items-center gap-2 border border-line rounded-[4px] px-2.5 py-1.5 text-[12px] font-medium text-ink bg-surface hover:bg-subtle disabled:opacity-60 text-left"
               >
-                <Icon name={t.icon} size={14} className="shrink-0 text-charcoal" />
+                <Icon
+                  name={t.icon}
+                  size={14}
+                  className="shrink-0 text-charcoal"
+                />
                 {tt(t.name)}
-                {canEdit && <Icon name="Plus" size={12} className="ml-auto text-muted" />}
+                {canEdit && (
+                  <Icon name="Plus" size={12} className="ml-auto text-muted" />
+                )}
               </button>
             ))}
           </div>
         </aside>
 
         {/* Canvas */}
-        <section ref={canvasRef} className="flex-1 min-w-0 overflow-y-auto bg-subtle p-3 sm:p-5">
+        <section
+          ref={canvasRef}
+          className="flex-1 min-w-0 overflow-y-auto bg-subtle p-3 sm:p-5"
+        >
           {exp.status === "REVIEW" && (
             <ReviewPanel
               expId={exp.id}
               code={exp.code}
-              assigneeName={orgUsers.find((u) => u.id === exp.assigneeId)?.name ?? "—"}
-              submittedAt={exp.submittedAt ? new Date(exp.submittedAt).toISOString().replace("T", " ").slice(0, 16) : ""}
+              assigneeName={
+                orgUsers.find((u) => u.id === exp.assigneeId)?.name ?? "—"
+              }
+              submittedAt={
+                exp.submittedAt ? fmtBeijing(new Date(exp.submittedAt)) : ""
+              }
               submitNote={exp.submitNote}
               canApprove={canEdit}
             />
@@ -428,14 +545,19 @@ export default function Designer({
             canManageMaterials={canManageMaterials}
             onApply={handleApplyTestPlan}
             onMaterialCreated={(m) =>
-              setMaterials((ms) => [...ms, m].sort((a, b) => a.name.localeCompare(b.name)))
+              setMaterials((ms) =>
+                [...ms, m].sort((a, b) => a.name.localeCompare(b.name)),
+              )
             }
           />
 
           <div className="flex items-center gap-2.5 mb-2.5 mt-5">
-            <h2 className="text-[13px] font-bold shrink-0">{t("designer.processFlow")}</h2>
+            <h2 className="text-[13px] font-bold shrink-0">
+              {t("designer.processFlow")}
+            </h2>
             <span className="text-[11px] text-muted hidden sm:inline">
-              {t("designer.flowHint")}{canEdit && ` · ${t("designer.dragHint")}`}
+              {t("designer.flowHint")}
+              {canEdit && ` · ${t("designer.dragHint")}`}
             </span>
             {canEdit && (
               <button
@@ -461,7 +583,8 @@ export default function Designer({
                 }}
                 onDragOver={(e) => {
                   e.preventDefault();
-                  if (dragIdRef.current && dragIdRef.current !== step.id) setDropId(step.id);
+                  if (dragIdRef.current && dragIdRef.current !== step.id)
+                    setDropId(step.id);
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -480,8 +603,12 @@ export default function Designer({
           </div>
 
           <div className="flex items-center gap-2.5 mb-2.5 mt-6">
-            <h2 className="text-[13px] font-bold shrink-0">{t("designer.charPlan")}</h2>
-            <span className="text-[11px] text-muted hidden sm:inline">{t("designer.charHint")}</span>
+            <h2 className="text-[13px] font-bold shrink-0">
+              {t("designer.charPlan")}
+            </h2>
+            <span className="text-[11px] text-muted hidden sm:inline">
+              {t("designer.charHint")}
+            </span>
             {canEdit && (
               <button
                 onClick={() => setAddSheet("char")}
@@ -549,32 +676,52 @@ export default function Designer({
           )}
           {selectedStep ? (
             <StepInspector
-              key={selectedStep.id + String(selectedStep.parameters.map((p) => p.id).join(","))}
+              key={
+                selectedStep.id +
+                String(selectedStep.parameters.map((p) => p.id).join(","))
+              }
               step={selectedStep}
               groups={groups}
-              equipment={equipment.filter((e) => e.processId === selectedStep.processId)}
+              equipment={equipment.filter(
+                (e) => e.processId === selectedStep.processId,
+              )}
               materials={materials}
               environments={environments}
-              presets={presets.filter((p) => p.kind === "STEP" && p.processId === selectedStep.processId)}
+              presets={presets.filter(
+                (p) =>
+                  p.kind === "STEP" && p.processId === selectedStep.processId,
+              )}
               recipes={recipes}
               layers={layers}
               canManageMaterials={canManageMaterials}
               canEdit={canEdit}
-              onSave={(draft, presetId) => handleSaveStep(selectedStep.id, draft, presetId)}
+              onSave={(draft, presetId) =>
+                handleSaveStep(selectedStep.id, draft, presetId)
+              }
               onSavePreset={handleSaveStepPreset}
-              onCreateMaterial={(name) => handleCreateMaterial(name, selectedStep.processId)}
+              onCreateMaterial={(name) =>
+                handleCreateMaterial(name, selectedStep.processId)
+              }
             />
           ) : selectedChar ? (
             <CharInspector
               key={selectedChar.id}
               char={selectedChar}
-              equipment={equipment.filter((e) => e.processId === selectedChar.processId)}
+              equipment={equipment.filter(
+                (e) => e.processId === selectedChar.processId,
+              )}
               environments={environments}
-              presets={presets.filter((p) => p.kind === "CHARACTERIZATION" && p.processId === selectedChar.processId)}
+              presets={presets.filter(
+                (p) =>
+                  p.kind === "CHARACTERIZATION" &&
+                  p.processId === selectedChar.processId,
+              )}
               canEdit={canEdit}
               experimentId={exp.id}
               experimentCode={exp.code}
-              onSave={(draft, presetId) => handleSaveChar(selectedChar.id, draft, presetId)}
+              onSave={(draft, presetId) =>
+                handleSaveChar(selectedChar.id, draft, presetId)
+              }
               onSavePreset={handleSaveCharPreset}
             />
           ) : (
@@ -589,27 +736,53 @@ export default function Designer({
           <span
             className={
               "inline-block w-1.5 h-1.5 rounded-full " +
-              (saveState === "saved" ? "bg-brand" : saveState === "saving" ? "bg-warn" : "bg-danger")
+              (saveState === "saved"
+                ? "bg-brand"
+                : saveState === "saving"
+                  ? "bg-warn"
+                  : "bg-danger")
             }
           />
-          {saveState === "saved" ? t("designer.saved") : saveState === "saving" ? t("designer.saving") : t("designer.saveFailed")}
+          {saveState === "saved"
+            ? t("designer.saved")
+            : saveState === "saving"
+              ? t("designer.saving")
+              : t("designer.saveFailed")}
         </span>
-        <span className="mono">{exp.samples.length} {t("designer.samples")}</span>
-        <span className="mono hidden sm:inline">{exp.steps.length} {t("designer.processSteps")}</span>
-        <span className="mono hidden sm:inline">{exp.characterizations.length} {t("designer.characterizations")}</span>
-        <span className="ml-auto hidden sm:inline">Pheno Lab Data Platform</span>
+        <span className="mono">
+          {exp.samples.length} {t("designer.samples")}
+        </span>
+        <span className="mono hidden sm:inline">
+          {exp.steps.length} {t("designer.processSteps")}
+        </span>
+        <span className="mono hidden sm:inline">
+          {exp.characterizations.length} {t("designer.characterizations")}
+        </span>
+        <span className="ml-auto hidden sm:inline">
+          Pheno Lab Data Platform
+        </span>
       </footer>
 
       {/* Mobile add sheet: pick a process to add a step / characterization */}
       {addSheet && (
         <>
-          <div className="lg:hidden fixed inset-0 z-40 bg-ink/30" onClick={() => setAddSheet(null)} />
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-ink/30"
+            onClick={() => setAddSheet(null)}
+          />
           <div className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-surface border-t border-line rounded-t-[10px] shadow-[0_-8px_30px_rgba(0,0,0,0.18)] max-h-[70dvh] overflow-y-auto">
             <div className="sticky top-0 bg-surface border-b border-line px-4 py-2.5 flex items-center justify-between">
               <span className="text-[12px] font-bold uppercase text-muted">
-                {t(addSheet === "step" ? "designer.processLibrary" : "designer.characterization")}
+                {t(
+                  addSheet === "step"
+                    ? "designer.processLibrary"
+                    : "designer.characterization",
+                )}
               </span>
-              <button onClick={() => setAddSheet(null)} className="p-1.5 -m-1 rounded-[4px] text-muted hover:bg-subtle">
+              <button
+                onClick={() => setAddSheet(null)}
+                className="p-1.5 -m-1 rounded-[4px] text-muted hover:bg-subtle"
+              >
                 <Icon name="X" size={16} />
               </button>
             </div>
@@ -619,11 +792,17 @@ export default function Designer({
                   key={p.id}
                   onClick={() => {
                     setAddSheet(null);
-                    void (addSheet === "step" ? handleAddStep(p.id) : handleAddChar(p.id));
+                    void (addSheet === "step"
+                      ? handleAddStep(p.id)
+                      : handleAddChar(p.id));
                   }}
                   className="w-full flex items-center gap-2.5 border border-line rounded-[5px] px-3 py-2.5 text-[13px] font-medium text-ink bg-surface active:bg-subtle text-left"
                 >
-                  <Icon name={p.icon} size={15} className="shrink-0 text-charcoal" />
+                  <Icon
+                    name={p.icon}
+                    size={15}
+                    className="shrink-0 text-charcoal"
+                  />
                   {tt(p.name)}
                   <Icon name="Plus" size={13} className="ml-auto text-muted" />
                 </button>

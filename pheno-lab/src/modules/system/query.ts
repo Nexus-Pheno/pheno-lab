@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { readdir, stat, statfs } from "node:fs/promises";
 import path from "node:path";
@@ -73,7 +74,7 @@ export async function getSystemStatus(actor: Actor) {
         return {
           name: file,
           sizeBytes: metadata.size,
-          date: metadata.mtime.toISOString().replace("T", " ").slice(0, 16),
+          date: fmtBeijing(metadata.mtime),
         };
       }),
     );

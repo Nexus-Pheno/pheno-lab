@@ -3,6 +3,7 @@ import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { FeedbackBoard } from "@/components/feedback/FeedbackBoard";
 import { listFeedback } from "@/modules/accounts/query";
+import { fmtBeijing } from "@/lib/datetime";
 
 // The admin's triage board. Teammates submit and track their items from the
 // profile page; approved items here are the agent's implementation queue.
@@ -45,12 +46,12 @@ export default async function FeedbackPage() {
             adminNote: f.adminNote,
             implementationNote: f.implementationNote,
             implementedAt: f.implementedAt
-              ? f.implementedAt.toISOString().slice(0, 10)
+              ? fmtBeijing(f.implementedAt, "date")
               : "",
             verifiedAuto: f.verifiedAuto,
             disputeNote: f.disputeNote,
             reviewedBy: f.reviewedBy?.name ?? "",
-            createdAt: f.createdAt.toISOString().replace("T", " ").slice(0, 16),
+            createdAt: fmtBeijing(f.createdAt),
             userName: f.user.name,
             userEmail: f.user.email,
           }))}

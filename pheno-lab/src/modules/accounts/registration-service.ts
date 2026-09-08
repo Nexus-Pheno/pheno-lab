@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import type { Prisma } from "@prisma/client";
 
@@ -244,7 +245,7 @@ export async function listRegistrationApprovals(actor: Actor): Promise<{
       name: u.name,
       handle: u.handle,
       email: u.email,
-      createdAt: u.createdAt.toISOString().slice(0, 16).replace("T", " "),
+      createdAt: fmtBeijing(u.createdAt),
       suggestedLegacyId:
         placeholders.find((p) => nameKey(p.name) === nameKey(u.name))?.id ??
         null,

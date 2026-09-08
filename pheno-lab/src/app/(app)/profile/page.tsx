@@ -8,6 +8,7 @@ import { FeedbackBoard } from "@/components/feedback/FeedbackBoard";
 import { BadgeBind } from "@/components/profile/BadgeBind";
 import { getProfileData, listMyFeedback } from "@/modules/accounts/query";
 import { getSystemStatus } from "@/modules/system/query";
+import { fmtBeijing } from "@/lib/datetime";
 
 export default async function ProfilePage() {
   const session = await requireSession();
@@ -114,7 +115,7 @@ export default async function ProfilePage() {
             email: user.email,
             language: user.language === "zh" ? "zh" : "en",
             role: user.role,
-            createdAt: user.createdAt.toISOString().slice(0, 10),
+            createdAt: fmtBeijing(user.createdAt, "date"),
           }}
           orgName={org.name}
         />
@@ -149,15 +150,12 @@ export default async function ProfilePage() {
               adminNote: f.adminNote,
               implementationNote: f.implementationNote,
               implementedAt: f.implementedAt
-                ? f.implementedAt.toISOString().slice(0, 10)
+                ? fmtBeijing(f.implementedAt, "date")
                 : "",
               verifiedAuto: f.verifiedAuto,
               disputeNote: f.disputeNote,
               reviewedBy: f.reviewedBy?.name ?? "",
-              createdAt: f.createdAt
-                .toISOString()
-                .replace("T", " ")
-                .slice(0, 16),
+              createdAt: fmtBeijing(f.createdAt),
               userName: f.user.name,
               userEmail: f.user.email,
             }))}

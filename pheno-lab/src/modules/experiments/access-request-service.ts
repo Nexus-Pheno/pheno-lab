@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
@@ -71,14 +72,11 @@ export async function getExperimentPeek(
     title: experiment.title,
     status: experiment.status,
     owner: experiment.createdBy.name,
-    createdAt: experiment.createdAt.toISOString().slice(0, 10),
+    createdAt: fmtBeijing(experiment.createdAt, "date"),
     myRequest: mine
       ? {
           status: mine.status,
-          createdAt: mine.createdAt
-            .toISOString()
-            .slice(0, 16)
-            .replace("T", " "),
+          createdAt: fmtBeijing(mine.createdAt),
         }
       : null,
   };
@@ -167,7 +165,7 @@ export async function listOpenRequests(
     id: r.id,
     requester: r.requester.name,
     message: r.message,
-    createdAt: r.createdAt.toISOString().slice(0, 16).replace("T", " "),
+    createdAt: fmtBeijing(r.createdAt),
   }));
 }
 
