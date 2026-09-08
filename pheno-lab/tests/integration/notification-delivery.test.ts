@@ -512,6 +512,7 @@ describe("morning digest on PostgreSQL", () => {
         "待审批材料修改：1",
         "待审批配方：1",
         "未匹配扫描：1",
+        "待回复 @提及（超24小时未读）：0",
       ])
         expect(text).toContain(line);
       expect(text).not.toMatch(/Private|PRIVATE|synthetic|example\.test/);
