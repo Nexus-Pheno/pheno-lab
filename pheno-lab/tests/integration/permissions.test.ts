@@ -7,6 +7,7 @@ import {
   deleteExperiment,
   updateExperimentMeta,
 } from "@/modules/experiments/service";
+import { getExperimentDesignerData } from "@/modules/experiments/query";
 import { getOrCreateRunService } from "@/modules/runs/service";
 
 /**
@@ -167,6 +168,41 @@ describe("manager scope inside one organization", () => {
           where: { entityId: experiment.id, action: "experiment.update" },
         }),
       ).toBe(4);
+    } finally {
+      await removeOrganization(organization.id);
+    }
+  });
+});
+
+describe("designer edit flag", () => {
+  it("gives technicians the pen on their own experiments", async () => {
+    // Regression: a stale pre-revamp rule in the designer query rendered
+    // technician creators read-only in the UI (David/Dennis, 2026-09-08),
+    // while the write policy would have allowed their edits.
+    const organization = await createOrganization("canedit");
+    try {
+      const tech = await createUser(organization.id, "TECHNICIAN", "owner");
+      const member = await createUser(organization.id, "TECHNICIAN", "member");
+      const manager = await createUser(
+        organization.id,
+        "MANAGER",
+        "uninvolved-manager",
+      );
+      const experiment = await createExperiment(organization.id, tech.uid, [
+        member.uid,
+      ]);
+
+      const own = await getExperimentDesignerData(tech, experiment.id);
+      expect(own?.canEdit).toBe(true);
+      // Members collaborate (read + capture); the creator keeps the pen.
+      const memberView = await getExperimentDesignerData(member, experiment.id);
+      expect(memberView?.canEdit).toBe(false);
+      // Staff manage the whole board, involved or not.
+      const managerView = await getExperimentDesignerData(
+        manager,
+        experiment.id,
+      );
+      expect(managerView?.canEdit).toBe(true);
     } finally {
       await removeOrganization(organization.id);
     }

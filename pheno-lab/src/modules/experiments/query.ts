@@ -4,7 +4,10 @@ import { db } from "@/infrastructure/db/client";
 import { buildCaptureChoiceCatalog } from "@/lib/capture-fields";
 import { experimentInclude } from "@/lib/types";
 import type { Actor } from "@/modules/authorization/actor";
-import { canReadExperiment } from "@/modules/authorization/policy";
+import {
+  canManageExperiment,
+  canReadExperiment,
+} from "@/modules/authorization/policy";
 import {
   experimentListScope,
   experimentVisibilityScope,
@@ -147,11 +150,10 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     }),
   ]);
   if (!experiment) return null;
-  const involved =
-    experiment.createdById === actor.uid ||
-    experiment.members.some((member) => member.userId === actor.uid);
-  const canEdit =
-    actor.role === "ADMIN" || (actor.role === "MANAGER" && involved);
+  // The one edit-rights answer lives in policy: staff manage everything,
+  // technicians manage what they created. A stale pre-revamp copy of this
+  // rule here once locked technicians out of their own designers (2026-09-08).
+  const canEdit = canManageExperiment(actor, experiment);
   return {
     experiment,
     processes,
