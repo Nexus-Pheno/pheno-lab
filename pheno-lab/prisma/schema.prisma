@@ -215,13 +215,21 @@ model Feedback {
   errorLog       String       @default("") // recent client-side errors at submit time
   pageUrl        String       @default("")
   userAgent      String       @default("")
-  // Review pipeline: the admin sifts submissions, annotates them, and
-  // approves the ones an agent should implement. "resolved" is legacy.
-  status         String       @default("open") // "open" | "approved" | "rejected" | "implemented"
+  // Review pipeline: open → approved → implemented → (reporter verifies)
+  // verified, or reopened back to the admin. "resolved" is legacy.
+  status         String       @default("open") // "open" | "approved" | "rejected" | "implemented" | "verified" | "reopened"
   adminNote      String       @default("") // the admin's comments / scoping edits
   reviewedById   String?
   reviewedBy     User?        @relation("FeedbackReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt     DateTime?
+  // Closing the loop (Michael, 2026-09-08): implementation ships with patch
+  // notes; the reporter tests and confirms (or disputes with a reason).
+  // Untouched implemented items auto-verify after 7 days.
+  implementedAt      DateTime?
+  implementationNote String    @default("") // patch notes shown to the reporter
+  verifiedAt         DateTime?
+  verifiedAuto       Boolean   @default(false)
+  disputeNote        String    @default("") // reporter's reason when reopening
   attachments    Attachment[]
   createdAt      DateTime     @default(now())
 }

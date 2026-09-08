@@ -17,6 +17,8 @@ export type NotificationKind =
   | "feedback_rejected"
   | "feedback_implemented"
   | "feedback_commented"
+  | "feedback_verified"
+  | "feedback_reopened"
   | "assigned"
   | "member_added"
   | "experiment_commented"

@@ -5,15 +5,20 @@ import { db } from "@/infrastructure/db/client";
 import { objectStorage } from "@/infrastructure/storage";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
-import { recordUserAudit } from "@/modules/audit/writer";
+import { recordSystemAudit, recordUserAudit } from "@/modules/audit/writer";
 import { notify, type NotificationKind } from "@/modules/notifications/service";
 import {
   feedbackReviewSchema,
   feedbackSchema,
+  feedbackVerifySchema,
   languageSchema,
   passwordChangeSchema,
   profileSchema,
 } from "./schema";
+
+// A reporter has this long to test an implemented item before it goes green
+// on its own (Michael, 2026-09-08).
+const VERIFY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function updateProfile(actor: Actor, raw: unknown) {
   const data = profileSchema.parse(raw);
@@ -145,6 +150,16 @@ export async function reviewFeedback(actor: Actor, raw: unknown) {
         ...(patch.status
           ? { reviewedById: actor.uid, reviewedAt: new Date() }
           : {}),
+        // Marking implemented (re)starts the reporter's 7-day verification
+        // window and clears any previous verdict.
+        ...(patch.status === "implemented"
+          ? {
+              implementedAt: new Date(),
+              verifiedAt: null,
+              verifiedAuto: false,
+              disputeNote: "",
+            }
+          : {}),
       },
     });
     if (result.count !== 1) throw new Error("Feedback not found.");
@@ -184,6 +199,92 @@ export async function reviewFeedback(actor: Actor, raw: unknown) {
       entityType: "Feedback",
       entityId: id,
       changes: patch,
+    });
+  });
+}
+
+/**
+ * The reporter's verdict on an implemented item: green-light it (verified)
+ * or reopen it with a reason, which puts it back in the admin's queue.
+ */
+export async function verifyFeedback(actor: Actor, raw: unknown) {
+  const { id, accept, note } = feedbackVerifySchema.parse(raw);
+  await db.$transaction(async (tx) => {
+    const feedback = await tx.feedback.findFirst({
+      where: { id, organizationId: actor.org },
+      select: {
+        userId: true,
+        status: true,
+        title: true,
+        message: true,
+        reviewedById: true,
+      },
+    });
+    if (!feedback) throw new Error("Feedback not found.");
+    if (feedback.userId !== actor.uid)
+      throw new Error("Only the reporter can verify their feedback.");
+    if (feedback.status !== "implemented")
+      throw new Error("Only implemented feedback can be verified.");
+
+    await tx.feedback.update({
+      where: { id },
+      data: accept
+        ? { status: "verified", verifiedAt: new Date(), verifiedAuto: false }
+        : { status: "reopened", disputeNote: note },
+    });
+    if (feedback.reviewedById) {
+      const reporter = await tx.user.findUniqueOrThrow({
+        where: { id: actor.uid },
+        select: { name: true },
+      });
+      await notify(tx, {
+        organizationId: actor.org,
+        userId: feedback.reviewedById,
+        actorUserId: actor.uid,
+        kind: accept ? "feedback_verified" : "feedback_reopened",
+        actorName: reporter.name,
+        entityLabel: feedback.title || feedback.message.slice(0, 80),
+        href: "/feedback",
+      });
+    }
+    await recordUserAudit(tx, {
+      actor,
+      action: accept ? "feedback.verified" : "feedback.disputed",
+      entityType: "Feedback",
+      entityId: id,
+      // The dispute reason lives on the row; the audit only marks the event.
+      changes: { accept },
+    });
+  });
+}
+
+/**
+ * Implemented items nobody responded to within the window go green on their
+ * own. Called lazily from the feedback lists — no cron needed, and a board
+ * nobody opens simply settles a little later.
+ */
+export async function autoVerifyFeedback(organizationId: string) {
+  const cutoff = new Date(Date.now() - VERIFY_WINDOW_MS);
+  const stale = await db.feedback.findMany({
+    where: {
+      organizationId,
+      status: "implemented",
+      implementedAt: { lt: cutoff },
+    },
+    select: { id: true },
+  });
+  if (stale.length === 0) return;
+  await db.$transaction(async (tx) => {
+    await tx.feedback.updateMany({
+      where: { id: { in: stale.map((row) => row.id) } },
+      data: { status: "verified", verifiedAt: new Date(), verifiedAuto: true },
+    });
+    await recordSystemAudit(tx, {
+      organizationId,
+      action: "feedback.auto_verified",
+      entityType: "Organization",
+      entityId: organizationId,
+      metadata: { count: stale.length },
     });
   });
 }

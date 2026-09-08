@@ -19,6 +19,8 @@ const KIND_ICON: Record<string, string> = {
   feedback_rejected: "ThumbsDown",
   feedback_implemented: "Rocket",
   feedback_commented: "MessageSquare",
+  feedback_verified: "BadgeCheck",
+  feedback_reopened: "RotateCcw",
   assigned: "ClipboardList",
   member_added: "Users",
   experiment_commented: "MessagesSquare",

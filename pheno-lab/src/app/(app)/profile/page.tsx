@@ -82,7 +82,12 @@ export default async function ProfilePage() {
         {/* Stats */}
         <section>
           <h2 className="text-[13px] font-bold mb-2">{t("profile.stats")}</h2>
-          <div className={"grid grid-cols-2 gap-2.5 " + (stats.length > 5 ? "sm:grid-cols-3" : "sm:grid-cols-5")}>
+          <div
+            className={
+              "grid grid-cols-2 gap-2.5 " +
+              (stats.length > 5 ? "sm:grid-cols-3" : "sm:grid-cols-5")
+            }
+          >
             {stats.map((s) => (
               <div
                 key={s.label}
@@ -125,7 +130,8 @@ export default async function ProfilePage() {
             screenshots, and follow the admin's verdict right here. */}
         <section className="bg-surface border border-line rounded-[6px] p-4">
           <h2 className="text-[13px] font-bold mb-1 flex items-center gap-1.5">
-            <Icon name="Bug" size={14} className="text-charcoal" /> {t("fb.boardTitle")}
+            <Icon name="Bug" size={14} className="text-charcoal" />{" "}
+            {t("fb.boardTitle")}
           </h2>
           <p className="text-[11px] text-muted mb-3">{t("fb.boardHint")}</p>
           <FeedbackBoard
@@ -141,8 +147,17 @@ export default async function ProfilePage() {
               pageUrl: f.pageUrl,
               status: f.status,
               adminNote: f.adminNote,
+              implementationNote: f.implementationNote,
+              implementedAt: f.implementedAt
+                ? f.implementedAt.toISOString().slice(0, 10)
+                : "",
+              verifiedAuto: f.verifiedAuto,
+              disputeNote: f.disputeNote,
               reviewedBy: f.reviewedBy?.name ?? "",
-              createdAt: f.createdAt.toISOString().replace("T", " ").slice(0, 16),
+              createdAt: f.createdAt
+                .toISOString()
+                .replace("T", " ")
+                .slice(0, 16),
               userName: f.user.name,
               userEmail: f.user.email,
             }))}
