@@ -69,7 +69,10 @@ export async function runMorningDigest(
       }),
       db.user.count({ where: { ...where, pendingApproval: true } }),
       db.accessRequest.count({
-        where: { status: "open", experiment: { ...where, isTest: false } },
+        where: {
+          status: "open",
+          experiment: { ...where, isTest: false, deletedAt: null },
+        },
       }),
       db.materialEditSuggestion.count({
         where: { ...where, status: "PENDING" },
@@ -94,6 +97,7 @@ export async function runMorningDigest(
       where: {
         ...where,
         isTest: false,
+        deletedAt: null,
         id: { in: completionEvents.map((event) => event.entityId) },
       },
     });

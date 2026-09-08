@@ -47,7 +47,7 @@ export async function getExperimentPeek(
 ): Promise<ExperimentPeek | null> {
   const id = experimentIdSchema.parse(rawId);
   const experiment = await db.experiment.findFirst({
-    where: { id, organizationId: actor.org, isTest: false },
+    where: { id, organizationId: actor.org, isTest: false, deletedAt: null },
     select: {
       id: true,
       code: true,
@@ -88,7 +88,12 @@ export async function requestAccess(actor: Actor, raw: unknown): Promise<void> {
   const { experimentId, message } = accessRequestSchema.parse(raw);
   const created = await db.$transaction(async (tx) => {
     const resource = await tx.experiment.findFirst({
-      where: { id: experimentId, organizationId: actor.org, isTest: false },
+      where: {
+        id: experimentId,
+        organizationId: actor.org,
+        isTest: false,
+        deletedAt: null,
+      },
       select: RESOURCE_SELECT,
     });
     if (!resource) throw new Error("No such experiment.");

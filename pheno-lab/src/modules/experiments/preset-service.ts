@@ -189,7 +189,7 @@ export async function updatePreset(
 /** Test experiments, for the Test data view. */
 export async function listTestExperiments(actor: Actor) {
   return db.experiment.findMany({
-    where: { organizationId: actor.org, isTest: true },
+    where: { organizationId: actor.org, isTest: true, deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

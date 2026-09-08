@@ -11,9 +11,11 @@ export function experimentVisibilityScope(
   actor: Actor,
   includeTest = false,
 ): Prisma.ExperimentWhereInput {
+  // deletedAt: null everywhere — trashed experiments exist only in the
+  // recycle bin, never in a scope.
   const base: Prisma.ExperimentWhereInput = includeTest
-    ? { organizationId: actor.org }
-    : { organizationId: actor.org, isTest: false };
+    ? { organizationId: actor.org, deletedAt: null }
+    : { organizationId: actor.org, isTest: false, deletedAt: null };
 
   if (actor.role === "ADMIN" || actor.role === "MANAGER") return base;
   return {
@@ -37,8 +39,8 @@ export function experimentListScope(
   includeTest = false,
 ): Prisma.ExperimentWhereInput {
   return includeTest
-    ? { organizationId: actor.org }
-    : { organizationId: actor.org, isTest: false };
+    ? { organizationId: actor.org, deletedAt: null }
+    : { organizationId: actor.org, isTest: false, deletedAt: null };
 }
 
 /**
@@ -59,7 +61,15 @@ export function experimentListScope(
 export function measurementVisibilityScope(
   actor: Actor,
 ): Prisma.JvMeasurementWhereInput {
-  const base = { organizationId: actor.org };
+  // Scans of trashed experiments hide with their experiment; unattached
+  // scans (experimentId null) are unaffected.
+  const liveExperiment: Prisma.JvMeasurementWhereInput = {
+    OR: [{ experimentId: null }, { experiment: { deletedAt: null } }],
+  };
+  const base: Prisma.JvMeasurementWhereInput = {
+    organizationId: actor.org,
+    AND: [liveExperiment],
+  };
   if (actor.role === "ADMIN") return base;
 
   const throughExperiment: Prisma.JvMeasurementWhereInput = {

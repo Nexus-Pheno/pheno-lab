@@ -660,7 +660,7 @@ async function mergeExperiment(
   targetId: string,
 ): Promise<string> {
   const exp = await tx.experiment.findFirst({
-    where: { id: targetId, organizationId: actor.org },
+    where: { id: targetId, organizationId: actor.org, deletedAt: null },
     include: {
       samples: { select: { id: true, code: true } },
       characterizations: { select: { id: true, name: true, processId: true } },

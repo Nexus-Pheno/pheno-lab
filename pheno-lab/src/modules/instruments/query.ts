@@ -61,6 +61,7 @@ export async function getInstrumentsPageData(actor: Actor) {
         where: {
           isTest: false,
           organizationId: actor.org,
+          deletedAt: null,
           status: { in: ["DRAFT", "IN_LAB", "REVIEW"] },
         },
         select: { code: true, samples: { select: { id: true, code: true } } },

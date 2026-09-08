@@ -72,6 +72,7 @@ async function ensureSimCodePrefix(
     where: {
       organizationId: experiment.organizationId,
       id: { not: experimentId },
+      deletedAt: null,
       codeLetter: { not: null },
       status: { notIn: ["COMPLETE", "ARCHIVED"] },
       OR: [{ assigneeId: ownerId }, { assigneeId: null, createdById: ownerId }],

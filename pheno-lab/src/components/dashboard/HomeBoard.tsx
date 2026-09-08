@@ -302,6 +302,13 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                 </button>
               ))}
             </div>
+            <Link
+              href="/trash"
+              title={t("trash.title")}
+              className="h-8 px-2.5 border border-line rounded-[4px] bg-surface text-muted hover:text-charcoal hover:bg-subtle flex items-center"
+            >
+              <Icon name="Trash2" size={13} />
+            </Link>
             {(
               <>
                 <span className="flex-1" />
