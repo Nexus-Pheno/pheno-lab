@@ -3,7 +3,11 @@ import type { ParamDef } from "@/lib/library";
 
 export const experimentInclude = {
   createdBy: { select: { id: true, name: true } },
-  members: { include: { user: { select: { id: true, name: true, email: true, role: true } } } },
+  members: {
+    include: {
+      user: { select: { id: true, name: true, email: true, role: true } },
+    },
+  },
   samples: { orderBy: { code: "asc" } },
   steps: {
     orderBy: { position: "asc" },
@@ -12,7 +16,10 @@ export const experimentInclude = {
       equipment: true,
       environment: true,
       materials: { orderBy: { position: "asc" }, include: { material: true } },
-      parameters: { orderBy: { position: "asc" }, include: { variations: true } },
+      parameters: {
+        orderBy: { position: "asc" },
+        include: { variations: true },
+      },
       recipe: { select: { id: true, name: true } },
     },
   },
@@ -21,9 +28,17 @@ export const experimentInclude = {
     include: { process: true, equipment: true, environment: true },
   },
   labels: { include: { label: true } },
+  // Science-field images only — comment photos load with their comments.
+  attachments: {
+    where: { commentId: null },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, storedPath: true, context: true },
+  },
 } satisfies Prisma.ExperimentInclude;
 
-export type ExperimentFull = Prisma.ExperimentGetPayload<{ include: typeof experimentInclude }>;
+export type ExperimentFull = Prisma.ExperimentGetPayload<{
+  include: typeof experimentInclude;
+}>;
 export type StepFull = ExperimentFull["steps"][number];
 export type ParamFull = StepFull["parameters"][number];
 export type CharFull = ExperimentFull["characterizations"][number];
@@ -79,8 +94,9 @@ export type CharPresetPayload = {
   sampleScope: string;
 };
 
-export const paramDefs = (json: Prisma.JsonValue | null | undefined): ParamDef[] =>
-  Array.isArray(json) ? (json as ParamDef[]) : [];
+export const paramDefs = (
+  json: Prisma.JsonValue | null | undefined,
+): ParamDef[] => (Array.isArray(json) ? (json as ParamDef[]) : []);
 
 type EquipmentLabelSource = {
   name: string;

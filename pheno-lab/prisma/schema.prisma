@@ -323,6 +323,7 @@ model Experiment {
   updatedAt         DateTime           @updatedAt
   accessRequests    AccessRequest[]
   comments          ExperimentComment[]
+  attachments       Attachment[]
   // Recycle bin (团队反馈 2026-09-08): deleting trashes instead of destroying.
   // Trashed rows keep code/shortCode/serials so restore is loss-free; they are
   // hidden from every scope and purged ~30 days after deletion.
@@ -344,6 +345,7 @@ model ExperimentComment {
   authorId     String
   author       User       @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   body         String
+  attachments  Attachment[]
   createdAt    DateTime   @default(now())
 
   @@index([experimentId, createdAt])
@@ -836,9 +838,19 @@ model Attachment {
   // Feedback screenshots — several per reported problem.
   feedbackId               String?
   feedback                 Feedback?               @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  // Images on an experiment's science fields (context = observation |
+  // problem | hypothesis | conclusion) and on discussion comments — an IV
+  // curve says more than a paragraph (Tyler's feedback, 2026-09-08).
+  experimentId             String?
+  experiment               Experiment?             @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  context                  String                  @default("")
+  commentId                String?
+  comment                  ExperimentComment?      @relation(fields: [commentId], references: [id], onDelete: Cascade)
   createdAt                DateTime                @default(now())
 
   @@index([feedbackId])
+  @@index([experimentId, context])
+  @@index([commentId])
 }
 
 // ─── Instrument ingestion ────────────────────────────────────────────────────

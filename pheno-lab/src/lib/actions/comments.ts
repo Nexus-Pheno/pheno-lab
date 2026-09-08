@@ -18,6 +18,7 @@ export async function addExperimentComment(data: {
   experimentId: string;
   body: string;
   mentionIds: string[];
+  photoFileNames?: string[];
 }): Promise<CommentRow> {
   return addCommentService(await requireSession(), data);
 }
