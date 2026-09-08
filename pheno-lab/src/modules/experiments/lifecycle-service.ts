@@ -89,14 +89,19 @@ export async function updateExperimentMeta(
   });
 }
 
+// "Delete" trashes: the row keeps everything (code, serials, runs, results)
+// and hides from every scope until restored or purged (团队反馈 2026-09-08).
 export async function deleteExperiment(actor: Actor, rawId: unknown) {
   const id = experimentIdSchema.parse(rawId);
   await assertEdit(actor, id);
   await db.$transaction(async (tx) => {
-    await tx.experiment.delete({ where: { id } });
+    await tx.experiment.update({
+      where: { id },
+      data: { deletedAt: new Date(), deletedById: actor.uid },
+    });
     await recordUserAudit(tx, {
       actor,
-      action: "experiment.delete",
+      action: "experiment.trash",
       entityType: "Experiment",
       entityId: id,
     });
@@ -107,7 +112,7 @@ export async function deleteExperiment(actor: Actor, rawId: unknown) {
 export async function duplicateExperiment(actor: Actor, rawId: unknown) {
   const id = experimentIdSchema.parse(rawId);
   const src = await db.experiment.findFirst({
-    where: { id, organizationId: actor.org },
+    where: { id, organizationId: actor.org, deletedAt: null },
     include: experimentInclude,
   });
   if (!src) throw new Error("Experiment belongs to another organization.");
@@ -224,7 +229,7 @@ export async function setTemplatePin(
   assertStaff(actor);
   const id = experimentIdSchema.parse(rawId);
   const experiment = await db.experiment.findFirst({
-    where: { id, organizationId: actor.org },
+    where: { id, organizationId: actor.org, deletedAt: null },
     select: { id: true, isTest: true },
   });
   if (!experiment) throw new Error("No such experiment.");

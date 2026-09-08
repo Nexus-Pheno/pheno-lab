@@ -384,7 +384,10 @@ export async function resolveSampleScan(
 ): Promise<{ experimentId: string; canRead: boolean } | null> {
   const sampleId = experimentIdSchema.parse(rawSampleId);
   const sample = await db.sample.findFirst({
-    where: { id: sampleId, experiment: { organizationId: actor.org } },
+    where: {
+      id: sampleId,
+      experiment: { organizationId: actor.org, deletedAt: null },
+    },
     select: {
       experiment: {
         select: {

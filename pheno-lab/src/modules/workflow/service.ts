@@ -30,10 +30,13 @@ async function loadForWorkflow(actor: Actor, id: string) {
       isTest: true,
       assigneeId: true,
       members: { select: { userId: true } },
+      deletedAt: true,
     },
   });
   if (exp.organizationId !== actor.org)
     throw new Error("Experiment belongs to another organization.");
+  if (exp.deletedAt !== null)
+    throw new Error("Experiment is in the recycle bin.");
   return exp;
 }
 

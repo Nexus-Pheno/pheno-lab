@@ -57,7 +57,7 @@ async function allSamplesCached(
   if (hit && Date.now() - hit.at < SAMPLE_CACHE_TTL_MS) return hit.rows;
   const rows = await prisma.sample.findMany({
     where: {
-      experiment: { organizationId },
+      experiment: { organizationId, deletedAt: null },
       NOT: { instrumentCodes: { isEmpty: true } },
     },
     select: {
@@ -124,7 +124,7 @@ async function matchByInstrumentCode(
   const samples = await prisma.sample.findMany({
     where: {
       instrumentCodes: { hasSome: candidates },
-      experiment: { organizationId },
+      experiment: { organizationId, deletedAt: null },
     },
     select: SAMPLE_SELECT,
   });
@@ -215,7 +215,7 @@ export async function matchSerial(
   const code = codeMatch[1];
 
   const experiment = await prisma.experiment.findFirst({
-    where: { organizationId, code },
+    where: { organizationId, code, deletedAt: null },
     select: {
       id: true,
       samples: { select: { id: true, code: true } },

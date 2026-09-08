@@ -117,6 +117,7 @@ model User {
   recipes               Recipe[]
   assignedExperiments   Experiment[]             @relation("ExperimentAssignee")
   approvedExperiments   Experiment[]             @relation("ExperimentApprover")
+  deletedExperiments    Experiment[]             @relation("ExperimentDeleter")
   ingestReviews         IngestItem[]
   ownedMeasurements     JvMeasurement[]          @relation("MeasurementOwner")
   sharedDeviceLogins    SharedDevice[]           @relation("SharedDeviceUser")
@@ -314,8 +315,15 @@ model Experiment {
   updatedAt         DateTime           @updatedAt
   accessRequests    AccessRequest[]
   comments          ExperimentComment[]
+  // Recycle bin (团队反馈 2026-09-08): deleting trashes instead of destroying.
+  // Trashed rows keep code/shortCode/serials so restore is loss-free; they are
+  // hidden from every scope and purged ~30 days after deletion.
+  deletedAt         DateTime?
+  deletedById       String?
+  deletedBy         User?              @relation("ExperimentDeleter", fields: [deletedById], references: [id])
 
   @@unique([organizationId, shortCode])
+  @@index([organizationId, deletedAt])
 }
 
 // Discussion on an experiment — anyone who can read it can comment.

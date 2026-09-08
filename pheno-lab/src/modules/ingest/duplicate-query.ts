@@ -214,7 +214,7 @@ export async function findDuplicates(
     const batch = str(payload.batchLabel);
     if (op && batch) {
       const rows = await db.experiment.findMany({
-        where: { organizationId: org },
+        where: { organizationId: org, deletedAt: null },
         select: {
           id: true,
           code: true,

@@ -643,6 +643,15 @@ export const en = {
   "dash.tplChip": "Template",
   "dash.pinTpl": "Pin as template",
   "dash.unpinTpl": "Unpin template",
+  "trash.title": "Recycle bin",
+  "trash.subtitle":
+    "Deleted experiments wait here about 30 days before being removed for good. Restoring brings everything back — samples, data, comments.",
+  "trash.empty": "The recycle bin is empty.",
+  "trash.restore": "Restore",
+  "trash.purge": "Delete forever",
+  "trash.purgeQ": "Permanently delete?",
+  "trash.deletedBy": "Deleted by",
+  "trash.purgeOn": "auto-purge",
   "test.title": "Test data",
   "test.subtitle":
     "experiments created in test mode — hidden from every real view",
@@ -1853,6 +1862,15 @@ export const zh: Record<TKey, string> = {
   "dash.tplChip": "模板",
   "dash.pinTpl": "设为模板",
   "dash.unpinTpl": "取消模板",
+  "trash.title": "回收箱",
+  "trash.subtitle":
+    "删除的实验会在这里保留约 30 天，之后自动清除。恢复后样品、数据、讨论全部找回。",
+  "trash.empty": "回收箱是空的。",
+  "trash.restore": "恢复",
+  "trash.purge": "彻底删除",
+  "trash.purgeQ": "确认彻底删除？",
+  "trash.deletedBy": "删除者",
+  "trash.purgeOn": "自动清除",
   "test.title": "测试数据",
   "test.subtitle": "以测试模式创建的实验——不会出现在任何正式视图中",
   "test.explain":

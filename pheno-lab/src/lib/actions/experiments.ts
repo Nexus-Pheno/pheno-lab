@@ -19,6 +19,10 @@ import {
   decideAccessRequest as decideAccessRequestService,
 } from "@/modules/experiments/access-request-service";
 import {
+  purgeExperiment as purgeExperimentService,
+  restoreExperiment as restoreExperimentService,
+} from "@/modules/experiments/trash-service";
+import {
   addCharacterization as addCharacterizationService,
   addMember as addMemberService,
   addStep as addStepService,
@@ -293,4 +297,15 @@ export async function clearTestData(): Promise<number> {
   revalidatePath("/");
   revalidatePath("/test-data");
   return count;
+}
+
+export async function restoreExperiment(id: string) {
+  await restoreExperimentService(await requireSession(), id);
+  revalidatePath("/");
+  revalidatePath("/trash");
+}
+
+export async function purgeExperiment(id: string) {
+  await purgeExperimentService(await requireSession(), id);
+  revalidatePath("/trash");
 }
