@@ -23,6 +23,10 @@ import {
   restoreExperiment as restoreExperimentService,
 } from "@/modules/experiments/trash-service";
 import {
+  addExperimentImages as addExperimentImagesService,
+  deleteExperimentImage as deleteExperimentImageService,
+} from "@/modules/experiments/image-service";
+import {
   addCharacterization as addCharacterizationService,
   addMember as addMemberService,
   addStep as addStepService,
@@ -134,7 +138,10 @@ export async function duplicateExperiment(id: string) {
 
 /** Start-from-template/previous: duplicate and jump straight into the copy. */
 export async function createExperimentFrom(sourceId: string) {
-  const row = await duplicateExperimentService(await requireSession(), sourceId);
+  const row = await duplicateExperimentService(
+    await requireSession(),
+    sourceId,
+  );
   revalidatePath("/");
   redirect(`/experiments/${row.id}`);
 }
@@ -308,4 +315,23 @@ export async function restoreExperiment(id: string) {
 export async function purgeExperiment(id: string) {
   await purgeExperimentService(await requireSession(), id);
   revalidatePath("/trash");
+}
+
+export async function addExperimentImages(
+  experimentId: string,
+  context: "observation" | "problem" | "hypothesis" | "conclusion",
+  fileNames: string[],
+) {
+  const rows = await addExperimentImagesService(await requireSession(), {
+    experimentId,
+    context,
+    fileNames,
+  });
+  revalidatePath(`/experiments/${experimentId}`);
+  return rows;
+}
+
+export async function deleteExperimentImage(id: string, experimentId: string) {
+  await deleteExperimentImageService(await requireSession(), id);
+  revalidatePath(`/experiments/${experimentId}`);
 }

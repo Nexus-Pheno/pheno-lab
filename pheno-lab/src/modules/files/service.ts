@@ -99,3 +99,20 @@ export async function readObject(actor: Actor, key: string) {
       MIME[path.extname(key).toLowerCase()] ?? "application/octet-stream",
   };
 }
+
+/**
+ * Keys being attached to a business record must be the actor's own fresh
+ * uploads — the same ownership rule capture photos and feedback screenshots
+ * follow.
+ */
+export async function requireOwnedUploadKeys(
+  actor: Actor,
+  keys: string[],
+): Promise<void> {
+  const prefix = `organizations/${actor.org}/users/${actor.uid}/images/`;
+  for (const key of keys) {
+    if (!key.startsWith(prefix) || !(await objectStorage().exists(key))) {
+      throw new Error("An image is missing or does not belong to this user.");
+    }
+  }
+}

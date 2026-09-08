@@ -24,84 +24,120 @@ export async function canReadObject(
 
   // Legacy objects and new objects opened by someone other than their uploader
   // must resolve to a business record the actor may actually read.
-  const [stepAttachment, resultAttachment, feedback, equipment, environment] =
-    await Promise.all([
-      db.attachment.findFirst({
-        where: { storedPath: key, stepExecutionId: { not: null } },
-        select: {
-          stepExecution: {
-            select: {
-              run: {
-                select: {
-                  experiment: {
-                    select: {
-                      organizationId: true,
-                      createdById: true,
-                      assigneeId: true,
-                      members: { select: { userId: true } },
-                    },
+  const [
+    stepAttachment,
+    resultAttachment,
+    feedback,
+    equipment,
+    environment,
+    experimentAttachment,
+  ] = await Promise.all([
+    db.attachment.findFirst({
+      where: { storedPath: key, stepExecutionId: { not: null } },
+      select: {
+        stepExecution: {
+          select: {
+            run: {
+              select: {
+                experiment: {
+                  select: {
+                    organizationId: true,
+                    createdById: true,
+                    assigneeId: true,
+                    members: { select: { userId: true } },
                   },
                 },
               },
             },
           },
         },
-      }),
-      db.attachment.findFirst({
-        where: { storedPath: key, characterizationResultId: { not: null } },
-        select: {
-          characterizationResult: {
-            select: {
-              characterization: {
-                select: {
-                  experiment: {
-                    select: {
-                      organizationId: true,
-                      createdById: true,
-                      assigneeId: true,
-                      members: { select: { userId: true } },
-                    },
+      },
+    }),
+    db.attachment.findFirst({
+      where: { storedPath: key, characterizationResultId: { not: null } },
+      select: {
+        characterizationResult: {
+          select: {
+            characterization: {
+              select: {
+                experiment: {
+                  select: {
+                    organizationId: true,
+                    createdById: true,
+                    assigneeId: true,
+                    members: { select: { userId: true } },
                   },
                 },
               },
             },
           },
         },
-      }),
-      db.feedback.findFirst({
-        where: {
-          organizationId: actor.org,
-          // Legacy single screenshot or one of the new attachment shots.
-          OR: [
-            { screenshotPath: key },
-            { attachments: { some: { storedPath: key } } },
-          ],
+      },
+    }),
+    db.feedback.findFirst({
+      where: {
+        organizationId: actor.org,
+        // Legacy single screenshot or one of the new attachment shots.
+        OR: [
+          { screenshotPath: key },
+          { attachments: { some: { storedPath: key } } },
+        ],
+      },
+      select: { userId: true },
+    }),
+    db.equipment.findFirst({
+      where: {
+        organizationId: actor.org,
+        // Either the machine's photo or one of its spec sheets. Equipment is
+        // shared reference data, so any member of the organization may read
+        // it — the same rule the photo already followed.
+        OR: [
+          { photoPath: key },
+          { attachments: { some: { storedPath: key } } },
+        ],
+      },
+      select: { id: true },
+    }),
+    // An enclosure's manual — same rule as equipment: shared reference data,
+    // readable by any member of the organization.
+    db.labEnvironment.findFirst({
+      where: {
+        organizationId: actor.org,
+        attachments: { some: { storedPath: key } },
+      },
+      select: { id: true },
+    }),
+    // Science-field images and discussion-comment photos: readable by
+    // anyone who can read the experiment they belong to.
+    db.attachment.findFirst({
+      where: {
+        storedPath: key,
+        OR: [{ experimentId: { not: null } }, { commentId: { not: null } }],
+      },
+      select: {
+        experiment: {
+          select: {
+            organizationId: true,
+            createdById: true,
+            assigneeId: true,
+            members: { select: { userId: true } },
+          },
         },
-        select: { userId: true },
-      }),
-      db.equipment.findFirst({
-        where: {
-          organizationId: actor.org,
-          // Either the machine's photo or one of its spec sheets. Equipment is
-          // shared reference data, so any member of the organization may read
-          // it — the same rule the photo already followed.
-          OR: [
-            { photoPath: key },
-            { attachments: { some: { storedPath: key } } },
-          ],
+        comment: {
+          select: {
+            experiment: {
+              select: {
+                organizationId: true,
+                createdById: true,
+                assigneeId: true,
+                members: { select: { userId: true } },
+              },
+            },
+          },
         },
-        select: { id: true },
-      }),
-      // An enclosure's manual — same rule as equipment: shared reference data,
-      // readable by any member of the organization.
-      db.labEnvironment.findFirst({
-        where: {
-          organizationId: actor.org,
-          attachments: { some: { storedPath: key } },
-        },
-        select: { id: true },
-      }),
-    ]);
+      },
+    }),
+  ]);
 
   const stepExperiment = stepAttachment?.stepExecution?.run.experiment;
   if (stepExperiment && canReadExperiment(actor, stepExperiment)) return true;
@@ -114,5 +150,9 @@ export async function canReadObject(
   if (feedback && (feedback.userId === actor.uid || actor.role === "ADMIN")) {
     return true;
   }
+  const imageExperiment =
+    experimentAttachment?.experiment ??
+    experimentAttachment?.comment?.experiment;
+  if (imageExperiment && canReadExperiment(actor, imageExperiment)) return true;
   return Boolean(equipment || environment);
 }

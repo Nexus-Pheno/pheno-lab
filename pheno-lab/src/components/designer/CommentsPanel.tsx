@@ -40,8 +40,26 @@ export function CommentsPanel({
   const [comments, setComments] = useState<CommentRow[] | null>(null);
   const [text, setText] = useState("");
   const [mentions, setMentions] = useState<Person[]>([]);
+  const [shots, setShots] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (files: FileList) => {
+    setUploading(true);
+    try {
+      for (const file of Array.from(files).slice(0, 10 - shots.length)) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const json = await res.json();
+        if (json.fileName) setShots((arr) => [...arr, json.fileName]);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +107,7 @@ export function CommentsPanel({
 
   const post = async () => {
     const body = text.trim();
+    if (!body && shots.length === 0) return;
     if (!body) return;
     setBusy(true);
     try {
@@ -100,10 +119,12 @@ export function CommentsPanel({
         mentionIds: mentions
           .filter((m) => body.includes(`@${m.name}`))
           .map((m) => m.id),
+        photoFileNames: shots,
       });
       setComments((rows) => [...(rows ?? []), row]);
       setText("");
       setMentions([]);
+      setShots([]);
     } finally {
       setBusy(false);
     }
@@ -161,6 +182,25 @@ export function CommentsPanel({
                 <p className="text-[12.5px] leading-snug whitespace-pre-wrap break-words">
                   {c.body}
                 </p>
+                {c.photos.length > 0 && (
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {c.photos.map((ph) => (
+                      <a
+                        key={ph.id}
+                        href={`/api/files/${ph.path}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/api/files/${ph.path}`}
+                          alt=""
+                          className="h-16 rounded-[4px] border border-line hover:border-charcoal/50"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -187,7 +227,49 @@ export function CommentsPanel({
             ))}
           </div>
         )}
+        {shots.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap mb-1.5">
+            {shots.map((key) => (
+              <span key={key} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/files/${key}`}
+                  alt=""
+                  className="h-12 w-16 object-cover rounded-[4px] border border-brand/50"
+                />
+                <button
+                  onClick={() =>
+                    setShots((arr) => arr.filter((k) => k !== key))
+                  }
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-ink text-white flex items-center justify-center"
+                >
+                  <Icon name="X" size={9} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => e.target.files && upload(e.target.files)}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading || shots.length >= 10}
+            title={t("fb.addShot")}
+            className="h-9 w-9 shrink-0 border border-line rounded-[4px] flex items-center justify-center text-muted hover:text-charcoal hover:bg-subtle disabled:opacity-50"
+          >
+            <Icon
+              name={uploading ? "LoaderCircle" : "ImagePlus"}
+              size={14}
+              className={uploading ? "animate-spin" : ""}
+            />
+          </button>
           <textarea
             ref={inputRef}
             rows={2}

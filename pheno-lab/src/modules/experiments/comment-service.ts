@@ -6,6 +6,7 @@ import type { Actor } from "@/modules/authorization/actor";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { notify } from "@/modules/notifications/service";
+import { requireOwnedUploadKeys } from "@/modules/files/service";
 import { experimentIdSchema } from "./schema";
 
 // Experiment discussion. Reading the experiment is the only gate — the
@@ -18,6 +19,7 @@ const commentSchema = z.object({
   experimentId: experimentIdSchema,
   body: z.string().trim().min(1).max(5000),
   mentionIds: z.array(experimentIdSchema).max(10).default([]),
+  photoFileNames: z.array(z.string().max(512)).max(10).default([]),
 });
 
 export type CommentRow = {
@@ -25,6 +27,7 @@ export type CommentRow = {
   author: string;
   authorId: string;
   body: string;
+  photos: { id: string; path: string }[];
   createdAt: string;
 };
 
@@ -34,11 +37,13 @@ const toRow = (row: {
   body: string;
   createdAt: Date;
   author: { name: string };
+  attachments: { id: string; storedPath: string }[];
 }): CommentRow => ({
   id: row.id,
   author: row.author.name,
   authorId: row.authorId,
   body: row.body,
+  photos: row.attachments.map((a) => ({ id: a.id, path: a.storedPath })),
   createdAt: row.createdAt.toISOString(),
 });
 
@@ -51,7 +56,10 @@ export async function listComments(
   const rows = await db.experimentComment.findMany({
     where: { experimentId },
     orderBy: { createdAt: "asc" },
-    include: { author: { select: { name: true } } },
+    include: {
+      author: { select: { name: true } },
+      attachments: { select: { id: true, storedPath: true } },
+    },
   });
   return rows.map(toRow);
 }
@@ -60,8 +68,10 @@ export async function addComment(
   actor: Actor,
   raw: unknown,
 ): Promise<CommentRow> {
-  const { experimentId, body, mentionIds } = commentSchema.parse(raw);
+  const { experimentId, body, mentionIds, photoFileNames } =
+    commentSchema.parse(raw);
   await requireExperimentPermission(actor, experimentId, "read");
+  await requireOwnedUploadKeys(actor, photoFileNames);
 
   const created = await db.$transaction(async (tx) => {
     const experiment = await tx.experiment.findUniqueOrThrow({
@@ -75,6 +85,21 @@ export async function addComment(
     const comment = await tx.experimentComment.create({
       data: { experimentId, authorId: actor.uid, body },
       include: { author: { select: { name: true } } },
+    });
+    if (photoFileNames.length > 0) {
+      await tx.attachment.createMany({
+        data: photoFileNames.map((key) => ({
+          commentId: comment.id,
+          fileName: key.split("/").pop() ?? key,
+          storedPath: key,
+          mime: "image/*",
+          size: 0,
+        })),
+      });
+    }
+    const attachments = await tx.attachment.findMany({
+      where: { commentId: comment.id },
+      select: { id: true, storedPath: true },
     });
 
     // Mentions are validated against the org — a pasted foreign id is
@@ -124,7 +149,7 @@ export async function addComment(
       entityId: experimentId,
       metadata: { commentId: comment.id, mentions: mentioned.length },
     });
-    return comment;
+    return { ...comment, attachments };
   });
   return toRow(created);
 }
