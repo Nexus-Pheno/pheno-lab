@@ -4,10 +4,18 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentStatus } from "@prisma/client";
-import { updateExperimentMeta, createExperiment, createExperimentFrom, duplicateExperiment, deleteExperiment, setTemplatePin } from "@/lib/actions/experiments";
+import {
+  updateExperimentMeta,
+  createExperiment,
+  createExperimentFrom,
+  duplicateExperiment,
+  deleteExperiment,
+  setTemplatePin,
+} from "@/lib/actions/experiments";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon } from "@/components/ui";
 import { usePointerDrag } from "@/lib/usePointerDrag";
+import { fmtBeijing } from "@/lib/datetime";
 
 export type ExpRow = {
   openable: boolean;
@@ -27,7 +35,13 @@ export type ExpRow = {
   updatedAt: string;
 };
 
-const STATUSES: ExperimentStatus[] = ["DRAFT", "IN_LAB", "REVIEW", "COMPLETE", "ARCHIVED"];
+const STATUSES: ExperimentStatus[] = [
+  "DRAFT",
+  "IN_LAB",
+  "REVIEW",
+  "COMPLETE",
+  "ARCHIVED",
+];
 
 // Completed/archived columns hold the whole history — populate a page at a
 // time instead of hundreds of cards.
@@ -42,13 +56,21 @@ const STATUS_TONE: Record<string, string> = {
   ARCHIVED: "bg-subtle text-muted border-line",
 };
 
-export function HomeBoard({ role, experiments: initial }: { role: string; experiments: ExpRow[] }) {
+export function HomeBoard({
+  role,
+  experiments: initial,
+}: {
+  role: string;
+  experiments: ExpRow[];
+}) {
   const t = useT();
   const router = useRouter();
   const [experiments, setExperiments] = useState(initial);
   const [view, setView] = useState<"kanban" | "list">(() => {
     if (typeof window === "undefined") return "kanban";
-    return localStorage.getItem("pheno_home_view") === "list" ? "list" : "kanban";
+    return localStorage.getItem("pheno_home_view") === "list"
+      ? "list"
+      : "kanban";
   });
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,9 +99,15 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
     const q = query.trim().toLowerCase();
     if (!q) return experiments;
     return experiments.filter((e) =>
-      [e.code, e.title, e.createdBy, e.status, e.campaign, ...e.labels, ...e.members].some((v) =>
-        v.toLowerCase().includes(q)
-      )
+      [
+        e.code,
+        e.title,
+        e.createdBy,
+        e.status,
+        e.campaign,
+        ...e.labels,
+        ...e.members,
+      ].some((v) => v.toLowerCase().includes(q)),
     );
   }, [experiments, query]);
 
@@ -123,7 +151,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
           code: created.code,
           title: `${src.title} (copy)`,
           status: "DRAFT",
-          updatedAt: new Date().toISOString().slice(0, 10),
+          updatedAt: fmtBeijing(new Date(), "date"),
         },
         ...es,
       ]);
@@ -150,7 +178,10 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
   // Shared row actions: pin-as-template (staff), capture, duplicate,
   // delete-with-local-confirm.
   const RowActions = ({ e }: { e: ExpRow }) => (
-    <span className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+    <span
+      className="flex items-center gap-1"
+      onClick={(ev) => ev.stopPropagation()}
+    >
       {staff && (
         <button
           onClick={() => togglePin(e.id, !e.isTemplate)}
@@ -165,52 +196,86 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
         </button>
       )}
       {e.status === "IN_LAB" && (
-        <Link href={`/experiments/${e.id}/capture`} title={t("dash.capture")}
-          className="p-1 rounded-[3px] text-brand-deep hover:bg-brand-soft">
+        <Link
+          href={`/experiments/${e.id}/capture`}
+          title={t("dash.capture")}
+          className="p-1 rounded-[3px] text-brand-deep hover:bg-brand-soft"
+        >
           <Icon name="ClipboardPen" size={14} />
         </Link>
       )}
-      {e.editable && (
-        confirmingCopy === e.id ? (
+      {e.editable &&
+        (confirmingCopy === e.id ? (
           <span className="flex items-center gap-1 bg-surface border border-brand/50 rounded-[4px] px-1.5 py-0.5">
-            <span className="text-[10px] font-semibold text-brand-deep">{t("dash.duplicate")}?</span>
-            <button onClick={() => duplicate(e.id)} disabled={busy} className="p-0.5 text-brand-deep" title={t("dash.duplicate")}>
+            <span className="text-[10px] font-semibold text-brand-deep">
+              {t("dash.duplicate")}?
+            </span>
+            <button
+              onClick={() => duplicate(e.id)}
+              disabled={busy}
+              className="p-0.5 text-brand-deep"
+              title={t("dash.duplicate")}
+            >
               <Icon name="Check" size={12} />
             </button>
-            <button onClick={() => setConfirmingCopy(null)} className="p-0.5 text-muted" title={t("set.deleteNo")}>
+            <button
+              onClick={() => setConfirmingCopy(null)}
+              className="p-0.5 text-muted"
+              title={t("set.deleteNo")}
+            >
               <Icon name="X" size={12} />
             </button>
           </span>
         ) : (
-          <button onClick={() => { setConfirmingCopy(e.id); setConfirmingDelete(null); }} disabled={busy} title={t("dash.duplicate")}
-            className="p-1 rounded-[3px] text-muted hover:text-ink hover:bg-subtle disabled:opacity-40">
+          <button
+            onClick={() => {
+              setConfirmingCopy(e.id);
+              setConfirmingDelete(null);
+            }}
+            disabled={busy}
+            title={t("dash.duplicate")}
+            className="p-1 rounded-[3px] text-muted hover:text-ink hover:bg-subtle disabled:opacity-40"
+          >
             <Icon name="Copy" size={13} />
           </button>
-        )
-      )}
-      {e.editable && (
-        confirmingDelete === e.id ? (
+        ))}
+      {e.editable &&
+        (confirmingDelete === e.id ? (
           <span className="flex items-center gap-1 bg-surface border border-warn-line rounded-[4px] px-1.5 py-0.5">
-            <span className="text-[10px] font-semibold text-warn">{t("card.deleteQ")}</span>
-            <button onClick={() => remove(e.id)} className="p-0.5 text-danger" title={t("set.deleteYes")}>
+            <span className="text-[10px] font-semibold text-warn">
+              {t("card.deleteQ")}
+            </span>
+            <button
+              onClick={() => remove(e.id)}
+              className="p-0.5 text-danger"
+              title={t("set.deleteYes")}
+            >
               <Icon name="Check" size={12} />
             </button>
-            <button onClick={() => setConfirmingDelete(null)} className="p-0.5 text-muted" title={t("set.deleteNo")}>
+            <button
+              onClick={() => setConfirmingDelete(null)}
+              className="p-0.5 text-muted"
+              title={t("set.deleteNo")}
+            >
               <Icon name="X" size={12} />
             </button>
           </span>
         ) : (
-          <button onClick={() => setConfirmingDelete(e.id)} title={t("set.delete")}
-            className="p-1 rounded-[3px] text-muted/60 hover:text-danger hover:bg-subtle">
+          <button
+            onClick={() => setConfirmingDelete(e.id)}
+            title={t("set.delete")}
+            className="p-1 rounded-[3px] text-muted/60 hover:text-danger hover:bg-subtle"
+          >
             <Icon name="Trash2" size={13} />
           </button>
-        )
-      )}
+        ))}
     </span>
   );
 
   const statusChip = (status: string) => (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[3px] border ${STATUS_TONE[status]}`}>
+    <span
+      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-[3px] border ${STATUS_TONE[status]}`}
+    >
       {t(`status.${status}` as "status.DRAFT")}
     </span>
   );
@@ -226,16 +291,18 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
     >
       <Link href={`/experiments/${e.id}`} className="block">
         <div className="flex items-center gap-2 mb-1">
-          <span className="mono text-[11px] font-bold text-brand-deep">{e.code}</span>
+          <span className="mono text-[11px] font-bold text-brand-deep">
+            {e.code}
+          </span>
           {e.isTemplate && (
             <span className="text-[9px] font-bold px-1 py-px rounded-[3px] bg-brand-soft border border-brand/40 text-brand-deep">
               {t("dash.tplChip")}
             </span>
           )}
-          {!e.openable && (
-            <Icon name="Lock" size={11} className="text-muted" />
-          )}
-          <span className="ml-auto mono text-[10px] text-muted">{e.updatedAt}</span>
+          {!e.openable && <Icon name="Lock" size={11} className="text-muted" />}
+          <span className="ml-auto mono text-[10px] text-muted">
+            {e.updatedAt}
+          </span>
           {e.editable && (
             <span
               onPointerDown={startCardDrag(e.id)}
@@ -247,10 +314,16 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
             </span>
           )}
         </div>
-        <div className="text-[12.5px] font-medium leading-snug mb-2">{e.title}</div>
+        <div className="text-[12.5px] font-medium leading-snug mb-2">
+          {e.title}
+        </div>
         <div className="flex items-center gap-3 text-[10.5px] text-muted mono">
-          <span>{e.samples} {t("designer.samples")}</span>
-          <span>{e.steps} {t("list.steps").toLowerCase()}</span>
+          <span>
+            {e.samples} {t("designer.samples")}
+          </span>
+          <span>
+            {e.steps} {t("list.steps").toLowerCase()}
+          </span>
           {e.campaign && (
             <span className="text-[9.5px] font-sans font-semibold px-1.5 py-0.5 rounded-[3px] bg-subtle border border-line text-charcoal truncate max-w-28">
               {e.campaign}
@@ -260,12 +333,17 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
       </Link>
       <div className="flex items-center gap-1 mt-2">
         {/* First names, not initials — contributors are recognizable at a glance. */}
-        {[e.createdBy, ...e.members.filter((m) => m !== e.createdBy)].slice(0, 3).map((m) => (
-          <span key={m} title={m}
-            className="h-5 px-1.5 rounded-full bg-subtle border border-line text-[9px] font-bold text-charcoal flex items-center justify-center max-w-16 truncate">
-            {firstName(m)}
-          </span>
-        ))}
+        {[e.createdBy, ...e.members.filter((m) => m !== e.createdBy)]
+          .slice(0, 3)
+          .map((m) => (
+            <span
+              key={m}
+              title={m}
+              className="h-5 px-1.5 rounded-full bg-subtle border border-line text-[9px] font-bold text-charcoal flex items-center justify-center max-w-16 truncate"
+            >
+              {firstName(m)}
+            </span>
+          ))}
         <span className="flex-1" />
         <RowActions e={e} />
       </div>
@@ -294,9 +372,16 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
             />
             <div className="h-8 flex border border-line rounded-[4px] overflow-hidden">
               {(["kanban", "list"] as const).map((v) => (
-                <button key={v} onClick={() => switchView(v)}
-                  className={"text-[12px] font-semibold px-3.5 flex items-center gap-1.5 " +
-                    (view === v ? "bg-ink text-white" : "bg-surface text-charcoal hover:bg-subtle")}>
+                <button
+                  key={v}
+                  onClick={() => switchView(v)}
+                  className={
+                    "text-[12px] font-semibold px-3.5 flex items-center gap-1.5 " +
+                    (view === v
+                      ? "bg-ink text-white"
+                      : "bg-surface text-charcoal hover:bg-subtle")
+                  }
+                >
                   <Icon name={v === "kanban" ? "Columns3" : "List"} size={13} />
                   {t(v === "kanban" ? "dash.kanban" : "dash.list")}
                 </button>
@@ -309,17 +394,22 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
             >
               <Icon name="Trash2" size={13} />
             </Link>
-            {(
+            {
               <>
                 <span className="flex-1" />
                 {/* Real or test is chosen up front — a test run never reaches
                     the real board, and the whole test space can be cleared. */}
                 {newMode ? (
                   <span className="flex items-center gap-1.5 bg-surface border border-line rounded-[4px] p-1">
-                    <span className="text-[11.5px] font-semibold text-muted px-1">{t("dash.newAs")}</span>
+                    <span className="text-[11.5px] font-semibold text-muted px-1">
+                      {t("dash.newAs")}
+                    </span>
                     <button
                       disabled={busy}
-                      onClick={async () => { setBusy(true); await createExperiment(false); }}
+                      onClick={async () => {
+                        setBusy(true);
+                        await createExperiment(false);
+                      }}
                       className="h-7 px-2.5 bg-brand text-[#243000] rounded-[4px] text-[11.5px] font-bold"
                     >
                       {t("dash.newReal")}
@@ -327,7 +417,10 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                     {staff && (
                       <button
                         disabled={busy}
-                        onClick={async () => { setBusy(true); await createExperiment(true); }}
+                        onClick={async () => {
+                          setBusy(true);
+                          await createExperiment(true);
+                        }}
                         className="h-7 px-2.5 border border-warn-line bg-warn-soft text-warn rounded-[4px] text-[11.5px] font-bold"
                       >
                         {t("dash.newTest")}
@@ -335,13 +428,19 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                     )}
                     <button
                       disabled={busy}
-                      onClick={() => { setNewMode(false); setPickerOpen(true); }}
+                      onClick={() => {
+                        setNewMode(false);
+                        setPickerOpen(true);
+                      }}
                       className="h-7 px-2.5 border border-line bg-surface text-charcoal rounded-[4px] text-[11.5px] font-bold flex items-center gap-1"
                     >
                       <Icon name="Copy" size={12} />
                       {t("dash.fromTpl")}
                     </button>
-                    <button onClick={() => setNewMode(false)} className="p-1 text-muted">
+                    <button
+                      onClick={() => setNewMode(false)}
+                      className="p-1 text-muted"
+                    >
                       <Icon name="X" size={13} />
                     </button>
                   </span>
@@ -365,48 +464,73 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                       onClick={(ev) => ev.stopPropagation()}
                     >
                       <div className="flex items-center gap-2 mb-3">
-                        <p className="text-sm font-bold text-charcoal">{t("dash.fromTpl")}</p>
-                        <button onClick={() => setPickerOpen(false)} className="ml-auto p-1 text-muted">
+                        <p className="text-sm font-bold text-charcoal">
+                          {t("dash.fromTpl")}
+                        </p>
+                        <button
+                          onClick={() => setPickerOpen(false)}
+                          className="ml-auto p-1 text-muted"
+                        >
                           <Icon name="X" size={14} />
                         </button>
                       </div>
                       {(() => {
-                        const templates = experiments.filter((e) => e.isTemplate);
+                        const templates = experiments.filter(
+                          (e) => e.isTemplate,
+                        );
                         const recent = experiments
                           .filter((e) => e.editable && !e.isTemplate)
                           .slice(0, 8);
                         const SourceRow = ({ e }: { e: ExpRow }) => (
                           <button
                             disabled={busy}
-                            onClick={async () => { setBusy(true); await createExperimentFrom(e.id); }}
+                            onClick={async () => {
+                              setBusy(true);
+                              await createExperimentFrom(e.id);
+                            }}
                             className="w-full text-left border border-line rounded-[6px] p-2.5 hover:border-brand hover:bg-brand-soft/30 disabled:opacity-50"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="mono text-[11px] font-bold text-brand-deep">{e.code}</span>
+                              <span className="mono text-[11px] font-bold text-brand-deep">
+                                {e.code}
+                              </span>
                               <span className="ml-auto mono text-[10px] text-muted">
-                                {e.samples} {t("designer.samples")} · {e.steps} {t("list.steps").toLowerCase()}
+                                {e.samples} {t("designer.samples")} · {e.steps}{" "}
+                                {t("list.steps").toLowerCase()}
                               </span>
                             </div>
-                            <div className="text-[12.5px] font-medium leading-snug">{e.title}</div>
+                            <div className="text-[12.5px] font-medium leading-snug">
+                              {e.title}
+                            </div>
                           </button>
                         );
                         return templates.length === 0 && recent.length === 0 ? (
-                          <p className="text-[12px] text-muted py-6 text-center">{t("dash.tplEmpty")}</p>
+                          <p className="text-[12px] text-muted py-6 text-center">
+                            {t("dash.tplEmpty")}
+                          </p>
                         ) : (
                           <div className="space-y-3">
                             {templates.length > 0 && (
                               <div>
-                                <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">{t("dash.tplSection")}</p>
+                                <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">
+                                  {t("dash.tplSection")}
+                                </p>
                                 <div className="space-y-1.5">
-                                  {templates.map((e) => <SourceRow key={e.id} e={e} />)}
+                                  {templates.map((e) => (
+                                    <SourceRow key={e.id} e={e} />
+                                  ))}
                                 </div>
                               </div>
                             )}
                             {recent.length > 0 && (
                               <div>
-                                <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">{t("dash.recentSection")}</p>
+                                <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">
+                                  {t("dash.recentSection")}
+                                </p>
                                 <div className="space-y-1.5">
-                                  {recent.map((e) => <SourceRow key={e.id} e={e} />)}
+                                  {recent.map((e) => (
+                                    <SourceRow key={e.id} e={e} />
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -417,7 +541,7 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                   </div>
                 )}
               </>
-            )}
+            }
           </div>
         </div>
 
@@ -442,29 +566,40 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                     ev.preventDefault();
                     setDropCol(status);
                   }}
-                  onDragLeave={() => setDropCol((c) => (c === status ? null : c))}
+                  onDragLeave={() =>
+                    setDropCol((c) => (c === status ? null : c))
+                  }
                   onDrop={(ev) => {
                     ev.preventDefault();
                     moveTo(status);
                   }}
                   className={
                     "rounded-[6px] border p-2.5 min-h-40 w-64 shrink-0 lg:w-auto lg:shrink " +
-                    (dropCol === status ? "border-brand border-dashed bg-brand-soft/40" : "border-line bg-surface/50")
+                    (dropCol === status
+                      ? "border-brand border-dashed bg-brand-soft/40"
+                      : "border-line bg-surface/50")
                   }
                 >
                   <div className="flex items-center gap-2 px-1 pb-2">
                     {statusChip(status)}
-                    <span className="mono text-[11px] text-muted">{items.length}</span>
+                    <span className="mono text-[11px] text-muted">
+                      {items.length}
+                    </span>
                   </div>
                   <div className="space-y-2">
-                    {shown.map((e) => <KanbanCard key={e.id} e={e} />)}
+                    {shown.map((e) => (
+                      <KanbanCard key={e.id} e={e} />
+                    ))}
                   </div>
                   {items.length > shown.length && (
                     <button
                       onClick={() => showMore(status)}
                       className="w-full mt-2 h-7 text-[11px] font-semibold text-brand-deep border border-dashed border-line rounded-[4px] hover:bg-subtle"
                     >
-                      {t("dash.viewMore").replace("{n}", String(items.length - shown.length))}
+                      {t("dash.viewMore").replace(
+                        "{n}",
+                        String(items.length - shown.length),
+                      )}
                     </button>
                   )}
                 </div>
@@ -488,37 +623,87 @@ export function HomeBoard({ role, experiments: initial }: { role: string; experi
                 <table className="w-full min-w-[760px] text-[12.5px]">
                   <thead>
                     <tr className="text-left text-[10.5px] uppercase text-muted border-b border-line">
-                      <th className="px-3 py-1.5 font-bold">{t("list.code")}</th>
-                      <th className="px-3 py-1.5 font-bold">{t("list.titleCol")}</th>
-                      <th className="px-3 py-1.5 font-bold">{t("list.status")}</th>
-                      <th className="px-3 py-1.5 font-bold">{t("list.createdBy")}</th>
-                      <th className="px-3 py-1.5 font-bold text-right">{t("list.samples")}</th>
-                      <th className="px-3 py-1.5 font-bold text-right">{t("list.steps")}</th>
-                      <th className="px-3 py-1.5 font-bold">{t("list.labels")}</th>
-                      <th className="px-3 py-1.5 font-bold">{t("list.updated")}</th>
+                      <th className="px-3 py-1.5 font-bold">
+                        {t("list.code")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold">
+                        {t("list.titleCol")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold">
+                        {t("list.status")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold">
+                        {t("list.createdBy")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold text-right">
+                        {t("list.samples")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold text-right">
+                        {t("list.steps")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold">
+                        {t("list.labels")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold">
+                        {t("list.updated")}
+                      </th>
                       <th className="px-3 py-1.5" />
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((e) => (
-                      <tr key={e.id} className="border-b border-line last:border-0 hover:bg-subtle">
+                      <tr
+                        key={e.id}
+                        className="border-b border-line last:border-0 hover:bg-subtle"
+                      >
                         <td className="px-3 py-1.5 whitespace-nowrap">
-                          <Link href={`/experiments/${e.id}`} className="mono text-[11.5px] font-semibold text-brand-deep">{e.code}</Link>
+                          <Link
+                            href={`/experiments/${e.id}`}
+                            className="mono text-[11.5px] font-semibold text-brand-deep"
+                          >
+                            {e.code}
+                          </Link>
                         </td>
-                        <td className="px-3 py-1.5"><Link href={`/experiments/${e.id}`} className="line-clamp-1">{e.title}</Link></td>
-                        <td className="px-3 py-1.5 whitespace-nowrap">{statusChip(e.status)}</td>
-                        <td className="px-3 py-1.5 text-muted whitespace-nowrap">{firstName(e.createdBy)}</td>
-                        <td className="px-3 py-1.5 text-right mono">{e.samples}</td>
-                        <td className="px-3 py-1.5 text-right mono">{e.steps}</td>
+                        <td className="px-3 py-1.5">
+                          <Link
+                            href={`/experiments/${e.id}`}
+                            className="line-clamp-1"
+                          >
+                            {e.title}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          {statusChip(e.status)}
+                        </td>
+                        <td className="px-3 py-1.5 text-muted whitespace-nowrap">
+                          {firstName(e.createdBy)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right mono">
+                          {e.samples}
+                        </td>
+                        <td className="px-3 py-1.5 text-right mono">
+                          {e.steps}
+                        </td>
                         <td className="px-3 py-1.5">
                           <div className="flex gap-1 overflow-hidden whitespace-nowrap">
                             {e.labels.slice(0, 3).map((l) => (
-                              <span key={l} className="text-[10px] px-1.5 py-px bg-subtle border border-line rounded-[3px] text-charcoal shrink-0">{l}</span>
+                              <span
+                                key={l}
+                                className="text-[10px] px-1.5 py-px bg-subtle border border-line rounded-[3px] text-charcoal shrink-0"
+                              >
+                                {l}
+                              </span>
                             ))}
-                            {e.labels.length > 3 && <span className="text-[10px] text-muted shrink-0">+{e.labels.length - 3}</span>}
+                            {e.labels.length > 3 && (
+                              <span className="text-[10px] text-muted shrink-0">
+                                +{e.labels.length - 3}
+                              </span>
+                            )}
                           </div>
                         </td>
-                        <td className="px-3 py-1.5 text-muted mono text-[11px] whitespace-nowrap">{e.updatedAt}</td>
+                        <td className="px-3 py-1.5 text-muted mono text-[11px] whitespace-nowrap">
+                          {e.updatedAt}
+                        </td>
                         <td className="px-3 py-1.5">
                           <div className="flex items-center justify-end">
                             <RowActions e={e} />

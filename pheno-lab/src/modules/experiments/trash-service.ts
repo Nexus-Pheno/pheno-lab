@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
@@ -94,13 +95,14 @@ export async function listTrash(actor: Actor): Promise<TrashRow[]> {
       code: row.code,
       title: row.title,
       isTest: row.isTest,
-      deletedAt: row.deletedAt!.toISOString().replace("T", " ").slice(0, 16),
+      deletedAt: fmtBeijing(row.deletedAt!),
       deletedBy: row.deletedBy?.name ?? "?",
       samples: row._count.samples,
       restorable: true,
-      purgeAt: new Date(row.deletedAt!.getTime() + RETENTION_MS)
-        .toISOString()
-        .slice(0, 10),
+      purgeAt: fmtBeijing(
+        new Date(row.deletedAt!.getTime() + RETENTION_MS),
+        "date",
+      ),
     }));
 }
 

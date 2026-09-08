@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import { chat, activeProvider } from "@/modules/ai/client";
@@ -91,7 +92,7 @@ export async function analyzeHistory(
     const plan = (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan;
     const L: string[] = [];
     L.push(
-      `### ${exp.code} — ${CLIP(exp.title, 80)} (${exp.status}, ${exp.createdAt.toISOString().slice(0, 10)}, by ${exp.createdBy.name})`,
+      `### ${exp.code} — ${CLIP(exp.title, 80)} (${exp.status}, ${fmtBeijing(exp.createdAt, "date")}, by ${exp.createdBy.name})`,
     );
 
     // What was varied.

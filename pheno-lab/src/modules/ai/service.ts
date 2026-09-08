@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import {
@@ -57,9 +58,7 @@ export async function listAiProviders(actor: Actor): Promise<AiProviderRow[]> {
       keyHint: mask(apiKey),
       active: r.active,
       lastStatus: r.lastStatus,
-      lastCheckedAt: r.lastCheckedAt
-        ? r.lastCheckedAt.toISOString().slice(0, 16).replace("T", " ")
-        : null,
+      lastCheckedAt: r.lastCheckedAt ? fmtBeijing(r.lastCheckedAt) : null,
     };
   });
 }

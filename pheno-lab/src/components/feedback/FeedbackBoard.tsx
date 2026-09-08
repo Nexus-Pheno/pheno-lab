@@ -47,7 +47,9 @@ const STATUS_TONE: Record<string, string> = {
 
 /** The date an untouched implemented item goes green on its own. */
 const autoVerifyDate = (implementedAt: string): string => {
-  const start = new Date(`${implementedAt}T00:00:00`);
+  // Parse as UTC so the +7d date is pure calendar arithmetic, immune to the
+  // viewer's local timezone (implementedAt is already a Beijing date).
+  const start = new Date(`${implementedAt}T00:00:00Z`);
   if (Number.isNaN(start.getTime())) return "";
   return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000)
     .toISOString()

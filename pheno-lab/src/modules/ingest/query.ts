@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
@@ -54,10 +55,8 @@ export async function getIngestReviewData(actor: Actor) {
       sourceFile: item.sourceFile,
       confidence: item.confidence,
       reviewNote: item.reviewNote,
-      createdAt: item.createdAt.toISOString().slice(0, 10),
-      reviewedAt: item.reviewedAt
-        ? item.reviewedAt.toISOString().slice(0, 10)
-        : null,
+      createdAt: fmtBeijing(item.createdAt, "date"),
+      reviewedAt: item.reviewedAt ? fmtBeijing(item.reviewedAt, "date") : null,
       reviewedBy: item.reviewedBy?.name ?? null,
     })),
     processNames: processes.map((process) => process.name),

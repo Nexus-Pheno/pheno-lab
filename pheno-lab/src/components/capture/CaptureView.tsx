@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentFull, StepFull, SampleRow } from "@/lib/types";
+import { fmtBeijing } from "@/lib/datetime";
 import {
   captureFieldKind,
   materialCardsForStep,
@@ -12,7 +13,16 @@ import {
   type CaptureCategoryLayers,
   type CaptureMaterialCard,
 } from "@/lib/capture-fields";
-import { saveExecutionBatch, saveCharResult, createNewRun, deleteRun, deleteExecutionPhoto, addExecutionPhotos, clearExecutions, setJvDisplayPolicy } from "@/lib/actions/runs";
+import {
+  saveExecutionBatch,
+  saveCharResult,
+  createNewRun,
+  deleteRun,
+  deleteExecutionPhoto,
+  addExecutionPhotos,
+  clearExecutions,
+  setJvDisplayPolicy,
+} from "@/lib/actions/runs";
 import { submitForReview } from "@/lib/actions/workflow";
 import { regroupSample } from "@/lib/actions/runs";
 import { SubstrateBoard } from "@/components/designer/SubstrateBoard";
@@ -67,14 +77,20 @@ const metricDefaults = (name: string): Record<string, string> => {
 // groups genuinely disagree does the step's base value stand in. Selecting
 // several groups at once used to fall straight to base values, which techs
 // then had to correct by hand.
-const plannedFor = (step: StepFull, zones: string[]): Record<string, string> => {
+const plannedFor = (
+  step: StepFull,
+  zones: string[],
+): Record<string, string> => {
   const out: Record<string, string> = {};
   for (const p of step.parameters) {
     const values = zones.map(
-      (zone) => p.variations.find((x) => x.variationGroup === zone)?.value ?? p.value,
+      (zone) =>
+        p.variations.find((x) => x.variationGroup === zone)?.value ?? p.value,
     );
     out[p.name] =
-      values.length > 0 && values.every((v) => v === values[0]) ? values[0] : p.value;
+      values.length > 0 && values.every((v) => v === values[0])
+        ? values[0]
+        : p.value;
   }
   return out;
 };
@@ -124,20 +140,28 @@ export function CaptureView({
     return () => header?.classList.remove("hidden");
   }, []);
 
-  const orderedSteps = useMemo(() => [...exp.steps].sort((a, b) => a.position - b.position), [exp.steps]);
+  const orderedSteps = useMemo(
+    () => [...exp.steps].sort((a, b) => a.position - b.position),
+    [exp.steps],
+  );
   const orderedChars = useMemo(
     () => [...exp.characterizations].sort((a, b) => a.position - b.position),
-    [exp.characterizations]
+    [exp.characterizations],
   );
   const groups = useMemo(
-    () => [...new Set(exp.samples.map((s) => s.variationGroup).filter(Boolean))].sort() as string[],
-    [exp.samples]
+    () =>
+      [
+        ...new Set(exp.samples.map((s) => s.variationGroup).filter(Boolean)),
+      ].sort() as string[],
+    [exp.samples],
   );
   const slideCount = orderedSteps.length + orderedChars.length;
 
   // Substrate regrouping: membership mirrors sample.variationGroup, updated
   // optimistically while the server action persists the swap.
-  const plan = (exp.metadata as { testPlan?: { groups?: { label: string }[] } } | null)?.testPlan;
+  const plan = (
+    exp.metadata as { testPlan?: { groups?: { label: string }[] } } | null
+  )?.testPlan;
   const planGroups = plan?.groups?.map((g) => g.label) ?? groups;
   const [assignments, setAssignments] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -167,9 +191,14 @@ export function CaptureView({
     }
   };
 
-  const execsFor = (stepId: string) => executions.filter((x) => x.stepId === stepId);
+  const execsFor = (stepId: string) =>
+    executions.filter((x) => x.stepId === stepId);
   const resultsFor = (charId: string) =>
-    results.filter((r) => r.characterizationId === charId && Object.values(r.metrics).some((v) => v !== ""));
+    results.filter(
+      (r) =>
+        r.characterizationId === charId &&
+        Object.values(r.metrics).some((v) => v !== ""),
+    );
 
   const totalDone = executions.length;
   const totalNeeded = exp.steps.length * exp.samples.length;
@@ -179,24 +208,29 @@ export function CaptureView({
   const charDone = new Set(
     results
       .filter((r) => Object.values(r.metrics).some((v) => v !== ""))
-      .map((r) => r.characterizationId + "|" + r.sampleId)
+      .map((r) => r.characterizationId + "|" + r.sampleId),
   ).size;
   const missingTotal =
-    (totalNeeded - totalDone) + (orderedChars.length * exp.samples.length - charDone);
+    totalNeeded -
+    totalDone +
+    (orderedChars.length * exp.samples.length - charDone);
 
-  const jumpTo = useCallback((i: number) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(slideCount - 1, i));
-    const left = clamped * el.clientWidth;
-    programmaticSlideRef.current = clamped;
-    setSlide(clamped);
-    if (Math.abs(el.scrollLeft - left) < 1) {
-      programmaticSlideRef.current = null;
-      return;
-    }
-    el.scrollTo({ left, behavior: "smooth" });
-  }, [slideCount]);
+  const jumpTo = useCallback(
+    (i: number) => {
+      const el = trackRef.current;
+      if (!el) return;
+      const clamped = Math.max(0, Math.min(slideCount - 1, i));
+      const left = clamped * el.clientWidth;
+      programmaticSlideRef.current = clamped;
+      setSlide(clamped);
+      if (Math.abs(el.scrollLeft - left) < 1) {
+        programmaticSlideRef.current = null;
+        return;
+      }
+      el.scrollTo({ left, behavior: "smooth" });
+    },
+    [slideCount],
+  );
 
   // Survive pull-to-refresh: remember the current card and restore it on load.
   const slideKey = `pheno_cap_slide_${exp.id}_${runId}`;
@@ -218,7 +252,8 @@ export function CaptureView({
     if (!el) return;
     let raf = 0;
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
-    const currentSlide = () => Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+    const currentSlide = () =>
+      Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
     const onScroll = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
@@ -254,24 +289,45 @@ export function CaptureView({
       {/* Compact header */}
       <div className="shrink-0 bg-surface border-b border-line px-3 pt-2.5 pb-2 space-y-2">
         <div className="flex items-center gap-2 whitespace-nowrap">
-          <Link href="/portal" title={t("portal.title")} className="shrink-0 -my-1 py-1 pr-1">
+          <Link
+            href="/portal"
+            title={t("portal.title")}
+            className="shrink-0 -my-1 py-1 pr-1"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/pheno-icon.png" alt="Pheno" className="w-6 h-6" />
           </Link>
-          <span className="mono text-[12.5px] font-bold truncate min-w-0 flex-1">{exp.code}</span>
-          <span className="hidden sm:inline text-[11px] text-muted shrink-0">{t("cap.title")}</span>
-          <span className="mono text-[10.5px] text-muted shrink-0">{totalDone}/{totalNeeded}</span>
+          <span className="mono text-[12.5px] font-bold truncate min-w-0 flex-1">
+            {exp.code}
+          </span>
+          <span className="hidden sm:inline text-[11px] text-muted shrink-0">
+            {t("cap.title")}
+          </span>
+          <span className="mono text-[10.5px] text-muted shrink-0">
+            {totalDone}/{totalNeeded}
+          </span>
           <ScanButton variant="compact" />
-          <Link href={`/experiments/${exp.id}/results`} className="text-[11px] font-semibold text-charcoal shrink-0 py-1 px-1">
+          <Link
+            href={`/experiments/${exp.id}/results`}
+            className="text-[11px] font-semibold text-charcoal shrink-0 py-1 px-1"
+          >
             {t("res.title")}
           </Link>
-          <Link href={backHref} className="text-[11px] font-semibold text-brand-deep shrink-0 py-1 px-1">
+          <Link
+            href={backHref}
+            className="text-[11px] font-semibold text-brand-deep shrink-0 py-1 px-1"
+          >
             {t("nav.back")}
           </Link>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1 bg-subtle rounded-full overflow-hidden">
-            <div className="h-full bg-brand rounded-full transition-all" style={{ width: `${totalNeeded ? (totalDone / totalNeeded) * 100 : 0}%` }} />
+            <div
+              className="h-full bg-brand rounded-full transition-all"
+              style={{
+                width: `${totalNeeded ? (totalDone / totalNeeded) * 100 : 0}%`,
+              }}
+            />
           </div>
         </div>
 
@@ -289,11 +345,15 @@ export function CaptureView({
                 router.push(`/experiments/${exp.id}/capture?run=${r.id}`);
                 return;
               }
-              router.push(`/experiments/${exp.id}/capture?run=${e.target.value}`);
+              router.push(
+                `/experiments/${exp.id}/capture?run=${e.target.value}`,
+              );
             }}
           >
             {runs.map((r) => (
-              <option key={r.id} value={r.id}>{t("cap.run")} {r.runNo}</option>
+              <option key={r.id} value={r.id}>
+                {t("cap.run")} {r.runNo}
+              </option>
             ))}
             <option value="__new__">＋ {t("cap.newRun")}</option>
           </select>
@@ -350,7 +410,8 @@ export function CaptureView({
           <span className="shrink-0 w-px h-5 bg-line mx-0.5" />
           {orderedSteps.map((st, i) => {
             const captured = execsFor(st.id).length;
-            const full = captured === exp.samples.length && exp.samples.length > 0;
+            const full =
+              captured === exp.samples.length && exp.samples.length > 0;
             const flagged = execsFor(st.id).some((x) => x.flagged);
             return (
               <button
@@ -374,11 +435,15 @@ export function CaptureView({
                 }
               >
                 <Icon name={st.process.icon} size={13} />
-                <span className="text-[8.5px]">{full && i !== slide ? "✓" : i + 1}</span>
+                <span className="text-[8.5px]">
+                  {full && i !== slide ? "✓" : i + 1}
+                </span>
               </button>
             );
           })}
-          {orderedChars.length > 0 && <span className="shrink-0 w-px h-5 bg-line mx-1" />}
+          {orderedChars.length > 0 && (
+            <span className="shrink-0 w-px h-5 bg-line mx-1" />
+          )}
           {orderedChars.map((c, j) => {
             const i = orderedSteps.length + j;
             const done = resultsFor(c.id).length;
@@ -417,7 +482,10 @@ export function CaptureView({
           className="no-scrollbar flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
         >
           {orderedSteps.map((step, i) => (
-            <div key={step.id} className="w-full shrink-0 snap-center overflow-y-auto p-3 sm:p-4">
+            <div
+              key={step.id}
+              className="w-full shrink-0 snap-center overflow-y-auto p-3 sm:p-4"
+            >
               <div className="max-w-xl mx-auto">
                 <div className="text-[10.5px] font-bold uppercase text-muted mb-1.5 px-0.5">
                   {t("cap.stepOf")} {i + 1} {t("cap.of")} {orderedSteps.length}
@@ -432,14 +500,22 @@ export function CaptureView({
                   samples={exp.samples}
                   groups={planGroups}
                   assignments={assignments}
-                  simCodes={Object.fromEntries(exp.samples.map((s) => [s.code, s.simCode]))}
+                  simCodes={Object.fromEntries(
+                    exp.samples.map((s) => [s.code, s.simCode]),
+                  )}
                   onMoveSubstrate={moveSubstrate}
                   initialSampleId={initialSampleId}
                   runId={runId}
                   executions={execsFor(step.id)}
                   onSaved={(list) => {
                     setExecutions((es) => [
-                      ...es.filter((e) => !(e.stepId === step.id && list.some((x) => x.sampleId === e.sampleId))),
+                      ...es.filter(
+                        (e) =>
+                          !(
+                            e.stepId === step.id &&
+                            list.some((x) => x.sampleId === e.sampleId)
+                          ),
+                      ),
                       ...list,
                     ]);
                     // Advance only once every grouped sample of THIS step is
@@ -456,16 +532,27 @@ export function CaptureView({
                   }}
                   onCleared={(sampleIds) => {
                     setExecutions((es) =>
-                      es.filter((e) => !(e.stepId === step.id && sampleIds.includes(e.sampleId)))
+                      es.filter(
+                        (e) =>
+                          !(
+                            e.stepId === step.id &&
+                            sampleIds.includes(e.sampleId)
+                          ),
+                      ),
                     );
                   }}
                 />
-                {i === slideCount - 1 && <CompleteCard exp={exp} missing={missingTotal} />}
+                {i === slideCount - 1 && (
+                  <CompleteCard exp={exp} missing={missingTotal} />
+                )}
               </div>
             </div>
           ))}
           {orderedChars.map((c, ci) => (
-            <div key={c.id} className="w-full shrink-0 snap-center overflow-y-auto p-3 sm:p-4">
+            <div
+              key={c.id}
+              className="w-full shrink-0 snap-center overflow-y-auto p-3 sm:p-4"
+            >
               <div className="max-w-xl mx-auto">
                 <div className="text-[10.5px] font-bold uppercase text-muted mb-1.5 px-0.5">
                   {t("cap.results")}
@@ -482,7 +569,13 @@ export function CaptureView({
                   results={results.filter((r) => r.characterizationId === c.id)}
                   onSaved={(r) => {
                     setResults((rs) => [
-                      ...rs.filter((x) => !(x.characterizationId === r.characterizationId && x.sampleId === r.sampleId)),
+                      ...rs.filter(
+                        (x) =>
+                          !(
+                            x.characterizationId === r.characterizationId &&
+                            x.sampleId === r.sampleId
+                          ),
+                      ),
                       r,
                     ]);
                   }}
@@ -494,7 +587,6 @@ export function CaptureView({
             </div>
           ))}
         </div>
-
       </div>
     </main>
   );
@@ -505,7 +597,13 @@ export function CaptureView({
 // Lives on the very last capture card: once the lab work is done, one
 // confirmed tap marks the whole experiment COMPLETE.
 
-function CompleteCard({ exp, missing }: { exp: ExperimentFull; missing: number }) {
+function CompleteCard({
+  exp,
+  missing,
+}: {
+  exp: ExperimentFull;
+  missing: number;
+}) {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -515,7 +613,11 @@ function CompleteCard({ exp, missing }: { exp: ExperimentFull; missing: number }
   if (done) {
     return (
       <div className="mt-3 bg-brand-soft/50 border border-brand/40 rounded-[6px] p-3.5 flex items-center gap-2.5 flex-wrap">
-        <Icon name="CheckCircle2" size={17} className="text-brand-deep shrink-0" />
+        <Icon
+          name="CheckCircle2"
+          size={17}
+          className="text-brand-deep shrink-0"
+        />
         <span className="flex-1 text-[13px] font-bold text-brand-deep min-w-32">
           {t(exp.status === "COMPLETE" ? "cap.completed" : "wf.submitted")}
         </span>
@@ -532,11 +634,22 @@ function CompleteCard({ exp, missing }: { exp: ExperimentFull; missing: number }
   return (
     <div className="mt-3 bg-surface border-2 border-line rounded-[6px] p-3.5">
       <div className="flex items-center gap-2.5 mb-2">
-        <Icon name="FlagTriangleRight" size={16} className="text-charcoal shrink-0" />
+        <Icon
+          name="FlagTriangleRight"
+          size={16}
+          className="text-charcoal shrink-0"
+        />
         <div className="flex-1 min-w-40">
           <div className="text-[13px] font-bold">{t("wf.submitTitle")}</div>
-          <div className={"text-[11px] mt-0.5 " + (missing > 0 ? "text-warn font-semibold" : "text-muted")}>
-            {missing > 0 ? `${missing} ${t("cap.completeMissing")}` : t("wf.submitHint")}
+          <div
+            className={
+              "text-[11px] mt-0.5 " +
+              (missing > 0 ? "text-warn font-semibold" : "text-muted")
+            }
+          >
+            {missing > 0
+              ? `${missing} ${t("cap.completeMissing")}`
+              : t("wf.submitHint")}
           </div>
         </div>
       </div>
@@ -550,7 +663,9 @@ function CompleteCard({ exp, missing }: { exp: ExperimentFull; missing: number }
       <div className="flex justify-end">
         {confirming ? (
           <span className="flex items-center gap-2 bg-warn-soft border border-warn-line rounded-[5px] px-2.5 py-1.5">
-            <span className="text-[12px] font-semibold text-warn">{t("cap.completeQ")}</span>
+            <span className="text-[12px] font-semibold text-warn">
+              {t("cap.completeQ")}
+            </span>
             <button
               disabled={busy}
               onClick={async () => {
@@ -563,7 +678,10 @@ function CompleteCard({ exp, missing }: { exp: ExperimentFull; missing: number }
             >
               ✓
             </button>
-            <button onClick={() => setConfirming(false)} className="text-[12px] font-semibold text-muted border border-line bg-surface rounded-[4px] px-3 py-1">
+            <button
+              onClick={() => setConfirming(false)}
+              className="text-[12px] font-semibold text-muted border border-line bg-surface rounded-[4px] px-3 py-1"
+            >
               ✕
             </button>
           </span>
@@ -624,7 +742,10 @@ function BatchStepCapture({
   const t = useT();
   const tt = useTerm();
 
-  const capturedIds = useMemo(() => new Set(executions.map((x) => x.sampleId)), [executions]);
+  const capturedIds = useMemo(
+    () => new Set(executions.map((x) => x.sampleId)),
+    [executions],
+  );
 
   // Selection is a set of samples, toggled per group or per sample; multiple
   // groups can be combined, and Extras/Trash remain selectable for notes and
@@ -636,11 +757,16 @@ function BatchStepCapture({
     const scanned = initialSampleId
       ? samples.find((s) => s.id === initialSampleId)
       : undefined;
-    return new Set((scanned ? [scanned] : samples.slice(0, 1)).map((s) => s.id));
+    return new Set(
+      (scanned ? [scanned] : samples.slice(0, 1)).map((s) => s.id),
+    );
   });
   const [editing, setEditing] = useState(false);
 
-  const targets = useMemo(() => samples.filter((s) => selectedIds.has(s.id)), [selectedIds, samples]);
+  const targets = useMemo(
+    () => samples.filter((s) => selectedIds.has(s.id)),
+    [selectedIds, samples],
+  );
   const allSelected = samples.length > 0 && selectedIds.size === samples.length;
 
   const grouped = useMemo(
@@ -685,44 +811,69 @@ function BatchStepCapture({
     [targets, assignments, groups],
   );
 
-  const planned = useMemo(() => plannedFor(step, scopeZones), [step, scopeZones]);
-  const plannedEnv = (step.environmentConditions ?? {}) as Record<string, string>;
+  const planned = useMemo(
+    () => plannedFor(step, scopeZones),
+    [step, scopeZones],
+  );
+  const plannedEnv = (step.environmentConditions ?? {}) as Record<
+    string,
+    string
+  >;
   const plannedMaterialNames = useMemo(
-    () => step.parameters
-      .filter((parameter) => captureFieldKind(parameter) === "material")
-      .flatMap((parameter) => [parameter.value, ...parameter.variations.map((variation) => variation.value)]),
+    () =>
+      step.parameters
+        .filter((parameter) => captureFieldKind(parameter) === "material")
+        .flatMap((parameter) => [
+          parameter.value,
+          ...parameter.variations.map((variation) => variation.value),
+        ]),
     [step.parameters],
   );
   const materialOptions = useMemo(
-    () => materialCardsForStep({
-      processId: step.processId,
-      layer: step.layer,
-      linkedMaterialIds: step.materials.map((row) => row.materialId),
-      plannedNames: plannedMaterialNames,
-      materials,
-      categoryLayers,
-    }),
+    () =>
+      materialCardsForStep({
+        processId: step.processId,
+        layer: step.layer,
+        linkedMaterialIds: step.materials.map((row) => row.materialId),
+        plannedNames: plannedMaterialNames,
+        materials,
+        categoryLayers,
+      }),
     [categoryLayers, materials, plannedMaterialNames, step],
   );
 
-  const existing = targets.length > 0 ? executions.find((x) => x.sampleId === targets[0].id) : undefined;
-  const allTargetsCaptured = targets.length > 0 && targets.every((s) => capturedIds.has(s.id));
+  const existing =
+    targets.length > 0
+      ? executions.find((x) => x.sampleId === targets[0].id)
+      : undefined;
+  const allTargetsCaptured =
+    targets.length > 0 && targets.every((s) => capturedIds.has(s.id));
 
-  const [actuals, setActuals] = useState<Record<string, string>>(() => existing?.actuals ?? planned);
-  const [materialSelections, setMaterialSelections] = useState<Record<string, string>>(() =>
+  const [actuals, setActuals] = useState<Record<string, string>>(
+    () => existing?.actuals ?? planned,
+  );
+  const [materialSelections, setMaterialSelections] = useState<
+    Record<string, string>
+  >(() =>
     materialSelectionForValues(
       step.parameters,
       existing?.actuals ?? planned,
       existing?.materialSelections ?? {},
       materialOptions,
-    )
+    ),
   );
-  const [envActuals, setEnvActuals] = useState<Record<string, string>>(() => existing?.environmentConditions ?? plannedEnv);
+  const [envActuals, setEnvActuals] = useState<Record<string, string>>(
+    () => existing?.environmentConditions ?? plannedEnv,
+  );
   const [note, setNote] = useState(existing?.note ?? "");
   const [flagged, setFlagged] = useState(existing?.flagged ?? false);
-  const [existingPhotos, setExistingPhotos] = useState<{ id: string; path: string }[]>(existing?.photos ?? []);
+  const [existingPhotos, setExistingPhotos] = useState<
+    { id: string; path: string }[]
+  >(existing?.photos ?? []);
   const [newPhotos, setNewPhotos] = useState<string[]>([]);
-  const [pendingPhotoDelete, setPendingPhotoDelete] = useState<string | null>(null);
+  const [pendingPhotoDelete, setPendingPhotoDelete] = useState<string | null>(
+    null,
+  );
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -741,7 +892,14 @@ function BatchStepCapture({
     setEditing(false);
     const resetActuals = plannedFor(step, scopeZones);
     setActuals(resetActuals);
-    setMaterialSelections(materialSelectionForValues(step.parameters, resetActuals, {}, materialOptions));
+    setMaterialSelections(
+      materialSelectionForValues(
+        step.parameters,
+        resetActuals,
+        {},
+        materialOptions,
+      ),
+    );
     setEnvActuals(plannedEnv);
     setNote("");
     setFlagged(false);
@@ -752,25 +910,30 @@ function BatchStepCapture({
     onCleared(ids);
   };
 
-  const clearControl = (
-    clearAsk ? (
-      <span className="flex items-center gap-1.5 bg-warn-soft border border-warn-line rounded-[4px] px-2 py-1">
-        <span className="text-[11px] font-semibold text-warn whitespace-nowrap">{t("cap.clearQ")}</span>
-        <button disabled={busy} onClick={doClear} className="p-0.5 text-danger" title={t("cap.clear")}>
-          <Icon name="Check" size={13} />
-        </button>
-        <button onClick={() => setClearAsk(false)} className="p-0.5 text-muted">
-          <Icon name="X" size={13} />
-        </button>
+  const clearControl = clearAsk ? (
+    <span className="flex items-center gap-1.5 bg-warn-soft border border-warn-line rounded-[4px] px-2 py-1">
+      <span className="text-[11px] font-semibold text-warn whitespace-nowrap">
+        {t("cap.clearQ")}
       </span>
-    ) : (
       <button
-        onClick={() => setClearAsk(true)}
-        className="whitespace-nowrap text-[11.5px] font-semibold text-warn border border-warn-line rounded-[4px] px-3 py-2 flex items-center gap-1.5 hover:bg-warn-soft"
+        disabled={busy}
+        onClick={doClear}
+        className="p-0.5 text-danger"
+        title={t("cap.clear")}
       >
-        <Icon name="Eraser" size={13} /> {t("cap.clear")}
+        <Icon name="Check" size={13} />
       </button>
-    )
+      <button onClick={() => setClearAsk(false)} className="p-0.5 text-muted">
+        <Icon name="X" size={13} />
+      </button>
+    </span>
+  ) : (
+    <button
+      onClick={() => setClearAsk(true)}
+      className="whitespace-nowrap text-[11.5px] font-semibold text-warn border border-warn-line rounded-[4px] px-3 py-2 flex items-center gap-1.5 hover:bg-warn-soft"
+    >
+      <Icon name="Eraser" size={13} /> {t("cap.clear")}
+    </button>
   );
 
   // Re-seed the form whenever the selection changes. Deliberately leaves
@@ -781,11 +944,19 @@ function BatchStepCapture({
   useEffect(() => {
     if (lastScopeKey.current === scopeKey) return;
     lastScopeKey.current = scopeKey;
-    const ex = targets.length > 0 ? executions.find((x) => x.sampleId === targets[0].id) : undefined;
+    const ex =
+      targets.length > 0
+        ? executions.find((x) => x.sampleId === targets[0].id)
+        : undefined;
     const nextActuals = ex?.actuals ?? plannedFor(step, scopeZones);
     setActuals(nextActuals);
     setMaterialSelections(
-      materialSelectionForValues(step.parameters, nextActuals, ex?.materialSelections ?? {}, materialOptions),
+      materialSelectionForValues(
+        step.parameters,
+        nextActuals,
+        ex?.materialSelections ?? {},
+        materialOptions,
+      ),
     );
     setEnvActuals(ex?.environmentConditions ?? plannedEnv);
     setNote(ex?.note ?? "");
@@ -816,18 +987,33 @@ function BatchStepCapture({
   const doSave = async () => {
     setBusy(true);
     setOverwriteAsk(false);
-    const saved = await saveExecutionBatch(runId, step.id, targets.map((sm) => sm.id), {
-      actuals, materialSelections, environmentConditions: envActuals, note, flagged,
-      photoFileNames: newPhotos.length > 0 ? newPhotos : undefined,
-    });
+    const saved = await saveExecutionBatch(
+      runId,
+      step.id,
+      targets.map((sm) => sm.id),
+      {
+        actuals,
+        materialSelections,
+        environmentConditions: envActuals,
+        note,
+        flagged,
+        photoFileNames: newPhotos.length > 0 ? newPhotos : undefined,
+      },
+    );
     setBusy(false);
     setEditing(false);
-    setExistingPhotos(saved[0]?.attachments.map((a) => ({ id: a.id, path: a.storedPath })) ?? existingPhotos);
+    setExistingPhotos(
+      saved[0]?.attachments.map((a) => ({ id: a.id, path: a.storedPath })) ??
+        existingPhotos,
+    );
     setNewPhotos([]);
     setPendingPhotoDelete(null);
     // Hand the selection to the next uncaptured group so the tech keeps
     // recording without folding back — one group per confirm.
-    const capturedAfter = new Set([...capturedIds, ...targets.map((s) => s.id)]);
+    const capturedAfter = new Set([
+      ...capturedIds,
+      ...targets.map((s) => s.id),
+    ]);
     const remaining = grouped.filter((s) => !capturedAfter.has(s.id));
     if (remaining.length > 0) {
       const nextZone = assignments[remaining[0].code];
@@ -839,23 +1025,28 @@ function BatchStepCapture({
         ),
       );
     }
-    onSaved(saved.map((x) => ({
-      stepId: step.id,
-      sampleId: x.sampleId,
-      actuals,
-      materialSelections,
-      environmentConditions: envActuals,
-      note,
-      flagged,
-      capturedAt: x.capturedAt.toISOString().replace("T", " ").slice(0, 16),
-      photos: x.attachments.map((a) => ({ id: a.id, path: a.storedPath })),
-    })));
+    onSaved(
+      saved.map((x) => ({
+        stepId: step.id,
+        sampleId: x.sampleId,
+        actuals,
+        materialSelections,
+        environmentConditions: envActuals,
+        note,
+        flagged,
+        capturedAt: fmtBeijing(x.capturedAt),
+        photos: x.attachments.map((a) => ({ id: a.id, path: a.storedPath })),
+      })),
+    );
   };
 
   // The scope selector IS the sample map: tap All, a group, or one sample.
-  const allCaptured = samples.length > 0 && samples.every((s) => capturedIds.has(s.id));
+  const allCaptured =
+    samples.length > 0 && samples.every((s) => capturedIds.has(s.id));
   const materialSelectionMissing = step.parameters.some(
-    (parameter) => captureFieldKind(parameter) === "material" && !materialSelections[parameter.name],
+    (parameter) =>
+      captureFieldKind(parameter) === "material" &&
+      !materialSelections[parameter.name],
   );
 
   // Human label for the confirm button: All / whole groups / leftover codes.
@@ -866,7 +1057,7 @@ function BatchStepCapture({
       return ids.length > 0 && ids.every((s) => selectedIds.has(s.id));
     });
     const leftover = targets.filter(
-      (s) => !fullGroups.includes(assignments[s.code])
+      (s) => !fullGroups.includes(assignments[s.code]),
     );
     return [
       ...fullGroups.map((g) => `${t("cap.batchGroup")} ${g}`),
@@ -885,7 +1076,13 @@ function BatchStepCapture({
           {String(step.position + 1).padStart(2, "0")} {tt(step.name)}
         </span>
         {/* Colleagues know machines by nickname; the model is the fallback. */}
-        {step.equipment && <span className="mono text-[10.5px] text-muted shrink-0">{step.equipment.nickname || step.equipment.model || step.equipment.assetTag}</span>}
+        {step.equipment && (
+          <span className="mono text-[10.5px] text-muted shrink-0">
+            {step.equipment.nickname ||
+              step.equipment.model ||
+              step.equipment.assetTag}
+          </span>
+        )}
       </div>
       {layerName && (
         <div className="mb-2">
@@ -919,7 +1116,11 @@ function BatchStepCapture({
             simCodes={simCodes}
             selection={{
               selected: new Set(targets.map((sm) => sm.code)),
-              captured: new Set(samples.filter((sm) => capturedIds.has(sm.id)).map((sm) => sm.code)),
+              captured: new Set(
+                samples
+                  .filter((sm) => capturedIds.has(sm.id))
+                  .map((sm) => sm.code),
+              ),
               onToggleSample: (code) => {
                 const sm = samples.find((x) => x.code === code);
                 if (sm) toggleSample(sm);
@@ -941,12 +1142,12 @@ function BatchStepCapture({
             }}
           />
           {targets.length === 1 && (
-          <p className="mono text-[11px] text-charcoal mt-1.5">
-            <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
-            {expCode}-{targets[0].code}
-          </p>
-        )}
-        <p className="text-[10px] text-muted mt-1">{t("cap.batchHint")}</p>
+            <p className="mono text-[11px] text-charcoal mt-1.5">
+              <Icon name="Tag" size={10} className="inline mr-1 text-muted" />
+              {expCode}-{targets[0].code}
+            </p>
+          )}
+          <p className="text-[10px] text-muted mt-1">{t("cap.batchHint")}</p>
         </div>
       )}
 
@@ -959,17 +1160,28 @@ function BatchStepCapture({
           <div className="flex items-center gap-2 flex-wrap">
             <Icon name="CheckCircle2" size={15} className="text-brand-deep" />
             <span className="text-[12.5px] text-brand-deep font-semibold flex-1 min-w-32">
-              {t("cap.confirmed")} · {targets.length === 1
+              {t("cap.confirmed")} ·{" "}
+              {targets.length === 1
                 ? `${expCode}-${targets[0].code}`
                 : targets.map((s) => s.code).join(", ")}
             </span>
             {clearAsk ? (
               <span className="flex items-center gap-1.5 bg-warn-soft border border-warn-line rounded-[4px] px-2 py-1">
-                <span className="text-[11px] font-semibold text-warn whitespace-nowrap">{t("cap.clearQ")}</span>
-                <button disabled={busy} onClick={doClear} className="p-0.5 text-danger" title={t("cap.clear")}>
+                <span className="text-[11px] font-semibold text-warn whitespace-nowrap">
+                  {t("cap.clearQ")}
+                </span>
+                <button
+                  disabled={busy}
+                  onClick={doClear}
+                  className="p-0.5 text-danger"
+                  title={t("cap.clear")}
+                >
                   <Icon name="Check" size={13} />
                 </button>
-                <button onClick={() => setClearAsk(false)} className="p-0.5 text-muted">
+                <button
+                  onClick={() => setClearAsk(false)}
+                  className="p-0.5 text-muted"
+                >
                   <Icon name="X" size={13} />
                 </button>
               </span>
@@ -981,19 +1193,33 @@ function BatchStepCapture({
                 <Icon name="Eraser" size={12} /> {t("cap.clear")}
               </button>
             )}
-            <button onClick={() => setEditing(true)} className="text-[11.5px] font-semibold text-brand-deep underline">
+            <button
+              onClick={() => setEditing(true)}
+              className="text-[11.5px] font-semibold text-brand-deep underline"
+            >
               {t("cap.edit")}
             </button>
           </div>
           <div className="flex items-center gap-1.5 mt-2">
             {existingPhotos.slice(0, 5).map((ph) => (
-              <button key={ph.path} onClick={() => setGalleryOpen(true)} className="shrink-0">
+              <button
+                key={ph.path}
+                onClick={() => setGalleryOpen(true)}
+                className="shrink-0"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/api/files/${ph.path}`} alt="" className="h-11 w-11 object-cover rounded-[4px] border border-line" />
+                <img
+                  src={`/api/files/${ph.path}`}
+                  alt=""
+                  className="h-11 w-11 object-cover rounded-[4px] border border-line"
+                />
               </button>
             ))}
             {existingPhotos.length > 5 && (
-              <button onClick={() => setGalleryOpen(true)} className="h-11 w-11 rounded-[4px] border border-line bg-surface text-[11px] font-bold text-muted">
+              <button
+                onClick={() => setGalleryOpen(true)}
+                className="h-11 w-11 rounded-[4px] border border-line bg-surface text-[11px] font-bold text-muted"
+              >
                 +{existingPhotos.length - 5}
               </button>
             )}
@@ -1001,7 +1227,8 @@ function BatchStepCapture({
               onClick={() => setGalleryOpen(true)}
               className="h-11 px-3 rounded-[4px] border border-dashed border-line text-[11px] font-semibold text-muted flex items-center gap-1.5"
             >
-              <Icon name="Camera" size={13} /> {t("cap.photos")} ({existingPhotos.length})
+              <Icon name="Camera" size={13} /> {t("cap.photos")} (
+              {existingPhotos.length})
             </button>
           </div>
         </div>
@@ -1020,14 +1247,27 @@ function BatchStepCapture({
                 const varied = p.variations.length > 0;
                 const fieldKind = captureFieldKind(p);
                 const options = selectOptionsForParameter(
-                  step.processId, p, captureChoiceCatalog, actuals[p.name],
+                  step.processId,
+                  p,
+                  captureChoiceCatalog,
+                  actuals[p.name],
                 );
                 return (
-                  <div key={p.id} className="grid grid-cols-[1fr_76px_96px_40px] gap-1.5 items-center">
-                    <span className={"text-[12px] truncate " + (varied ? "font-bold text-brand-deep" : "text-charcoal")}>
+                  <div
+                    key={p.id}
+                    className="grid grid-cols-[1fr_76px_96px_40px] gap-1.5 items-center"
+                  >
+                    <span
+                      className={
+                        "text-[12px] truncate " +
+                        (varied ? "font-bold text-brand-deep" : "text-charcoal")
+                      }
+                    >
                       {tt(p.name)}
                     </span>
-                    <span className="mono text-[12px] text-muted truncate">{plan}</span>
+                    <span className="mono text-[12px] text-muted truncate">
+                      {plan}
+                    </span>
                     {fieldKind === "material" ? (
                       <select
                         className="h-9 min-w-0 mono border border-line rounded-[3px] px-1.5 text-[12px] bg-surface"
@@ -1036,14 +1276,24 @@ function BatchStepCapture({
                         data-capture-field={p.name}
                         data-capture-kind="material"
                         onChange={(e) => {
-                          const material = materialOptions.find((option) => option.id === e.target.value);
-                          setMaterialSelections((current) => ({ ...current, [p.name]: e.target.value }));
-                          setActuals((current) => ({ ...current, [p.name]: material?.name ?? "" }));
+                          const material = materialOptions.find(
+                            (option) => option.id === e.target.value,
+                          );
+                          setMaterialSelections((current) => ({
+                            ...current,
+                            [p.name]: e.target.value,
+                          }));
+                          setActuals((current) => ({
+                            ...current,
+                            [p.name]: material?.name ?? "",
+                          }));
                         }}
                       >
                         <option value="">{t("plan.selectMaterial")}</option>
                         {materialOptions.map((material) => (
-                          <option key={material.id} value={material.id}>{material.name}</option>
+                          <option key={material.id} value={material.id}>
+                            {material.name}
+                          </option>
                         ))}
                       </select>
                     ) : fieldKind === "select" ? (
@@ -1053,10 +1303,19 @@ function BatchStepCapture({
                         aria-label={tt(p.name)}
                         data-capture-field={p.name}
                         data-capture-kind="select"
-                        onChange={(e) => setActuals((current) => ({ ...current, [p.name]: e.target.value }))}
+                        onChange={(e) =>
+                          setActuals((current) => ({
+                            ...current,
+                            [p.name]: e.target.value,
+                          }))
+                        }
                       >
                         {!actuals[p.name] && <option value="">—</option>}
-                        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                        {options.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <input
@@ -1065,10 +1324,17 @@ function BatchStepCapture({
                         aria-label={tt(p.name)}
                         data-capture-field={p.name}
                         data-capture-kind="text"
-                        onChange={(e) => setActuals((a) => ({ ...a, [p.name]: e.target.value }))}
+                        onChange={(e) =>
+                          setActuals((a) => ({
+                            ...a,
+                            [p.name]: e.target.value,
+                          }))
+                        }
                       />
                     )}
-                    <span className="text-[10.5px] text-muted truncate">{p.unit}</span>
+                    <span className="text-[10.5px] text-muted truncate">
+                      {p.unit}
+                    </span>
                   </div>
                 );
               })}
@@ -1077,7 +1343,9 @@ function BatchStepCapture({
 
           {step.environment && Object.keys(plannedEnv).length > 0 && (
             <div className="mb-3">
-              <FieldLabel>{t("cap.environment")} — {tt(step.environment.name)}</FieldLabel>
+              <FieldLabel>
+                {t("cap.environment")} — {tt(step.environment.name)}
+              </FieldLabel>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {Object.entries(plannedEnv).map(([k, v]) => (
                   <label key={k} className="text-[11px] text-charcoal">
@@ -1086,7 +1354,9 @@ function BatchStepCapture({
                       className="h-9 mono w-full border border-line rounded-[3px] px-2 text-[13px] mt-0.5"
                       placeholder={v}
                       value={envActuals[k] ?? ""}
-                      onChange={(e) => setEnvActuals((a) => ({ ...a, [k]: e.target.value }))}
+                      onChange={(e) =>
+                        setEnvActuals((a) => ({ ...a, [k]: e.target.value }))
+                      }
                     />
                   </label>
                 ))}
@@ -1109,11 +1379,22 @@ function BatchStepCapture({
           {(existingPhotos.length > 0 || newPhotos.length > 0) && (
             <div className="mb-2.5">
               <FieldLabel>{t("cap.photos")}</FieldLabel>
-              <div data-pending-photo-strip className="no-scrollbar flex gap-1.5 overflow-x-auto pt-2 pr-3">
+              <div
+                data-pending-photo-strip
+                className="no-scrollbar flex gap-1.5 overflow-x-auto pt-2 pr-3"
+              >
                 {existingPhotos.map((ph) => (
-                  <button key={ph.path} onClick={() => setGalleryOpen(true)} className="shrink-0">
+                  <button
+                    key={ph.path}
+                    onClick={() => setGalleryOpen(true)}
+                    className="shrink-0"
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/files/${ph.path}`} alt="" className="h-14 w-14 object-cover rounded-[4px] border border-line" />
+                    <img
+                      src={`/api/files/${ph.path}`}
+                      alt=""
+                      className="h-14 w-14 object-cover rounded-[4px] border border-line"
+                    />
                   </button>
                 ))}
                 {newPhotos.map((ph) => (
@@ -1173,7 +1454,10 @@ function BatchStepCapture({
               <p className="text-[12px] font-semibold text-warn mb-1.5">
                 {t("cap.overwriteQ")}{" "}
                 <span className="mono">
-                  {targets.filter((sm) => capturedIds.has(sm.id)).map((sm) => sm.code).join(", ")}
+                  {targets
+                    .filter((sm) => capturedIds.has(sm.id))
+                    .map((sm) => sm.code)
+                    .join(", ")}
                 </span>
               </p>
               <div className="flex gap-2">
@@ -1195,16 +1479,31 @@ function BatchStepCapture({
           )}
 
           <div className="flex items-center gap-2">
-            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
-              onChange={(e) => e.target.files?.length && upload(e.target.files)} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => e.target.files?.length && upload(e.target.files)}
+            />
             <button
-              disabled={busy || targets.length === 0 || materialSelectionMissing}
+              disabled={
+                busy || targets.length === 0 || materialSelectionMissing
+              }
               onClick={() => {
                 // Overwriting existing captures needs an explicit confirmation
                 // (e.g. batching "All samples" over groups already recorded).
-                const overwrites = targets.filter((sm) => capturedIds.has(sm.id));
-                const intentionalEdit = editing && overwrites.length === targets.length;
-                if (overwrites.length > 0 && !intentionalEdit && !overwriteAsk) {
+                const overwrites = targets.filter((sm) =>
+                  capturedIds.has(sm.id),
+                );
+                const intentionalEdit =
+                  editing && overwrites.length === targets.length;
+                if (
+                  overwrites.length > 0 &&
+                  !intentionalEdit &&
+                  !overwriteAsk
+                ) {
                   setOverwriteAsk(true);
                   return;
                 }
@@ -1213,11 +1512,16 @@ function BatchStepCapture({
               className="flex-1 min-w-0 h-11 whitespace-nowrap bg-brand text-[#243000] rounded-[6px] px-4 text-[13.5px] font-bold disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               <Icon name="Check" size={15} />
-              <span className="truncate">{t("cap.confirmFor")} {selectionLabel} ({targets.length})</span>
+              <span className="truncate">
+                {t("cap.confirmFor")} {selectionLabel} ({targets.length})
+              </span>
             </button>
-            <button onClick={() => fileRef.current?.click()} disabled={uploading}
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
               title={t("cap.addPhoto")}
-              className="relative shrink-0 w-11 h-11 rounded-full border border-line bg-surface text-charcoal flex items-center justify-center hover:bg-subtle disabled:opacity-50">
+              className="relative shrink-0 w-11 h-11 rounded-full border border-line bg-surface text-charcoal flex items-center justify-center hover:bg-subtle disabled:opacity-50"
+            >
               <Icon name="Camera" size={17} />
               {newPhotos.length > 0 && (
                 <span className="absolute -top-1 -right-1 mono text-[9px] font-bold bg-ink text-white rounded-full w-4 h-4 flex items-center justify-center">
@@ -1225,10 +1529,16 @@ function BatchStepCapture({
                 </span>
               )}
             </button>
-            <button onClick={() => setFlagged(!flagged)}
+            <button
+              onClick={() => setFlagged(!flagged)}
               title={t("cap.flag")}
-              className={"shrink-0 w-11 h-11 rounded-full border flex items-center justify-center " +
-                (flagged ? "bg-warn-soft text-warn border-warn-line" : "border-line bg-surface text-muted hover:bg-subtle")}>
+              className={
+                "shrink-0 w-11 h-11 rounded-full border flex items-center justify-center " +
+                (flagged
+                  ? "bg-warn-soft text-warn border-warn-line"
+                  : "border-line bg-surface text-muted hover:bg-subtle")
+              }
+            >
               <Icon name="Flag" size={17} />
             </button>
             {targets.some((sm) => capturedIds.has(sm.id)) && (
@@ -1255,15 +1565,25 @@ function BatchStepCapture({
             for (const file of Array.from(files)) {
               const fd = new FormData();
               fd.append("file", file);
-              const res = await fetch("/api/upload", { method: "POST", body: fd });
+              const res = await fetch("/api/upload", {
+                method: "POST",
+                body: fd,
+              });
               const json = await res.json();
               if (json.fileName) uploaded.push(json.fileName);
             }
             if (uploaded.length === 0) return;
-            const capturedTargets = targets.filter((sm) => capturedIds.has(sm.id));
+            const capturedTargets = targets.filter((sm) =>
+              capturedIds.has(sm.id),
+            );
             if (capturedTargets.length > 0) {
               // Step already captured for this scope — attach immediately.
-              const fresh = await addExecutionPhotos(runId, step.id, capturedTargets.map((sm) => sm.id), uploaded);
+              const fresh = await addExecutionPhotos(
+                runId,
+                step.id,
+                capturedTargets.map((sm) => sm.id),
+                uploaded,
+              );
               if (fresh.length > 0) setExistingPhotos(fresh);
             } else {
               // Not captured yet — keep pending until the step is confirmed.
@@ -1296,14 +1616,19 @@ function PhotoGallery({
   const fileRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/40 flex items-end sm:items-center justify-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-ink/40 flex items-end sm:items-center justify-center"
+      onClick={onClose}
+    >
       <div
         className="w-full sm:max-w-lg bg-surface rounded-t-[10px] sm:rounded-[10px] border border-line max-h-[85dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
           <Icon name="Camera" size={15} className="text-charcoal" />
-          <h3 className="text-[14px] font-bold flex-1">{t("cap.photos")} ({photos.length})</h3>
+          <h3 className="text-[14px] font-bold flex-1">
+            {t("cap.photos")} ({photos.length})
+          </h3>
           <button
             onClick={onClose}
             className="p-1.5 rounded-[3px] text-muted hover:bg-subtle"
@@ -1316,18 +1641,29 @@ function PhotoGallery({
 
         <div className="flex-1 overflow-y-auto p-4">
           {photos.length === 0 ? (
-            <p className="text-[13px] text-muted text-center py-8">{t("cap.noPhotos")}</p>
+            <p className="text-[13px] text-muted text-center py-8">
+              {t("cap.noPhotos")}
+            </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {photos.map((ph) => (
                 <div key={ph.path} className="relative aspect-square">
-                  <button onClick={() => setViewing(ph)} className="w-full h-full">
+                  <button
+                    onClick={() => setViewing(ph)}
+                    className="w-full h-full"
+                  >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/api/files/${ph.path}`} alt="" className="w-full h-full object-cover rounded-[6px] border border-line" />
+                    <img
+                      src={`/api/files/${ph.path}`}
+                      alt=""
+                      className="w-full h-full object-cover rounded-[6px] border border-line"
+                    />
                   </button>
                   {confirming === ph.path ? (
                     <span className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-center gap-1 bg-surface/95 border border-warn-line rounded-[4px] py-1">
-                      <span className="text-[10px] font-semibold text-warn">{t("cap.deletePhotoQ")}</span>
+                      <span className="text-[10px] font-semibold text-warn">
+                        {t("cap.deletePhotoQ")}
+                      </span>
                       <button
                         disabled={busy}
                         onClick={async () => {
@@ -1371,29 +1707,46 @@ function PhotoGallery({
         </div>
 
         <div className="px-4 py-3 border-t border-line">
-          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
             onChange={async (e) => {
               if (!e.target.files?.length) return;
               setBusy(true);
               await onAdd(e.target.files);
               setBusy(false);
               e.target.value = "";
-            }} />
+            }}
+          />
           <button
             disabled={busy}
             onClick={() => fileRef.current?.click()}
             className="w-full h-11 bg-brand text-[#243000] rounded-[6px] text-[13.5px] font-bold disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            <Icon name="Camera" size={15} /> {busy ? t("lib.uploading") : t("cap.addPhoto")}
+            <Icon name="Camera" size={15} />{" "}
+            {busy ? t("lib.uploading") : t("cap.addPhoto")}
           </button>
         </div>
       </div>
 
       {/* Full-size viewer */}
       {viewing && (
-        <div className="fixed inset-0 z-[60] bg-ink/90 flex items-center justify-center p-3" onClick={(e) => { e.stopPropagation(); setViewing(null); }}>
+        <div
+          className="fixed inset-0 z-[60] bg-ink/90 flex items-center justify-center p-3"
+          onClick={(e) => {
+            e.stopPropagation();
+            setViewing(null);
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/files/${viewing.path}`} alt="" className="max-w-full max-h-full object-contain rounded-[6px]" />
+          <img
+            src={`/api/files/${viewing.path}`}
+            alt=""
+            className="max-w-full max-h-full object-contain rounded-[6px]"
+          />
           <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-ink/70 text-white flex items-center justify-center">
             <Icon name="X" size={18} />
           </button>
@@ -1454,14 +1807,18 @@ function PerSampleCharCapture({
       else out.push({ label, items: [s] });
     }
     return out.sort((a, b) =>
-      a.label === null ? 1 : b.label === null ? -1 : a.label.localeCompare(b.label)
+      a.label === null
+        ? 1
+        : b.label === null
+          ? -1
+          : a.label.localeCompare(b.label),
     );
   }, [samples]);
   const activeSample = samples.find((s) => s.id === activeSampleId);
   const activeResult = results.find((r) => r.sampleId === activeSampleId);
 
   const [metrics, setMetrics] = useState<[string, string][]>(() =>
-    Object.entries(activeResult?.metrics ?? metricDefaults(name))
+    Object.entries(activeResult?.metrics ?? metricDefaults(name)),
   );
   const [busy, setBusy] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -1493,9 +1850,13 @@ function PerSampleCharCapture({
     if (lastSample.current === activeSampleId) return;
     lastSample.current = activeSampleId;
     const r = results.find((x) => x.sampleId === activeSampleId);
-    setMetrics(Object.entries(
-      r?.metrics && Object.keys(r.metrics).length > 0 ? r.metrics : metricDefaults(name)
-    ));
+    setMetrics(
+      Object.entries(
+        r?.metrics && Object.keys(r.metrics).length > 0
+          ? r.metrics
+          : metricDefaults(name),
+      ),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSampleId]);
 
@@ -1505,8 +1866,12 @@ function PerSampleCharCapture({
     <div className="bg-surface border-2 border-line rounded-[6px] p-3.5">
       <div className="flex items-center gap-2 mb-1.5">
         <Icon name={icon} size={15} className="text-charcoal" />
-        <span className="text-[13px] font-bold flex-1 min-w-0 truncate">{tt(name)}</span>
-        <span className="mono text-[10.5px] text-muted shrink-0">{doneCount}/{samples.length}</span>
+        <span className="text-[13px] font-bold flex-1 min-w-0 truncate">
+          {tt(name)}
+        </span>
+        <span className="mono text-[10.5px] text-muted shrink-0">
+          {doneCount}/{samples.length}
+        </span>
       </div>
       <p className="text-[10px] text-muted mb-2">{t("cap.perSampleHint")}</p>
 
@@ -1540,17 +1905,22 @@ function PerSampleCharCapture({
               key={b.label ?? "__none__"}
               className={
                 "flex items-stretch h-9 rounded-[6px] border overflow-hidden divide-x " +
-                (bucketDone ? "border-brand/40 divide-brand/30" : "border-line divide-line")
+                (bucketDone
+                  ? "border-brand/40 divide-brand/30"
+                  : "border-line divide-line")
               }
             >
               {b.label && (
                 <span
                   className={
                     "text-[11px] font-bold whitespace-nowrap px-2.5 flex items-center " +
-                    (bucketDone ? "bg-brand-soft text-brand-deep" : "bg-subtle text-charcoal")
+                    (bucketDone
+                      ? "bg-brand-soft text-brand-deep"
+                      : "bg-subtle text-charcoal")
                   }
                 >
-                  {t("cap.batchGroup")} {b.label}{bucketDone && " ✓"}
+                  {t("cap.batchGroup")} {b.label}
+                  {bucketDone && " ✓"}
                 </span>
               )}
               {b.items.map((s) => (
@@ -1567,7 +1937,13 @@ function PerSampleCharCapture({
                   }
                 >
                   {s.code}
-                  {hasResult(s.id) && <span className={s.id === activeSampleId ? "text-brand" : ""}>✓</span>}
+                  {hasResult(s.id) && (
+                    <span
+                      className={s.id === activeSampleId ? "text-brand" : ""}
+                    >
+                      ✓
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1593,7 +1969,9 @@ function PerSampleCharCapture({
           )}
           {activeResult?.source === "INSTRUMENT" && activeResult.id && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] text-muted">{t("cap.scanPolicy")}</span>
+              <span className="text-[10px] text-muted">
+                {t("cap.scanPolicy")}
+              </span>
               {(["BEST", "MIN", "AVERAGE", "MEDIAN"] as const).map((p) => (
                 <button
                   key={p}
@@ -1617,18 +1995,29 @@ function PerSampleCharCapture({
 
       <div className="space-y-1.5">
         {metrics.map(([k, v], i) => (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(72px,96px)] gap-1.5 items-center">
+          <div
+            key={i}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(72px,96px)] gap-1.5 items-center"
+          >
             <input
               className="h-9 w-full min-w-0 border border-line rounded-[3px] px-2 text-[13px]"
               placeholder={t("cap.metric")}
               value={k}
-              onChange={(e) => setMetrics((m) => m.map((x, j) => (j === i ? [e.target.value, x[1]] : x)))}
+              onChange={(e) =>
+                setMetrics((m) =>
+                  m.map((x, j) => (j === i ? [e.target.value, x[1]] : x)),
+                )
+              }
             />
             <input
               className="h-9 w-full min-w-0 mono border border-line rounded-[3px] px-2 text-[13px]"
               placeholder={t("cap.value")}
               value={v}
-              onChange={(e) => setMetrics((m) => m.map((x, j) => (j === i ? [x[0], e.target.value] : x)))}
+              onChange={(e) =>
+                setMetrics((m) =>
+                  m.map((x, j) => (j === i ? [x[0], e.target.value] : x)),
+                )
+              }
             />
           </div>
         ))}
@@ -1641,7 +2030,11 @@ function PerSampleCharCapture({
           <Icon name="Plus" size={11} /> {t("cap.addMetric")}
         </button>
         <span className="flex-1" />
-        {savedFlash && <span className="text-[11px] text-brand-deep">{t("cap.resultSaved")}</span>}
+        {savedFlash && (
+          <span className="text-[11px] text-brand-deep">
+            {t("cap.resultSaved")}
+          </span>
+        )}
         <button
           disabled={busy || !activeSample}
           onClick={async () => {
@@ -1652,14 +2045,22 @@ function PerSampleCharCapture({
             setBusy(false);
             setSavedFlash(true);
             setTimeout(() => setSavedFlash(false), 1500);
-            onSaved({ characterizationId: charId, sampleId: activeSample.id, metrics: clean, note: "" });
+            onSaved({
+              characterizationId: charId,
+              sampleId: activeSample.id,
+              metrics: clean,
+              note: "",
+            });
             // Advance to the next sample without a result.
-            const next = samples.find((s) => s.id !== activeSample.id && !hasResult(s.id));
+            const next = samples.find(
+              (s) => s.id !== activeSample.id && !hasResult(s.id),
+            );
             if (next) setActiveSampleId(next.id);
           }}
           className="whitespace-nowrap bg-brand text-[#243000] rounded-[4px] px-4 py-2.5 text-[13px] font-bold disabled:opacity-50 flex items-center gap-1.5"
         >
-          <Icon name="Check" size={14} /> {t("cap.saveResult")} · {activeSample?.code}
+          <Icon name="Check" size={14} /> {t("cap.saveResult")} ·{" "}
+          {activeSample?.code}
         </button>
       </div>
     </div>

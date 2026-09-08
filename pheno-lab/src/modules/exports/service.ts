@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import { loadDataForExport } from "@/modules/data/query";
@@ -137,8 +138,7 @@ export async function listExportRequests(actor: Actor): Promise<ExportRow[]> {
       decidedBy: { select: { name: true } },
     },
   });
-  const formatDate = (value: Date | null) =>
-    value?.toISOString().slice(0, 16).replace("T", " ") ?? null;
+  const formatDate = (value: Date | null) => (value ? fmtBeijing(value) : null);
   return rows.map((row) => ({
     id: row.id,
     scope: row.scope,

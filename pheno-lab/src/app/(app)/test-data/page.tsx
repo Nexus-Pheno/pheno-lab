@@ -4,6 +4,7 @@ import { getT } from "@/lib/i18n/server";
 import { TestDataView } from "@/components/dashboard/TestDataView";
 import { Icon } from "@/components/ui";
 import { listTestExperiments } from "@/modules/experiments/service";
+import { fmtBeijing } from "@/lib/datetime";
 
 // Everything created in test mode, kept out of every real view and clearable
 // in one action. Staff only — technicians never see the test space.
@@ -33,7 +34,7 @@ export default async function TestDataPage() {
             title: r.title,
             status: r.status,
             createdBy: r.createdBy?.name ?? "",
-            createdAt: r.createdAt.toISOString().slice(0, 10),
+            createdAt: fmtBeijing(r.createdAt, "date"),
             samples: r._count.samples,
             steps: r._count.steps,
             runs: r._count.runs,

@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { preferredView } from "@/lib/actions/view";
 import { getT } from "@/lib/i18n/server";
 import { CaptureView } from "@/components/capture/CaptureView";
+import { fmtBeijing } from "@/lib/datetime";
 import {
   getCaptureExperiment,
   getCaptureRunData,
@@ -93,7 +94,7 @@ export default async function CapturePage({
         >,
         note: x.note,
         flagged: x.flagged,
-        capturedAt: x.capturedAt.toISOString().replace("T", " ").slice(0, 16),
+        capturedAt: fmtBeijing(x.capturedAt),
         photos: x.attachments.map((a) => ({ id: a.id, path: a.storedPath })),
       }))}
       initialResults={results.map((r) => ({

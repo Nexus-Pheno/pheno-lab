@@ -5,6 +5,7 @@ import { getT } from "@/lib/i18n/server";
 import type { TestPlan } from "@/lib/library";
 import { Icon } from "@/components/ui";
 import { PrintButton } from "@/components/report/PrintButton";
+import { fmtBeijing } from "@/lib/datetime";
 import {
   getExperimentCode,
   getReportExperiment,
@@ -137,7 +138,7 @@ export default async function ReportPage({
               <span>
                 <span className="text-muted">{t("rep.created")}:</span>{" "}
                 <span className="mono">
-                  {exp.createdAt.toISOString().slice(0, 10)}
+                  {fmtBeijing(exp.createdAt, "date")}
                 </span>
               </span>
               <span>
@@ -182,12 +183,7 @@ export default async function ReportPage({
                 {exp.submittedAt && (
                   <span>
                     <span className="text-muted">{t("wf.submittedBy")}:</span>{" "}
-                    <span className="mono">
-                      {exp.submittedAt
-                        .toISOString()
-                        .slice(0, 16)
-                        .replace("T", " ")}
-                    </span>
+                    <span className="mono">{fmtBeijing(exp.submittedAt)}</span>
                   </span>
                 )}
                 {exp.approvedBy && (
@@ -198,12 +194,7 @@ export default async function ReportPage({
                 )}
                 <span>
                   <span className="text-muted">{t("rep.completed")}:</span>{" "}
-                  <span className="mono">
-                    {exp.approvedAt
-                      .toISOString()
-                      .slice(0, 16)
-                      .replace("T", " ")}
-                  </span>
+                  <span className="mono">{fmtBeijing(exp.approvedAt)}</span>
                 </span>
               </div>
               {exp.submitNote && (

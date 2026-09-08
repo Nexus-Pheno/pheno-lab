@@ -1,4 +1,5 @@
 import "server-only";
+import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import { buildCaptureChoiceCatalog } from "@/lib/capture-fields";
@@ -54,7 +55,7 @@ export async function listDashboardExperiments(actor: Actor) {
     samples: row._count.samples,
     steps: row._count.steps,
     characterizations: row._count.characterizations,
-    updatedAt: row.updatedAt.toISOString().slice(0, 10),
+    updatedAt: fmtBeijing(row.updatedAt, "date"),
   }));
 }
 

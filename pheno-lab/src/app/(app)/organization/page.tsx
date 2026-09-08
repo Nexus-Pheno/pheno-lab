@@ -6,6 +6,7 @@ import { OrgManage, type OrgUserRow } from "@/components/org/OrgManage";
 import { Icon } from "@/components/ui";
 import { getOrganizationAdminData } from "@/modules/organizations/query";
 import { listRegistrationApprovals } from "@/modules/accounts/registration-service";
+import { fmtBeijing } from "@/lib/datetime";
 
 // Each organization's admin manages their own org here: settings, the
 // people in it, their roles, and who is responsible for materials,
@@ -24,7 +25,7 @@ export default async function OrganizationPage() {
 
   const rows: OrgUserRow[] = users.map((u) => ({
     ...u,
-    createdAt: u.createdAt.toISOString().slice(0, 10),
+    createdAt: fmtBeijing(u.createdAt, "date"),
   }));
 
   return (
@@ -57,7 +58,7 @@ export default async function OrganizationPage() {
             email: p.email,
             code: p.code,
             purpose: p.purpose,
-            expiresAt: p.expiresAt.toISOString().replace("T", " ").slice(0, 16),
+            expiresAt: fmtBeijing(p.expiresAt),
           }))}
         />
       </div>
