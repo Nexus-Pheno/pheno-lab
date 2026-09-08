@@ -43,8 +43,9 @@ export async function listDashboardExperiments(actor: Actor) {
       row.assigneeId === actor.uid ||
       row.members.some((member) => member.userId === actor.uid),
     // Whether this actor may change it (drag, rename, delete): staff, or the
-    // technician who created it.
-    editable: staff || row.createdById === actor.uid,
+    // technician who created it or is assigned to run it.
+    editable:
+      staff || row.createdById === actor.uid || row.assigneeId === actor.uid,
     isTemplate: row.templatePinnedAt !== null,
     createdBy: row.createdBy.name,
     members: row.members.map((member) => member.user.name),

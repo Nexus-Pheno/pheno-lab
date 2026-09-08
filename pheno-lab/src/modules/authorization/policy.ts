@@ -62,15 +62,18 @@ export function canReadExperiment(
 }
 
 // Managers edit every experiment in the lab; technicians edit the ones they
-// created. Granted membership means collaborate (read + capture), not
-// redesign — the owner keeps the pen on the test plan.
+// created OR are assigned to run (Michael, 2026-09-08 — the assignee needs to
+// tweak parameters mid-run). Granted membership still means collaborate
+// (read + capture), not redesign — invitees don't get the pen.
 export function canManageExperiment(
   actor: Actor,
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
   if (isStaff(actor)) return true;
-  return resource.createdById === actor.uid;
+  return (
+    resource.createdById === actor.uid || resource.assigneeId === actor.uid
+  );
 }
 
 export function canCaptureExperiment(
