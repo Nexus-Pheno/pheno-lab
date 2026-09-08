@@ -445,6 +445,8 @@ export const en = {
   "fb.tab.implemented": "Implemented",
   "fb.tab.all": "All",
   "fb.tab.verified": "Verified",
+  "fb.verifyBanner":
+    "{n} implemented item(s) are waiting for your test & confirmation — tap to review the patch notes.",
   "fb.implNote": "Patch notes",
   "fb.implNotePh":
     "What changed and how to use it — the reporter sees this and tests against it.",
@@ -1256,7 +1258,8 @@ export const en = {
   "notif.access_declined": "declined your access request",
   "notif.feedback_approved": "approved your feedback",
   "notif.feedback_rejected": "rejected your feedback",
-  "notif.feedback_implemented": "marked your feedback as implemented",
+  "notif.feedback_implemented":
+    "implemented your feedback — open your profile to test and confirm",
   "notif.feedback_commented": "commented on your feedback",
   "notif.feedback_verified": "confirmed your implementation works",
   "notif.feedback_reopened": "sent an implemented feedback back",
@@ -1695,6 +1698,7 @@ export const zh: Record<TKey, string> = {
   "fb.tab.implemented": "已实现",
   "fb.tab.all": "全部",
   "fb.tab.verified": "已验收",
+  "fb.verifyBanner": "有 {n} 条已实现的反馈等待你测试确认——点击查看实现说明。",
   "fb.implNote": "实现说明",
   "fb.implNotePh": "改了什么、怎么用——反馈人会按这个说明去验证。",
   "fb.implNoteRequired": "请先填写实现说明，反馈人需要据此验证。",
@@ -2454,7 +2458,7 @@ export const zh: Record<TKey, string> = {
   "notif.access_declined": "拒绝了你的访问申请",
   "notif.feedback_approved": "批准了你的反馈",
   "notif.feedback_rejected": "拒绝了你的反馈",
-  "notif.feedback_implemented": "已实现你的反馈",
+  "notif.feedback_implemented": "已实现你的反馈——请到个人页测试并确认",
   "notif.feedback_commented": "评论了你的反馈",
   "notif.feedback_verified": "确认了你的实现有效",
   "notif.feedback_reopened": "退回了一条已实现的反馈",

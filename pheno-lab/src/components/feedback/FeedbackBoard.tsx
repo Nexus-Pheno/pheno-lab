@@ -212,7 +212,8 @@ function Composer({ onSubmitted }: { onSubmitted: () => void }) {
 function ItemCard({ f, isAdmin }: { f: FeedbackItem; isAdmin: boolean }) {
   const t = useT();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  // An implemented item is a question waiting for the reporter — open it.
+  const [open, setOpen] = useState(!isAdmin && f.status === "implemented");
   const [note, setNote] = useState(f.adminNote);
   const [implNote, setImplNote] = useState(f.implementationNote);
   const [disputing, setDisputing] = useState(false);
@@ -533,7 +534,12 @@ export function FeedbackBoard({
 }) {
   const t = useT();
   const router = useRouter();
-  const [tab, setTab] = useState<string>("open");
+  const awaitingVerify = items.filter((f) => f.status === "implemented").length;
+  // Reporters land where action is needed: implemented items awaiting their
+  // verdict outrank the default Open tab.
+  const [tab, setTab] = useState<string>(
+    !isAdmin && awaitingVerify > 0 ? "implemented" : "open",
+  );
 
   // "open" carries reopened items too — a disputed implementation lands
   // straight back in the admin's inbox.
@@ -559,6 +565,27 @@ export function FeedbackBoard({
   return (
     <div className="space-y-4">
       {showComposer && <Composer onSubmitted={() => router.refresh()} />}
+
+      {!isAdmin && awaitingVerify > 0 && (
+        <button
+          onClick={() => setTab("implemented")}
+          className="w-full text-left bg-brand-soft border border-brand/40 rounded-[6px] px-3.5 py-2.5 flex items-center gap-2"
+        >
+          <Icon
+            name="BadgeCheck"
+            size={15}
+            className="text-brand-deep shrink-0"
+          />
+          <span className="text-[12.5px] font-semibold text-brand-deep">
+            {t("fb.verifyBanner").replace("{n}", String(awaitingVerify))}
+          </span>
+          <Icon
+            name="ChevronRight"
+            size={14}
+            className="ml-auto text-brand-deep shrink-0"
+          />
+        </button>
+      )}
 
       <div className="flex items-center gap-1.5 flex-wrap">
         {TABS.map((s) => (
