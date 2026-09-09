@@ -6,6 +6,11 @@ import type { TestPlan } from "@/lib/library";
 import { Icon } from "@/components/ui";
 import { PrintButton } from "@/components/report/PrintButton";
 import { fmtBeijing } from "@/lib/datetime";
+import { resultGroupLabels } from "@/lib/results";
+import type { MetricKey } from "@/lib/analysis-metrics";
+import { metricKeyOf, numish } from "@/modules/experiments/summary-service";
+import { variedConditions } from "@/modules/analysis/dataset";
+import { detectAnomalies } from "@/modules/analysis/stats";
 import {
   getExperimentCode,
   getReportExperiment,
@@ -42,6 +47,49 @@ export default async function ReportPage({
     ...new Set(exp.samples.map((s) => s.variationGroup).filter(Boolean)),
   ].sort() as string[];
   const controlGroup = plan?.groups.find((g) => g.isControl)?.label;
+
+  // What this experiment actually varied. Reading the steps as well as the
+  // plan is what keeps this table from coming out empty when the key variable
+  // was set on a step and never entered in the plan grid (使用反馈报告-2, 图11).
+  const conditions = variedConditions(exp);
+  const reportGroups = resultGroupLabels(plan?.groups, exp.samples);
+  const sampleCountByGroup = new Map<string, number>();
+  for (const sample of exp.samples) {
+    if (!sample.variationGroup) continue;
+    sampleCountByGroup.set(
+      sample.variationGroup,
+      (sampleCountByGroup.get(sample.variationGroup) ?? 0) + 1,
+    );
+  }
+
+  // Deterministic flags a reader would otherwise have to spot by eye.
+  const groupOf = new Map(exp.samples.map((s) => [s.id, s.variationGroup]));
+  const codeOf = new Map(exp.samples.map((s) => [s.id, s.code]));
+  const metricsBySample = new Map<string, Partial<Record<MetricKey, number>>>();
+  for (const char of exp.characterizations) {
+    for (const result of char.results) {
+      // Experiment-level rows carry no sample; they cannot be flagged per device.
+      if (!result.sampleId) continue;
+      const metrics = metricsBySample.get(result.sampleId) ?? {};
+      for (const [label, value] of Object.entries(
+        (result.metrics ?? {}) as Record<string, unknown>,
+      )) {
+        const key = metricKeyOf(label);
+        if (!key || metrics[key] !== undefined) continue;
+        const parsed = numish(value);
+        if (parsed !== null) metrics[key] = parsed;
+      }
+      metricsBySample.set(result.sampleId, metrics);
+    }
+  }
+  const anomalies = detectAnomalies(
+    [...metricsBySample.entries()].map(([sampleId, metrics]) => ({
+      sampleCode: codeOf.get(sampleId) ?? sampleId,
+      group: groupOf.get(sampleId) ?? null,
+      metrics,
+    })),
+    exp.jvMeasurements,
+  );
 
   const sciBlocks = [
     { label: t("sci.observation"), text: exp.observation },
@@ -230,18 +278,23 @@ export default async function ReportPage({
             </section>
           )}
 
-          {/* Test plan */}
-          {plan && plan.variables.length > 0 && (
+          {/* What was varied — the key variables, however they were entered */}
+          {conditions.length > 0 && reportGroups.length > 0 && (
             <section>
               <h2 className={h2}>{t("rep.plan")}</h2>
               <table className="w-full text-[12px]">
                 <thead>
                   <tr className="text-left text-[9.5px] uppercase text-muted border-b border-line">
                     <th className="py-1 pr-4 font-bold">{t("res.group")}</th>
-                    {plan.variables.map((v, i) => (
-                      <th key={i} className="py-1 pr-4 font-bold">
-                        {v.parameter}
-                        {v.unit ? ` (${v.unit})` : ""}
+                    {conditions.map((c) => (
+                      <th key={c.key} className="py-1 pr-4 font-bold">
+                        {c.label}
+                        {c.unit ? ` (${c.unit})` : ""}
+                        {c.process && (
+                          <span className="block font-normal normal-case text-muted">
+                            {c.process}
+                          </span>
+                        )}
                       </th>
                     ))}
                     <th className="py-1 font-bold text-right">
@@ -250,27 +303,60 @@ export default async function ReportPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {plan.groups.map((g) => (
-                    <tr key={g.label} className="border-b border-line/60">
+                  {reportGroups.map((label) => (
+                    <tr key={label} className="border-b border-line/60">
                       <td className="py-1.5 pr-4 mono font-bold">
-                        {g.label}
-                        {g.isControl && (
+                        {label}
+                        {label === controlGroup && (
                           <span className="font-normal text-muted text-[10px]">
                             {" "}
                             ({t("plan.controlWord")})
                           </span>
                         )}
                       </td>
-                      {plan.variables.map((v, i) => (
-                        <td key={i} className="py-1.5 pr-4 mono">
-                          {v.values[g.label] ?? "—"}
+                      {conditions.map((c) => (
+                        <td key={c.key} className="py-1.5 pr-4 mono">
+                          {c.byGroup[label] || "—"}
                         </td>
                       ))}
-                      <td className="py-1.5 mono text-right">{g.samples}</td>
+                      <td className="py-1.5 mono text-right">
+                        {sampleCountByGroup.get(label) ?? 0}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </section>
+          )}
+
+          {anomalies.length > 0 && (
+            <section>
+              <h2 className={h2}>{t("an.anomalies")}</h2>
+              <ul className="space-y-1 text-[12px]">
+                {anomalies.map((flag, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="text-muted">·</span>
+                    <span>
+                      {flag.kind === "champion" &&
+                        t("anom.champion")
+                          .replace("{sample}", flag.sample)
+                          .replace("{group}", flag.group ?? "—")
+                          .replace("{value}", flag.value.toFixed(2))}
+                      {flag.kind === "negativeResistance" &&
+                        t("anom.negative")
+                          .replace("{sample}", flag.sample)
+                          .replace("{metric}", flag.metric)
+                          .replace("{value}", flag.value.toFixed(2))}
+                      {flag.kind === "outlier" &&
+                        t("anom.outlier")
+                          .replace("{sample}", flag.sample)
+                          .replace("{group}", flag.group)
+                          .replace("{value}", flag.value.toFixed(2))
+                          .replace("{median}", flag.median.toFixed(2))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
