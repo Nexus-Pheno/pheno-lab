@@ -51,8 +51,13 @@ import {
   setExperimentTestMode as setExperimentTestModeService,
   setSamples as setSamplesService,
   setTemplatePin as setTemplatePinService,
+  sendExperimentToLab as sendExperimentToLabService,
   updateExperimentMeta as updateExperimentMetaService,
   updatePreset as updatePresetService,
+  createProject as createProjectService,
+  renameProject as renameProjectService,
+  setProjectActive as setProjectActiveService,
+  listProjects as listProjectsService,
 } from "@/modules/experiments/service";
 
 export async function canViewWhere(
@@ -102,11 +107,34 @@ export async function createExperiment(isTest = false) {
   redirect(`/experiments/${experiment.id}`);
 }
 
+export async function listProjects(includeInactive = false) {
+  return listProjectsService(await requireSession(), {
+    includeInactive: z.boolean().parse(includeInactive),
+  });
+}
+
+export async function createProject(name: string) {
+  const created = await createProjectService(await requireSession(), name);
+  revalidatePath("/");
+  return created;
+}
+
+export async function renameProject(id: string, name: string) {
+  await renameProjectService(await requireSession(), { id, name });
+  revalidatePath("/organization");
+}
+
+export async function setProjectActive(id: string, active: boolean) {
+  await setProjectActiveService(await requireSession(), { id, active });
+  revalidatePath("/organization");
+}
+
 export async function updateExperimentMeta(
   id: string,
   data: Partial<{
     title: string;
     campaign: string;
+    projectId: string | null;
     observation: string;
     problem: string;
     hypothesis: string;
@@ -123,6 +151,12 @@ export async function updateExperimentMeta(
     data.conclusion,
   ]);
   revalidatePath("/");
+}
+
+export async function sendExperimentToLab(id: string) {
+  const result = await sendExperimentToLabService(await requireSession(), id);
+  if (result.ok) revalidatePath("/");
+  return result;
 }
 
 export async function deleteExperiment(id: string) {

@@ -14,4 +14,5 @@ export {
   saveStep,
 } from "./plan-service";
 export * from "./preset-service";
+export * from "./project-service";
 export * from "./summary-service";

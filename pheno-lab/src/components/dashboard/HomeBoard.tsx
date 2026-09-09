@@ -28,12 +28,16 @@ export type ExpRow = {
   createdBy: string;
   members: string[];
   labels: string[];
+  project: string | null;
   campaign: string;
   samples: number;
   steps: number;
   characterizations: number;
   updatedAt: string;
 };
+
+/** Sentinel for the "filed under nothing yet" bucket in the project filter. */
+const NO_PROJECT = "\u0000none";
 
 const STATUSES: ExperimentStatus[] = [
   "DRAFT",
@@ -73,6 +77,7 @@ export function HomeBoard({
       : "kanban";
   });
   const [query, setQuery] = useState("");
+  const [project, setProject] = useState("");
   const [busy, setBusy] = useState(false);
   const [newMode, setNewMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -97,19 +102,33 @@ export function HomeBoard({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return experiments;
-    return experiments.filter((e) =>
+    const byProject = !project
+      ? experiments
+      : experiments.filter((e) =>
+          project === NO_PROJECT ? !e.project : e.project === project,
+        );
+    if (!q) return byProject;
+    return byProject.filter((e) =>
       [
         e.code,
         e.title,
         e.createdBy,
         e.status,
+        e.project ?? "",
         e.campaign,
         ...e.labels,
         ...e.members,
       ].some((v) => v.toLowerCase().includes(q)),
     );
-  }, [experiments, query]);
+  }, [experiments, query, project]);
+
+  const projectOptions = useMemo(
+    () =>
+      [
+        ...new Set(experiments.map((e) => e.project).filter(Boolean)),
+      ].sort() as string[],
+    [experiments],
+  );
 
   const moveTo = async (status: ExperimentStatus) => {
     const id = dragRef.current;
@@ -324,6 +343,11 @@ export function HomeBoard({
           <span>
             {e.steps} {t("list.steps").toLowerCase()}
           </span>
+          {e.project && (
+            <span className="text-[9.5px] font-sans font-semibold px-1.5 py-0.5 rounded-[3px] bg-brand-soft border border-brand/40 text-brand-deep truncate max-w-28">
+              {e.project}
+            </span>
+          )}
           {e.campaign && (
             <span className="text-[9.5px] font-sans font-semibold px-1.5 py-0.5 rounded-[3px] bg-subtle border border-line text-charcoal truncate max-w-28">
               {e.campaign}
@@ -370,6 +394,22 @@ export function HomeBoard({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {projectOptions.length > 0 && (
+              <select
+                className="h-8 border border-line rounded-[4px] px-2 text-[12.5px] bg-surface max-w-44"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                title={t("dash.project")}
+              >
+                <option value="">{t("dash.allProjects")}</option>
+                {projectOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+                <option value={NO_PROJECT}>{t("dash.noProject")}</option>
+              </select>
+            )}
             <div className="h-8 flex border border-line rounded-[4px] overflow-hidden">
               {(["kanban", "list"] as const).map((v) => (
                 <button
@@ -633,6 +673,9 @@ export function HomeBoard({
                         {t("list.status")}
                       </th>
                       <th className="px-3 py-1.5 font-bold">
+                        {t("dash.project")}
+                      </th>
+                      <th className="px-3 py-1.5 font-bold">
                         {t("list.createdBy")}
                       </th>
                       <th className="px-3 py-1.5 font-bold text-right">
@@ -674,6 +717,11 @@ export function HomeBoard({
                         </td>
                         <td className="px-3 py-1.5 whitespace-nowrap">
                           {statusChip(e.status)}
+                        </td>
+                        <td className="px-3 py-1.5 text-charcoal">
+                          <span className="line-clamp-1">
+                            {e.project ?? "—"}
+                          </span>
                         </td>
                         <td className="px-3 py-1.5 text-muted whitespace-nowrap">
                           {firstName(e.createdBy)}

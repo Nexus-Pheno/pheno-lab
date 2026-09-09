@@ -7,6 +7,7 @@ import { isStaff } from "@/modules/authorization/policy";
 import { getStewardships, hasStewardship } from "@/modules/stewardship/service";
 import { canReadRecipeContents } from "./recipe-policy";
 import { listMaterialEdits } from "./review-service";
+import { listProjects } from "@/modules/experiments/project-service";
 
 export async function getLibraryPageData(actor: Actor) {
   const where = { organizationId: actor.org };
@@ -88,6 +89,9 @@ export async function getLibraryPageData(actor: Actor) {
     },
   });
   return {
+    // Everyone reads the 课题组 list including retired ones here, so a manager
+    // can see what was archived; only staff get the edit controls.
+    projects: await listProjects(actor, { includeInactive: true }),
     processes,
     equipment,
     materials,

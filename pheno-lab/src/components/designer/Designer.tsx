@@ -27,6 +27,8 @@ import {
   addCharacterization,
   saveCharacterization,
   deleteCharacterization,
+  createProject,
+  sendExperimentToLab,
   updateExperimentMeta,
   deleteExperiment,
   saveStepPreset,
@@ -37,6 +39,7 @@ import {
   applyTestPlan,
 } from "@/lib/actions/experiments";
 import { Icon } from "@/components/ui";
+import type { SendToLabBlocker } from "@/modules/experiments/lifecycle-service";
 import type { CategoryRow } from "@/components/library/MaterialsRecipes";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { usePointerDrag } from "@/lib/usePointerDrag";
@@ -58,6 +61,7 @@ export type SaveState = "saved" | "saving" | "error";
 export default function Designer({
   initial,
   processes,
+  projects: initialProjects,
   equipment,
   materials: initialMaterials,
   environments,
@@ -67,12 +71,14 @@ export default function Designer({
   layers,
   categoryLayers = [],
   canManageMaterials,
+  canManageProjects,
   canEdit,
   canManageMembers,
   sessionUid,
 }: {
   initial: ExperimentFull;
   processes: Process[];
+  projects: { id: string; name: string }[];
   equipment: Equipment[];
   materials: Material[];
   environments: LabEnvironment[];
@@ -82,6 +88,7 @@ export default function Designer({
   layers: { code: string; name: string }[];
   categoryLayers?: (CategoryRow & { layers: string[] })[];
   canManageMaterials: boolean;
+  canManageProjects: boolean;
   canEdit: boolean;
   canManageMembers: boolean;
   sessionUid: string;
@@ -90,7 +97,10 @@ export default function Designer({
   const tt = useTerm();
   const router = useRouter();
   const [exp, setExp] = useState<ExperimentFull>(initial);
+  const [projects, setProjects] = useState(initialProjects);
   const [sendingToLab, setSendingToLab] = useState(false);
+  // Why the lab door stayed shut — named in the technician's own language.
+  const [labBlocker, setLabBlocker] = useState<SendToLabBlocker | null>(null);
   const [materials, setMaterials] = useState<Material[]>(initialMaterials);
   const [presets, setPresets] = useState<Preset[]>(initialPresets);
   const [selection, setSelection] = useState<Selection>({ kind: "none" });
@@ -275,9 +285,24 @@ export default function Designer({
   const handleSaveDraft = () => router.push("/");
   const handleSendToLab = async () => {
     setSendingToLab(true);
-    const ok = await track(updateExperimentMeta(exp.id, { status: "IN_LAB" }));
+    setLabBlocker(null);
+    const result = await track(sendExperimentToLab(exp.id));
     setSendingToLab(false);
-    if (ok !== null) router.push("/");
+    if (result === null) return;
+    if (!result.ok) {
+      // Missing title or project: say which, and open the one screen that
+      // fixes it rather than leaving a red dot in the corner.
+      setLabBlocker(result.blocker);
+      setShowSettings(true);
+      return;
+    }
+    router.push("/");
+  };
+
+  const handleCreateProject = async (name: string) => {
+    const created = await track(createProject(name));
+    if (created) setProjects((list) => [...list, created]);
+    return created;
   };
 
   const handleAddMember = async (userId: string) => {
@@ -816,10 +841,17 @@ export default function Designer({
         <SettingsModal
           exp={exp}
           orgUsers={orgUsers}
+          projects={projects}
+          blocker={labBlocker}
           canEdit={canEdit}
+          canManageProjects={canManageProjects}
           canManageMembers={canManageMembers}
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            setLabBlocker(null);
+          }}
           onMeta={handleMeta}
+          onCreateProject={handleCreateProject}
           onAddMember={handleAddMember}
           onRemoveMember={handleRemoveMember}
           onDelete={() => void deleteExperiment(exp.id)}

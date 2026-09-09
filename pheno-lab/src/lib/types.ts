@@ -3,6 +3,7 @@ import type { ParamDef } from "@/lib/library";
 
 export const experimentInclude = {
   createdBy: { select: { id: true, name: true } },
+  project: { select: { id: true, name: true } },
   members: {
     include: {
       user: { select: { id: true, name: true, email: true, role: true } },

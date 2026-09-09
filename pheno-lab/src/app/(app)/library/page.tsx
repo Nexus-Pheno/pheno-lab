@@ -10,6 +10,7 @@ import {
 import { PresetsSection } from "@/components/library/PresetsSection";
 import { getLibraryPageData } from "@/modules/library/query";
 import { MaterialReviews } from "@/components/library/MaterialReviews";
+import { ProjectsSection } from "@/components/library/ProjectsSection";
 
 export default async function LibraryPage() {
   const session = await requireSession();
@@ -18,6 +19,8 @@ export default async function LibraryPage() {
   return (
     <main className="h-full overflow-y-auto bg-subtle">
       <div className="max-w-5xl mx-auto p-3 sm:p-6 space-y-8">
+        <ProjectsSection projects={data.projects} canManage={data.canEdit} />
+
         <MaterialsSection
           materials={data.materials}
           categories={data.categories.map((c) => ({
@@ -30,14 +33,23 @@ export default async function LibraryPage() {
           canManage={data.materialAdmin}
         />
 
-        <MaterialReviews rows={data.materialEdits} canManage={data.materialAdmin} />
-        <RecipesSection canManage={data.stewardships.recipeSteward} recipes={data.recipes} />
+        <MaterialReviews
+          rows={data.materialEdits}
+          canManage={data.materialAdmin}
+        />
+        <RecipesSection
+          canManage={data.stewardships.recipeSteward}
+          recipes={data.recipes}
+        />
 
         <ProcessLibrary
           processes={data.processes}
           equipment={data.equipment}
           locations={data.locations}
-          environments={data.environments.map((env) => ({ id: env.id, name: env.name }))}
+          environments={data.environments.map((env) => ({
+            id: env.id,
+            name: env.name,
+          }))}
           canEdit={data.canEdit}
           canEditEquipment={data.stewardships.equipmentAdmin}
           layers={data.layers}
