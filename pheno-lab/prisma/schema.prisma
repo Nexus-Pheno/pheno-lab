@@ -351,6 +351,7 @@ model Experiment {
 
   @@unique([organizationId, shortCode])
   @@index([organizationId, deletedAt])
+  @@index([projectId])
 }
 
 // Discussion on an experiment — anyone who can read it can comment.
