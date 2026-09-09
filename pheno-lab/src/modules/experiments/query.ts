@@ -355,6 +355,16 @@ export async function getReportExperiment(actor: Actor, rawId: unknown) {
         orderBy: { runNo: "asc" },
         include: { executions: true },
       },
+      // Raw scans back the measurement-artifact flags (negative Rsh/Rs): the
+      // result rows only carry the summary metrics, which look fine.
+      jvMeasurements: {
+        where: { status: "MATCHED" },
+        select: {
+          serial: true,
+          metrics: true,
+          sample: { select: { code: true, variationGroup: true } },
+        },
+      },
       labels: { include: { label: true } },
     },
   });

@@ -1,4 +1,5 @@
 import "server-only";
+import { METRICS, type MetricKey } from "@/lib/analysis-metrics";
 
 import type { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -48,8 +49,8 @@ export const numish = (v: unknown): number | null => {
   return null;
 };
 
-export const METRICS = ["pce", "voc", "jsc", "ff"] as const;
-export type MetricKey = (typeof METRICS)[number];
+// One definition, shared with the client components that render metrics.
+export { METRICS, type MetricKey };
 
 /** "PCE (%)" → pce, "Voc (V)" → voc — result rows label their metrics. */
 export const metricKeyOf = (label: string): MetricKey | null => {
