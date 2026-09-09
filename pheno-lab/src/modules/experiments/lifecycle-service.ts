@@ -69,6 +69,27 @@ export async function createExperiment(actor: Actor, isTest = false) {
   return exp;
 }
 
+// Send-to-lab gate (使用反馈 2026-09). Reports and cross-experiment analysis
+// are only readable when an experiment says what it was for: a draft may not
+// enter the lab carrying the placeholder title, and a real experiment must
+// name the 课题组 it belongs to. Pure so both the service and the transport
+// layer can ask the same question and the answer stays testable.
+export type SendToLabBlocker = "title" | "project";
+
+const PLACEHOLDER_TITLE = /^untitled( test)? experiment$/i;
+
+export function sendToLabBlocker(exp: {
+  title: string;
+  projectId: string | null;
+  isTest: boolean;
+}): SendToLabBlocker | null {
+  const title = exp.title.trim();
+  if (!title || PLACEHOLDER_TITLE.test(title)) return "title";
+  // The test sandbox is scratch space — it never reaches a report.
+  if (!exp.isTest && !exp.projectId) return "project";
+  return null;
+}
+
 export async function updateExperimentMeta(
   actor: Actor,
   id: string,
@@ -77,6 +98,33 @@ export async function updateExperimentMeta(
   id = experimentIdSchema.parse(id);
   const data = experimentMetaSchema.parse(raw);
   await assertEdit(actor, id);
+  const current = await db.experiment.findFirstOrThrow({
+    where: { id, organizationId: actor.org },
+    select: { status: true, title: true, projectId: true, isTest: true },
+  });
+  if (data.projectId) {
+    const project = await db.project.findFirst({
+      where: { id: data.projectId, organizationId: actor.org },
+      select: { id: true },
+    });
+    if (!project) throw new Error("Project belongs to another organization.");
+  }
+  if (data.status === "IN_LAB" && current.status === "DRAFT") {
+    const blocker = sendToLabBlocker({
+      title: data.title ?? current.title,
+      projectId:
+        data.projectId !== undefined ? data.projectId : current.projectId,
+      isTest: current.isTest,
+    });
+    if (blocker === "title")
+      throw new Error(
+        "Give the experiment a meaningful title before sending it to the lab.",
+      );
+    if (blocker === "project")
+      throw new Error(
+        "Pick a project before sending the experiment to the lab.",
+      );
+  }
   await db.$transaction(async (tx) => {
     await tx.experiment.update({ where: { id }, data });
     await recordUserAudit(tx, {
@@ -131,6 +179,7 @@ export async function duplicateExperiment(actor: Actor, rawId: unknown) {
         // A template's name is a starting point, not a provenance marker.
         title: isTemplate ? src.title : `${src.title} (copy)`,
         campaign: src.campaign,
+        projectId: src.projectId,
         status: "DRAFT",
         isTest: src.isTest,
         observation: src.observation,
@@ -250,4 +299,33 @@ export async function setTemplatePin(
       changes: { pinned },
     });
   });
+}
+
+/**
+ * Send a draft to the lab. Returns the blocking reason rather than throwing so
+ * the designer can name the missing field in the technician's own language.
+ */
+export async function sendExperimentToLab(
+  actor: Actor,
+  rawId: unknown,
+): Promise<{ ok: true } | { ok: false; blocker: SendToLabBlocker }> {
+  const id = experimentIdSchema.parse(rawId);
+  await assertEdit(actor, id);
+  const exp = await db.experiment.findFirstOrThrow({
+    where: { id, organizationId: actor.org },
+    select: { title: true, projectId: true, isTest: true },
+  });
+  const blocker = sendToLabBlocker(exp);
+  if (blocker) return { ok: false, blocker };
+  await db.$transaction(async (tx) => {
+    await tx.experiment.update({ where: { id }, data: { status: "IN_LAB" } });
+    await recordUserAudit(tx, {
+      actor,
+      action: "experiment.update",
+      entityType: "Experiment",
+      entityId: id,
+      changes: { status: "IN_LAB" },
+    });
+  });
+  return { ok: true };
 }

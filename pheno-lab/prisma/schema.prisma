@@ -71,6 +71,22 @@ model Organization {
   sharedDevices  SharedDevice[]
   notifications  Notification[]
   materialEdits  MaterialEditSuggestion[]
+  projects       Project[]
+}
+
+// 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
+// directions every real experiment belongs to. Metadata and filters only —
+// never an analysis boundary; cross-project insight stays reachable.
+model Project {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  experiments    Experiment[]
+
+  @@unique([organizationId, name])
 }
 
 model User {
@@ -288,7 +304,9 @@ model Experiment {
   // concurrent experiments (the A in 01A05). Reassigned with the assignee.
   codeLetter        String?
   title             String
-  campaign          String             @default("") // optional larger experiment group / campaign
+  campaign          String             @default("") // legacy free-text group; superseded by projectId
+  projectId         String?
+  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
   status            ExperimentStatus   @default(DRAFT)
   // Test runs live alongside real work but are excluded from every real view
   // and can be cleared in one action. Chosen when the experiment is created.
@@ -333,6 +351,7 @@ model Experiment {
 
   @@unique([organizationId, shortCode])
   @@index([organizationId, deletedAt])
+  @@index([projectId])
 }
 
 // Discussion on an experiment — anyone who can read it can comment.

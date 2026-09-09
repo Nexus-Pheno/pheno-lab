@@ -39,6 +39,7 @@ export default async function ExperimentPage({
     <Designer
       initial={data.experiment}
       processes={data.processes}
+      projects={data.projects}
       equipment={data.equipment}
       materials={data.materials}
       environments={data.environments}
@@ -48,6 +49,7 @@ export default async function ExperimentPage({
       layers={data.layers}
       categoryLayers={data.categoryLayers}
       canManageMaterials={data.canManageMaterials}
+      canManageProjects={data.canManageProjects}
       canEdit={data.canEdit}
       canManageMembers={data.canEdit}
       sessionUid={session.uid}

@@ -8,6 +8,7 @@ export const experimentMetaSchema = z
   .object({
     title: z.string().trim().min(1).max(500).optional(),
     campaign: z.string().trim().max(500).optional(),
+    projectId: optionalIdSchema.optional(),
     observation: z.string().max(50_000).optional(),
     problem: z.string().max(50_000).optional(),
     hypothesis: z.string().max(50_000).optional(),

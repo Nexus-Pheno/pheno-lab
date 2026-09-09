@@ -8,6 +8,7 @@ import type { Actor } from "@/modules/authorization/actor";
 import {
   canManageExperiment,
   canReadExperiment,
+  isStaff,
 } from "@/modules/authorization/policy";
 import {
   experimentListScope,
@@ -26,6 +27,7 @@ export async function listDashboardExperiments(actor: Actor) {
       createdBy: { select: { name: true } },
       members: { include: { user: { select: { name: true } } } },
       labels: { include: { label: true } },
+      project: { select: { name: true } },
       _count: {
         select: { samples: true, steps: true, characterizations: true },
       },
@@ -51,6 +53,7 @@ export async function listDashboardExperiments(actor: Actor) {
     createdBy: row.createdBy.name,
     members: row.members.map((member) => member.user.name),
     labels: row.labels.map((label) => label.label.name),
+    project: row.project?.name ?? null,
     campaign: row.campaign,
     samples: row._count.samples,
     steps: row._count.steps,
@@ -88,6 +91,7 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     stewardships,
     layers,
     categoryLayers,
+    projects,
   ] = await Promise.all([
     db.experiment.findFirst({
       where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
@@ -150,6 +154,11 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
         layers: true,
       },
     }),
+    db.project.findMany({
+      where: { organizationId: actor.org, active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
   if (!experiment) return null;
   // The one edit-rights answer lives in policy: staff manage everything,
@@ -172,8 +181,11 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
         : "",
     })),
     canManageMaterials: true,
+    // Only managers curate the 课题组 list; everyone picks from it.
+    canManageProjects: isStaff(actor),
     layers,
     categoryLayers,
+    projects,
     canEdit,
   };
 }

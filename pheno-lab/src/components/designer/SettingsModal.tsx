@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ExperimentStatus } from "@prisma/client";
 import type { ExperimentFull } from "@/lib/types";
+import type { SendToLabBlocker } from "@/modules/experiments/lifecycle-service";
 import { STATUS_META } from "@/lib/library";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";
@@ -10,20 +11,36 @@ import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";
 export function SettingsModal({
   exp,
   orgUsers,
+  projects,
+  blocker,
   canEdit,
+  canManageProjects,
   canManageMembers,
   onClose,
   onMeta,
+  onCreateProject,
   onAddMember,
   onRemoveMember,
   onDelete,
 }: {
   exp: ExperimentFull;
   orgUsers: { id: string; name: string; email: string; role: string }[];
+  projects: { id: string; name: string }[];
+  /** Set when the technician just tried to send an unready draft to the lab. */
+  blocker: SendToLabBlocker | null;
   canEdit: boolean;
+  canManageProjects: boolean;
   canManageMembers: boolean;
   onClose: () => void;
-  onMeta: (patch: { title?: string; campaign?: string; status?: ExperimentStatus }) => void;
+  onMeta: (patch: {
+    title?: string;
+    campaign?: string;
+    projectId?: string | null;
+    status?: ExperimentStatus;
+  }) => void;
+  onCreateProject: (
+    name: string,
+  ) => Promise<{ id: string; name: string } | null>;
   onAddMember: (userId: string) => void;
   onRemoveMember: (userId: string) => void;
   onDelete: () => void;
@@ -31,6 +48,7 @@ export function SettingsModal({
   const t = useT();
   const [title, setTitle] = useState(exp.title);
   const [campaign, setCampaign] = useState(exp.campaign);
+  const [newProject, setNewProject] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const memberIds = new Set(exp.members.map((m) => m.userId));
   const addable = orgUsers.filter((u) => !memberIds.has(u.id));
@@ -48,12 +66,22 @@ export function SettingsModal({
           <Icon name="Settings2" size={15} className="text-charcoal" />
           <h3 className="text-[14px] font-bold flex-1">{t("set.title")}</h3>
           <span className="mono text-[11px] text-muted">{exp.code}</span>
-          <button onClick={onClose} className="p-1 rounded-[3px] text-muted hover:bg-subtle" title="Close">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-[3px] text-muted hover:bg-subtle"
+            title="Close"
+          >
             <Icon name="X" size={15} />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3.5 space-y-4">
+          {blocker && (
+            <p className="text-[11px] leading-relaxed rounded-[4px] border border-warn-line bg-warn-soft text-warn px-2.5 py-2">
+              {t(blocker === "title" ? "dash.needTitle" : "dash.needProject")}
+            </p>
+          )}
+
           <div>
             <FieldLabel>{t("set.expTitle")}</FieldLabel>
             <input
@@ -66,6 +94,62 @@ export function SettingsModal({
           </div>
 
           <div>
+            <FieldLabel>{t("set.project")}</FieldLabel>
+            <div className="flex items-center gap-1.5">
+              <select
+                className={selectCls}
+                disabled={!canEdit}
+                value={exp.projectId ?? ""}
+                onChange={(e) => onMeta({ projectId: e.target.value || null })}
+              >
+                <option value="">{t("set.projectNone")}</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              {canEdit && canManageProjects && newProject === null && (
+                <button
+                  onClick={() => setNewProject("")}
+                  className="shrink-0 h-[30px] px-2 rounded-[4px] border border-line text-[11px] font-semibold text-charcoal hover:bg-subtle"
+                  title={t("set.projectNew")}
+                >
+                  <Icon name="Plus" size={13} />
+                </button>
+              )}
+            </div>
+            {newProject !== null && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <input
+                  className={inputCls}
+                  autoFocus
+                  placeholder={t("set.projectNew")}
+                  value={newProject}
+                  onChange={(e) => setNewProject(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setNewProject(null);
+                  }}
+                />
+                <button
+                  disabled={!newProject.trim()}
+                  onClick={async () => {
+                    const created = await onCreateProject(newProject.trim());
+                    if (created) onMeta({ projectId: created.id });
+                    setNewProject(null);
+                  }}
+                  className="shrink-0 h-[30px] px-2.5 rounded-[4px] bg-brand text-[#243000] text-[11px] font-bold disabled:opacity-50"
+                >
+                  {t("set.projectAdd")}
+                </button>
+              </div>
+            )}
+            <p className="text-[10px] text-muted mt-1">
+              {t("set.projectHint")}
+            </p>
+          </div>
+
+          <div>
             <FieldLabel>{t("set.campaign")}</FieldLabel>
             <input
               className={inputCls}
@@ -74,7 +158,9 @@ export function SettingsModal({
               onChange={(e) => setCampaign(e.target.value)}
               onBlur={() => campaign !== exp.campaign && onMeta({ campaign })}
             />
-            <p className="text-[10px] text-muted mt-1">{t("set.campaignHint")}</p>
+            <p className="text-[10px] text-muted mt-1">
+              {t("set.campaignHint")}
+            </p>
           </div>
 
           <div>
@@ -83,7 +169,9 @@ export function SettingsModal({
               className={selectCls}
               disabled={!canEdit}
               value={exp.status}
-              onChange={(e) => onMeta({ status: e.target.value as ExperimentStatus })}
+              onChange={(e) =>
+                onMeta({ status: e.target.value as ExperimentStatus })
+              }
             >
               {Object.keys(STATUS_META).map((value) => (
                 <option key={value} value={value}>
@@ -91,9 +179,7 @@ export function SettingsModal({
                 </option>
               ))}
             </select>
-            <p className="text-[10px] text-muted mt-1">
-              {t("set.statusHint")}
-            </p>
+            <p className="text-[10px] text-muted mt-1">{t("set.statusHint")}</p>
           </div>
 
           <div>
@@ -101,15 +187,25 @@ export function SettingsModal({
             <div className="border border-line rounded-[4px] divide-y divide-line">
               <div className="flex items-center gap-2 px-2.5 py-1.5 bg-subtle">
                 <Icon name="UserCog" size={13} className="text-charcoal" />
-                <span className="text-[12px] font-semibold flex-1">{exp.createdBy.name}</span>
-                <span className="text-[10px] text-muted">{t("set.creator")}</span>
+                <span className="text-[12px] font-semibold flex-1">
+                  {exp.createdBy.name}
+                </span>
+                <span className="text-[10px] text-muted">
+                  {t("set.creator")}
+                </span>
               </div>
               {exp.members.map((m) => (
-                <div key={m.userId} className="flex items-center gap-2 px-2.5 py-1.5">
+                <div
+                  key={m.userId}
+                  className="flex items-center gap-2 px-2.5 py-1.5"
+                >
                   <Icon name="User" size={13} className="text-muted" />
                   <span className="text-[12px] flex-1">
                     {m.user.name}
-                    <span className="text-muted"> · {t(`role.${m.user.role}` as "role.ADMIN")}</span>
+                    <span className="text-muted">
+                      {" "}
+                      · {t(`role.${m.user.role}` as "role.ADMIN")}
+                    </span>
                   </span>
                   {canManageMembers && m.userId !== exp.createdById && (
                     <button
@@ -143,7 +239,10 @@ export function SettingsModal({
               <FieldLabel>{t("set.autoLabels")}</FieldLabel>
               <div className="flex flex-wrap gap-1">
                 {exp.labels.map((l) => (
-                  <span key={l.labelId} className="text-[10px] px-1.5 py-0.5 bg-subtle border border-line rounded-[3px] text-charcoal">
+                  <span
+                    key={l.labelId}
+                    className="text-[10px] px-1.5 py-0.5 bg-subtle border border-line rounded-[3px] text-charcoal"
+                  >
                     {l.label.name}
                   </span>
                 ))}
@@ -159,9 +258,21 @@ export function SettingsModal({
           <div className="px-4 py-3 border-t border-line flex justify-end">
             {confirmingDelete ? (
               <span className="flex items-center gap-2 text-[12px]">
-                <span className="font-semibold text-warn">{t("set.deleteQ")}</span>
-                <button onClick={onDelete} className="text-danger font-bold hover:underline">{t("set.deleteYes")}</button>
-                <button onClick={() => setConfirmingDelete(false)} className="text-muted hover:underline">{t("set.deleteNo")}</button>
+                <span className="font-semibold text-warn">
+                  {t("set.deleteQ")}
+                </span>
+                <button
+                  onClick={onDelete}
+                  className="text-danger font-bold hover:underline"
+                >
+                  {t("set.deleteYes")}
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  className="text-muted hover:underline"
+                >
+                  {t("set.deleteNo")}
+                </button>
               </span>
             ) : (
               <button
