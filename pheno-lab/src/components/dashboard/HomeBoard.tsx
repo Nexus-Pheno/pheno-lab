@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentStatus } from "@prisma/client";
 import {
+  sendExperimentToLab,
   updateExperimentMeta,
   createExperiment,
   createExperimentFrom,
@@ -78,6 +79,10 @@ export function HomeBoard({
   });
   const [query, setQuery] = useState("");
   const [project, setProject] = useState("");
+  const [moveBlocked, setMoveBlocked] = useState<{
+    id: string;
+    blocker: "title" | "project";
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [newMode, setNewMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -137,7 +142,23 @@ export function HomeBoard({
     if (!id) return;
     const exp = experiments.find((e) => e.id === id);
     if (!exp || exp.status === status) return;
+    const previous = exp.status;
+    setMoveBlocked(null);
     setExperiments((es) => es.map((e) => (e.id === id ? { ...e, status } : e)));
+
+    // Dragging a draft into the lab is the same door as the designer's send
+    // button, so it answers the same way: put the card back and say what is
+    // missing, rather than failing silently behind the animation.
+    if (status === "IN_LAB" && previous === "DRAFT") {
+      const result = await sendExperimentToLab(id);
+      if (!result.ok) {
+        setExperiments((es) =>
+          es.map((e) => (e.id === id ? { ...e, status: previous } : e)),
+        );
+        setMoveBlocked({ id, blocker: result.blocker });
+      }
+      return;
+    }
     await updateExperimentMeta(id, { status });
   };
 
@@ -379,6 +400,36 @@ export function HomeBoard({
       <div className="max-w-6xl mx-auto p-3 sm:p-6">
         {/* Stable two-row header: identical in both views so the toggle
             never reshuffles the top controls. */}
+        {moveBlocked && (
+          <div className="mb-3 flex items-start gap-2 rounded-[6px] border border-warn-line bg-warn-soft px-3 py-2">
+            <Icon
+              name="TriangleAlert"
+              size={14}
+              className="text-warn mt-0.5 shrink-0"
+            />
+            <p className="flex-1 text-[12px] leading-relaxed text-warn">
+              {t(
+                moveBlocked.blocker === "title"
+                  ? "dash.needTitle"
+                  : "dash.needProject",
+              )}
+            </p>
+            <Link
+              href={`/experiments/${moveBlocked.id}`}
+              className="shrink-0 text-[11.5px] font-bold text-warn underline"
+            >
+              {t("dash.open")}
+            </Link>
+            <button
+              onClick={() => setMoveBlocked(null)}
+              className="shrink-0 p-0.5 text-warn/70 hover:text-warn"
+              title={t("an.reset")}
+            >
+              <Icon name="X" size={13} />
+            </button>
+          </div>
+        )}
+
         <div className="mb-4 space-y-3">
           <div>
             <h1 className="text-lg font-bold">{t("dash.title")}</h1>
