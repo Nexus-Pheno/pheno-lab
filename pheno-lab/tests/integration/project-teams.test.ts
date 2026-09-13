@@ -27,10 +27,19 @@ async function removeOrganization(organizationId: string): Promise<void> {
 
 async function fixture(slug: string) {
   const suffix = crypto.randomUUID();
+  // Experiment codes are YYYY-ORG-USER-SEQ and globally unique, so every
+  // fixture org and person needs numbers of their own, as registration
+  // would give them.
   const organization = await db.organization.create({
-    data: { name: `Teams ${slug}`, slug: `${slug}-${suffix}` },
+    data: {
+      name: `Teams ${slug}`,
+      slug: `${slug}-${suffix}`,
+      orgNumber: 100 + Math.floor(Math.random() * 800),
+    },
   });
+  let userNumber = Math.floor(Math.random() * 1_000_000);
   const person = async (label: string, role: ActorRole): Promise<Actor> => {
+    userNumber += 1;
     const user = await db.user.create({
       data: {
         organizationId: organization.id,
@@ -38,6 +47,7 @@ async function fixture(slug: string) {
         name: label,
         passwordHash: "test-only",
         role,
+        userNumber,
       },
     });
     return { uid: user.id, org: organization.id, role };
