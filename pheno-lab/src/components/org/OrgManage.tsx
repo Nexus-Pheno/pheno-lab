@@ -13,6 +13,7 @@ import {
   adminResetPassword,
 } from "@/lib/actions/registration";
 import { setUserPermission } from "@/lib/actions/materials";
+import { setUserProject } from "@/lib/actions/experiments";
 import { renameOwnOrganization } from "@/lib/actions/orgs";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
@@ -30,6 +31,7 @@ export type OrgUserRow = {
   facilityAdmin: boolean;
   recipeAccess: boolean;
   recipeSteward: boolean;
+  projectId: string | null;
 };
 
 type PendingRow = {
@@ -101,6 +103,7 @@ export function OrgManage({
   orgName,
   orgNumber,
   users,
+  projects,
   domains: initialDomains,
   pending,
 }: {
@@ -110,6 +113,7 @@ export function OrgManage({
   orgName: string;
   orgNumber: number;
   users: OrgUserRow[];
+  projects: { id: string; name: string; active: boolean }[];
   domains: string;
   pending: PendingRow[];
 }) {
@@ -302,6 +306,7 @@ export function OrgManage({
             <tr className="text-left text-[10px] uppercase text-muted border-b border-line">
               <th className="px-3.5 py-2 font-bold">{t("users.name")}</th>
               <th className="px-3.5 py-2 font-bold">{t("users.role")}</th>
+              <th className="px-3.5 py-2 font-bold">{t("users.team")}</th>
               {STEWARDSHIPS.map((s) => (
                 <th key={s.key} className="px-2 py-2 font-bold text-center">
                   {t(s.label as TKey)}
@@ -495,6 +500,29 @@ export function OrgManage({
                         {t(`role.${r}` as "role.ADMIN")}
                       </option>
                     ))}
+                  </select>
+                </td>
+                <td className="px-3.5 py-2.5">
+                  {/* 项目组: the org chart. Their new experiments file here. */}
+                  <select
+                    className="border border-line rounded-[3px] px-2 py-1 text-[12px] bg-surface disabled:bg-subtle disabled:text-muted max-w-44"
+                    value={u.projectId ?? ""}
+                    disabled={busy}
+                    onChange={async (e) => {
+                      setBusy(true);
+                      await setUserProject(u.id, e.target.value || null);
+                      setBusy(false);
+                      router.refresh();
+                    }}
+                  >
+                    <option value="">{t("users.ungrouped")}</option>
+                    {projects
+                      .filter((p) => p.active || p.id === u.projectId)
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
                   </select>
                 </td>
                 {STEWARDSHIPS.map((s) => (

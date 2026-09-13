@@ -85,6 +85,7 @@ model Project {
   active         Boolean      @default(true)
   createdAt      DateTime     @default(now())
   experiments    Experiment[]
+  members        User[]
 
   @@unique([organizationId, name])
 }
@@ -123,6 +124,10 @@ model User {
   facilityAdmin         Boolean                  @default(false) // locations & lab environments
   recipeAccess          Boolean                  @default(false) // may view/edit recipe contents
   recipeSteward         Boolean                  @default(false)
+  // 项目组 (2026-09-13): the team this person works in. New experiments are
+  // filed under it by default; unassigned people stay "ungrouped".
+  projectId             String?
+  project               Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
   createdAt             DateTime                 @default(now())
   experiments           Experiment[]
   memberships           ExperimentMember[]
@@ -142,6 +147,8 @@ model User {
   materialEdits         MaterialEditSuggestion[] @relation("MaterialEditAuthor")
   reviewedMaterialEdits MaterialEditSuggestion[] @relation("MaterialEditReviewer")
   experimentComments    ExperimentComment[]      @relation("CommentAuthor")
+
+  @@index([projectId])
 }
 
 // A registered shared lab tablet. The browser carries a signed cookie naming
