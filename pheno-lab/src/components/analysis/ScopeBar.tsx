@@ -19,6 +19,7 @@ export function ScopeBar({
     process: string;
     unit: string;
     experiments: number;
+    source: "varied" | "recipe";
   }[];
 }) {
   const t = useT();
@@ -27,6 +28,7 @@ export function ScopeBar({
 
   const set = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
+    next.set("mode", "manual");
     if (value) next.set(key, value);
     else next.delete(key);
     router.push(`/analysis?${next.toString()}`);
@@ -50,6 +52,7 @@ export function ScopeBar({
               {c.process ? `${c.process} · ` : ""}
               {c.label}
               {c.unit ? ` (${c.unit})` : ""} — {c.experiments}
+              {c.source === "recipe" ? ` · ${t("an.recipeSource")}` : ""}
             </option>
           ))}
         </select>
@@ -128,9 +131,9 @@ export function ScopeBar({
         />
       </label>
 
-      {[...params.keys()].length > 0 && (
+      {[...params.keys()].some((k) => k !== "mode") && (
         <button
-          onClick={() => router.push("/analysis")}
+          onClick={() => router.push("/analysis?mode=manual")}
           className="h-[30px] px-2.5 rounded-[4px] border border-line text-[11.5px] font-semibold text-muted hover:bg-subtle flex items-center gap-1"
         >
           <Icon name="X" size={12} /> {t("an.reset")}

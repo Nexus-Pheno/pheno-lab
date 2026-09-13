@@ -18,9 +18,16 @@ import type { MetricKey } from "@/modules/experiments/summary-service";
 //   1. A condition is keyed by (process, parameter), not by step position. Two
 //      experiments that varied anneal temperature at different points in their
 //      flow land in the same column.
-//   2. A condition is only recorded when the experiment actually varied it.
-//      Constants are context, not evidence, and pooling them across batches
-//      would invent comparisons nobody ran.
+//   2. Inside one experiment, a condition is what the test plan varied.
+//      Across experiments, a condition is whatever differs between their
+//      recipes — the material on a step, a parameter held at one value in
+//      this batch and another in the next. Only 9 of 959 experiments record
+//      a test plan, but 622 record which material went on which step, so
+//      the recipe is where cross-experiment conditions actually live
+//      (0909批次改善使用反馈 §二). Recipe conditions are constant within an
+//      experiment, which is exactly why the per-batch view must be read
+//      alongside the pooled one: pooling recipes mixes every other thing
+//      that differed between those batches.
 
 export type VariedCondition = {
   /** Stable across experiments: processId + parameter name, lowercased. */
@@ -30,6 +37,8 @@ export type VariedCondition = {
   process: string;
   /** Group label → value, for the plan/report comparison table. */
   byGroup: Record<string, string>;
+  /** "varied" inside the experiment, or a "recipe" constant of it. */
+  source: "varied" | "recipe";
 };
 
 export type TidyRow = {
@@ -98,6 +107,7 @@ export function variedConditions(exp: VariableSource): VariedCondition[] {
       unit: variable.unit,
       process,
       byGroup: { ...variable.values },
+      source: "varied",
     });
   }
 
@@ -121,6 +131,7 @@ export function variedConditions(exp: VariableSource): VariedCondition[] {
         unit: parameter.unit,
         process: step.process.name,
         byGroup,
+        source: "varied",
       });
     }
   }
@@ -130,7 +141,67 @@ export function variedConditions(exp: VariableSource): VariedCondition[] {
   );
 }
 
-export type DatasetExperiment = VariableSource & {
+export type RecipeSource = VariableSource & {
+  steps: {
+    materials?: { material: { name: string } }[];
+  }[];
+};
+
+export const MATERIAL_SLOT = "material";
+
+/**
+ * The recipe an experiment held constant: each step's materials, and each
+ * parameter set to one value for every sample. Keyed like varied conditions
+ * so the same thing lines up across experiments whichever way it was
+ * recorded. Value is the same for every sample of the experiment.
+ */
+export type RecipeCondition = Omit<VariedCondition, "byGroup"> & {
+  value: string;
+};
+
+export function recipeConditions(exp: RecipeSource): RecipeCondition[] {
+  const out = new Map<string, RecipeCondition>();
+  for (const step of exp.steps) {
+    const materials = (step.materials ?? [])
+      .map((m) => m.material.name.trim())
+      .filter(Boolean)
+      .sort();
+    if (materials.length > 0) {
+      const key = conditionKey(step.process.id, MATERIAL_SLOT);
+      const known = out.get(key);
+      // Two steps of the same process: the recipe is their union.
+      const merged = known
+        ? [...new Set([...known.value.split(" + "), ...materials])].sort()
+        : materials;
+      out.set(key, {
+        key,
+        label: "Material",
+        unit: "",
+        process: step.process.name,
+        source: "recipe",
+        value: merged.join(" + "),
+      });
+    }
+    for (const parameter of step.parameters) {
+      if (parameter.variations.length > 0) continue;
+      const value = parameter.value.trim();
+      if (!value) continue;
+      const key = conditionKey(step.process.id, parameter.name);
+      if (out.has(key)) continue;
+      out.set(key, {
+        key,
+        label: parameter.name,
+        unit: parameter.unit,
+        process: step.process.name,
+        source: "recipe",
+        value,
+      });
+    }
+  }
+  return [...out.values()];
+}
+
+export type DatasetExperiment = RecipeSource & {
   id: string;
   code: string;
   title: string;
@@ -160,12 +231,19 @@ function metricsOf(sample: DatasetExperiment["samples"][number]) {
   return metrics;
 }
 
-export function buildTidyRows(experiments: DatasetExperiment[]): TidyRow[] {
+export function buildTidyRows(
+  experiments: DatasetExperiment[],
+  opts: { recipe?: boolean } = {},
+): TidyRow[] {
   const rows: TidyRow[] = [];
   for (const exp of experiments) {
     const plan = testPlanOf(exp);
     const controlGroup = plan?.groups.find((g) => g.isControl)?.label ?? null;
     const conditions = variedConditions(exp);
+    const varied = new Set(conditions.map((c) => c.key));
+    const recipe = opts.recipe
+      ? recipeConditions(exp).filter((c) => !varied.has(c.key))
+      : [];
     // Beijing calendar date: the lab's own day, so trends line up with batches.
     const date = new Date(exp.createdAt.getTime() + 8 * 3_600_000)
       .toISOString()
@@ -177,6 +255,7 @@ export function buildTidyRows(experiments: DatasetExperiment[]): TidyRow[] {
       if (!isScientificSample(sample)) continue;
       const metrics = metricsOf(sample);
       const applied: Record<string, string> = {};
+      for (const condition of recipe) applied[condition.key] = condition.value;
       for (const condition of conditions) {
         const value = sample.variationGroup
           ? condition.byGroup[sample.variationGroup]

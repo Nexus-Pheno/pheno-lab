@@ -72,6 +72,7 @@ model Organization {
   notifications  Notification[]
   materialEdits  MaterialEditSuggestion[]
   projects       Project[]
+  analysisRuns   AnalysisRun[]
 }
 
 // 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
@@ -147,6 +148,7 @@ model User {
   materialEdits         MaterialEditSuggestion[] @relation("MaterialEditAuthor")
   reviewedMaterialEdits MaterialEditSuggestion[] @relation("MaterialEditReviewer")
   experimentComments    ExperimentComment[]      @relation("CommentAuthor")
+  analysisRuns          AnalysisRun[]            @relation("AnalysisRequester")
 
   @@index([projectId])
 }
@@ -979,6 +981,32 @@ model JvMeasurement {
 
 // Append-only security and data-provenance trail. Deliberately no foreign-key
 // relations: audit records survive deletion of the entity or actor they name.
+// A free-form cross-experiment analysis (0909批次改善使用反馈 §二): the person
+// asks a question, the app retrieves the relevant experiments, computes the
+// comparison tables in code, and the model writes the reading. Runs detached
+// because retrieval plus a reasoning model does not fit one request; the row
+// is what the page polls and what the lab reads back later — results are
+// shared org-wide, like the analysis itself.
+model AnalysisRun {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  requestedById   String
+  requestedBy     User         @relation("AnalysisRequester", fields: [requestedById], references: [id])
+  question        String
+  lang            String       @default("zh")
+  status          String       @default("RUNNING") // RUNNING | DONE | FAILED
+  text            String       @default("")
+  model           String       @default("")
+  experiments     Int          @default(0)
+  samples         Int          @default(0)
+  experimentCodes String[]     @default([])
+  startedAt       DateTime     @default(now())
+  finishedAt      DateTime?
+
+  @@index([organizationId, startedAt])
+}
+
 model AuditEvent {
   id             String   @id @default(cuid())
   organizationId String
