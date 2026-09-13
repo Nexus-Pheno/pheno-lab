@@ -6,6 +6,7 @@ import { OrgManage, type OrgUserRow } from "@/components/org/OrgManage";
 import { Icon } from "@/components/ui";
 import { getOrganizationAdminData } from "@/modules/organizations/query";
 import { listRegistrationApprovals } from "@/modules/accounts/registration-service";
+import { listProjects } from "@/modules/experiments/project-service";
 import { fmtBeijing } from "@/lib/datetime";
 
 // Each organization's admin manages their own org here: settings, the
@@ -17,11 +18,15 @@ export default async function OrganizationPage() {
   if (session.role !== "ADMIN") notFound();
   const t = await getT();
 
-  const [{ organization: org, users, pending }, { approvals, legacyOptions }] =
-    await Promise.all([
-      getOrganizationAdminData(session),
-      listRegistrationApprovals(session),
-    ]);
+  const [
+    { organization: org, users, pending },
+    { approvals, legacyOptions },
+    projects,
+  ] = await Promise.all([
+    getOrganizationAdminData(session),
+    listRegistrationApprovals(session),
+    listProjects(session, { includeInactive: true }),
+  ]);
 
   const rows: OrgUserRow[] = users.map((u) => ({
     ...u,
@@ -53,6 +58,11 @@ export default async function OrganizationPage() {
           orgName={org.name}
           orgNumber={org.orgNumber}
           users={rows}
+          projects={projects.map((p) => ({
+            id: p.id,
+            name: p.name,
+            active: p.active,
+          }))}
           domains={org.emailDomains.join(", ")}
           pending={pending.map((p) => ({
             email: p.email,

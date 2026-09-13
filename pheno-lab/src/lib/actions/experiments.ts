@@ -58,6 +58,7 @@ import {
   renameProject as renameProjectService,
   setProjectActive as setProjectActiveService,
   listProjects as listProjectsService,
+  assignUserProject as assignUserProjectService,
 } from "@/modules/experiments/service";
 
 export async function canViewWhere(
@@ -121,6 +122,11 @@ export async function createProject(name: string) {
 
 export async function renameProject(id: string, name: string) {
   await renameProjectService(await requireSession(), { id, name });
+  revalidatePath("/organization");
+}
+
+export async function setUserProject(userId: string, projectId: string | null) {
+  await assignUserProjectService(await requireSession(), { userId, projectId });
   revalidatePath("/organization");
 }
 

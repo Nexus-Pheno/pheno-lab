@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
-import { AuthorizationError, isStaff } from "@/modules/authorization/policy";
+import {
+  assertAdmin,
+  AuthorizationError,
+  isStaff,
+} from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
 
 // 课题组 (research projects): the manager-curated list every real experiment
@@ -102,6 +106,45 @@ export async function renameProject(actor: Actor, raw: unknown): Promise<void> {
       entityType: "Project",
       entityId: input.id,
       changes: { name: input.name },
+    });
+  });
+}
+
+/**
+ * Put a person in a team (or take them out: null). Their new experiments are
+ * filed under it by default. Admin-only: this is the org chart, and the
+ * organization page is where it is kept.
+ */
+export async function assignUserProject(
+  actor: Actor,
+  raw: unknown,
+): Promise<void> {
+  assertAdmin(actor);
+  const input = z
+    .object({
+      userId: z.string().min(1).max(128),
+      projectId: projectIdSchema.nullable(),
+    })
+    .parse(raw);
+  if (input.projectId) {
+    const project = await db.project.findFirst({
+      where: { id: input.projectId, organizationId: actor.org },
+      select: { id: true },
+    });
+    if (!project) throw new Error("Project belongs to another organization.");
+  }
+  await db.$transaction(async (tx) => {
+    const result = await tx.user.updateMany({
+      where: { id: input.userId, organizationId: actor.org },
+      data: { projectId: input.projectId },
+    });
+    if (result.count !== 1) throw new Error("User not found.");
+    await recordUserAudit(tx, {
+      actor,
+      action: "project.assign_user",
+      entityType: "User",
+      entityId: input.userId,
+      changes: { projectId: input.projectId },
     });
   });
 }

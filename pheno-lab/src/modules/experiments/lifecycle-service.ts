@@ -37,12 +37,20 @@ export async function createExperiment(actor: Actor, isTest = false) {
   if (isTest) assertStaff(actor);
   const exp = await db.$transaction(async (tx) => {
     const code = await nextExperimentCode(tx, actor);
+    // Filed under the creator's team by default (0909批次改善使用反馈): the
+    // picker becomes a confirmation, and the send-to-lab gate stops being the
+    // moment people first meet the field.
+    const creator = await tx.user.findUniqueOrThrow({
+      where: { id: actor.uid },
+      select: { project: { select: { id: true, active: true } } },
+    });
     const created = await tx.experiment.create({
       data: {
         organizationId: actor.org,
         code,
         title: isTest ? "Untitled test experiment" : "Untitled experiment",
         isTest,
+        projectId: creator.project?.active ? creator.project.id : null,
         createdById: actor.uid,
         samples: {
           create: [
