@@ -231,23 +231,25 @@ function terms(q: string): string[] {
  * process, a formula, an operator, a sample code — not just the title text,
  * and reports which of those matched so a result is never unexplained.
  */
-export async function searchExperiments(
-  actor: Actor,
-  query: string,
-  includeTest = false,
-): Promise<SearchResponse> {
-  const org = actor.org;
-  const where = experimentVisibilityScope(actor, includeTest);
-  const q = (query ?? "").trim();
-  if (!q) return { hits: [], interpreted: "", terms: [] };
+/**
+ * Reduce a question in plain language ("which experiments used Cell-17 on
+ * FTO?") to the names worth searching for. The model only ever picks search
+ * terms — it never decides what matches, so a wrong or missing model degrades
+ * this to keyword search rather than returning wrong science. Shared with
+ * the cross-experiment analysis, which retrieves on the same terms.
+ */
+export async function questionTerms(
+  org: string,
+  q: string,
+): Promise<{ terms: string[]; interpreted: boolean }> {
   let ts = terms(q);
-  let aiNote = "";
-
-  // A question in plain language ("which experiments used Cell-17 on FTO?")
-  // is reduced to the names worth searching for. The model only ever picks
-  // search terms — it never decides what matches, so a wrong or missing model
-  // degrades this to keyword search rather than returning wrong science.
-  if (/\s/.test(q.trim()) && q.trim().split(/\s+/).length >= 4) {
+  let interpreted = false;
+  // Chinese questions rarely contain whitespace; a long enough string is a
+  // sentence whichever script it is written in.
+  const wordy =
+    (/\s/.test(q.trim()) && q.trim().split(/\s+/).length >= 4) ||
+    q.trim().length >= 12;
+  if (wordy) {
     const [mats, procs, recs] = await Promise.all([
       db.material.findMany({
         where: { organizationId: org, archived: false },
@@ -296,9 +298,26 @@ export async function searchExperiments(
       .slice(0, 6);
     if (clean.length) {
       ts = clean;
-      aiNote = " (interpreted by the configured model)";
+      interpreted = true;
     }
   }
+  return { terms: ts, interpreted };
+}
+
+export async function searchExperiments(
+  actor: Actor,
+  query: string,
+  includeTest = false,
+): Promise<SearchResponse> {
+  const org = actor.org;
+  const where = experimentVisibilityScope(actor, includeTest);
+  const q = (query ?? "").trim();
+  if (!q) return { hits: [], interpreted: "", terms: [] };
+  const picked = await questionTerms(org, q);
+  const ts = picked.terms;
+  const aiNote = picked.interpreted
+    ? " (interpreted by the configured model)"
+    : "";
 
   if (ts.length === 0) return { hits: [], interpreted: q, terms: [] };
 

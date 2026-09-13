@@ -27,3 +27,9 @@ export const analysisQuestionSchema = z.object({
   scope: analysisScopeSchema,
   lang: z.enum(["en", "zh"]),
 });
+
+/** A free-form question for the detached analysis run. */
+export const askSchema = z.object({
+  question: z.string().trim().min(3).max(1000),
+  lang: z.enum(["en", "zh"]),
+});

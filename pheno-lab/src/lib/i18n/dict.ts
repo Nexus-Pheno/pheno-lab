@@ -267,6 +267,23 @@ export const en = {
   "set.campaignHint":
     'Optional — group related experiments under one larger campaign, e.g. "Anneal optimization Q3". Searchable from the board.',
   "nav.analysis": "Analysis",
+  "an.askTab": "Ask",
+  "an.manualTab": "Compare one condition",
+  "an.askSubtitle":
+    "Ask a question. The app finds the experiments it concerns, computes the comparisons, and the model writes the reading — factors together, not one at a time.",
+  "an.askTitle": "Ask the lab's history",
+  "an.askHint":
+    "Any question about what the lab has tried: a material, a process, a combination, a trend. Retrieval is across every experiment in the lab; nothing is pre-selected. Answers take one to three minutes and stay here for everyone.",
+  "an.askPlaceholder":
+    "e.g. Does blade coating beat spin coating for the HTL, and does it depend on the SAM used?",
+  "an.askShortcut": "⌘/Ctrl + Enter to ask",
+  "an.askButton": "Ask",
+  "an.noHistory": "No questions asked yet.",
+  "an.running": "reading the data…",
+  "an.runFailed": "could not complete",
+  "an.basedOn": "{experiments} experiments · {samples} samples",
+  "an.experimentsRead": "Experiments read",
+  "an.recipeSource": "from recipes",
   "an.title": "Cross-experiment analysis",
   "an.subtitle":
     "Every experiment in the lab, pooled by the conditions they varied. Pick a condition to see how its values compare across batches.",
@@ -1616,6 +1633,22 @@ export const zh: Record<TKey, string> = {
   "set.campaignHint":
     "可选——将相关实验归入同一个大专题，如「Q3 退火优化」。可在看板中搜索。",
   "nav.analysis": "分析",
+  "an.askTab": "提问",
+  "an.manualTab": "单条件对比",
+  "an.askSubtitle":
+    "直接提问。系统检索相关实验、计算对比数据，再由模型综合解读——多个因素一并考虑，而不是一次只看一个。",
+  "an.askTitle": "向实验室的历史提问",
+  "an.askHint":
+    "任何关于实验室做过什么的问题：一种材料、一道工艺、一种组合、一个趋势。检索范围是实验室全部实验，无需预先选择。回答需要一到三分钟，结果对所有人可见。",
+  "an.askPlaceholder": "例如：刮涂 HTL 是否优于旋涂？是否取决于所用的 SAM？",
+  "an.askShortcut": "⌘/Ctrl + Enter 提问",
+  "an.askButton": "提问",
+  "an.noHistory": "还没有人提过问题。",
+  "an.running": "正在读取数据…",
+  "an.runFailed": "未能完成",
+  "an.basedOn": "{experiments} 个实验 · {samples} 个样品",
+  "an.experimentsRead": "读取的实验",
+  "an.recipeSource": "来自配方差异",
   "an.title": "跨实验分析",
   "an.subtitle":
     "把实验室的全部实验按各自变化的条件汇总。选择一个条件，即可看到它的不同取值在各批次之间的表现。",

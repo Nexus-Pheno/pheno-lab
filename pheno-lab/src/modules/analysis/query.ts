@@ -6,6 +6,7 @@ import type { Actor } from "@/modules/authorization/actor";
 import {
   buildTidyRows,
   hasAnyMetric,
+  recipeConditions,
   variedConditions,
   type TidyRow,
   type VariedCondition,
@@ -44,6 +45,7 @@ const datasetInclude = {
           variations: { select: { variationGroup: true, value: true } },
         },
       },
+      materials: { select: { material: { select: { name: true } } } },
     },
   },
   samples: {
@@ -124,7 +126,9 @@ export async function loadAnalysisDataset(
   const truncated = experiments.length > MAX_EXPERIMENTS;
   const page = truncated ? experiments.slice(0, MAX_EXPERIMENTS) : experiments;
 
-  const rows = buildTidyRows(page);
+  // Recipe conditions included: across experiments, what differs between
+  // recipes IS the variable (see dataset.ts).
+  const rows = buildTidyRows(page, { recipe: true });
   const measured = rows.filter(hasAnyMetric);
 
   // A condition is only worth offering when the dataset can actually compare
@@ -134,13 +138,24 @@ export async function loadAnalysisDataset(
     VariedCondition & { experiments: Set<string>; values: Set<string> }
   >();
   for (const exp of page) {
-    for (const condition of variedConditions(exp)) {
+    const varied = variedConditions(exp);
+    const seen = new Set(varied.map((c) => c.key));
+    const both = [
+      ...varied,
+      ...recipeConditions(exp)
+        .filter((c) => !seen.has(c.key))
+        .map((c) => ({ ...c, byGroup: {} as Record<string, string> })),
+    ];
+    for (const condition of both) {
       const known = catalog.get(condition.key) ?? {
         ...condition,
         experiments: new Set<string>(),
         values: new Set<string>(),
       };
       known.experiments.add(exp.id);
+      // A condition someone varied on purpose keeps that label even where
+      // other batches only carried it as a constant.
+      if (condition.source === "varied") known.source = "varied";
       catalog.set(condition.key, known);
     }
   }
@@ -158,6 +173,7 @@ export async function loadAnalysisDataset(
       unit: c.unit,
       process: c.process,
       byGroup: c.byGroup,
+      source: c.source,
       experiments: c.experiments.size,
       values: [...c.values].sort(),
     }))

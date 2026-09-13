@@ -6,7 +6,10 @@ import {
   GroupBoxPlots,
   type MetricPlot,
 } from "@/components/results/GroupBoxPlots";
+import Link from "next/link";
 import { ScopeBar } from "@/components/analysis/ScopeBar";
+import { AskPanel } from "@/components/analysis/AskPanel";
+import { listAnalysisRuns } from "@/modules/analysis/ask-service";
 import { AiReading } from "@/components/analysis/AiReading";
 import { ExportTidyCsv } from "@/components/analysis/ExportTidyCsv";
 import {
@@ -36,6 +39,7 @@ export default async function AnalysisPage({
     const value = sp[key];
     return typeof value === "string" && value.trim() ? value.trim() : undefined;
   };
+  const mode = one("mode") === "manual" ? "manual" : "ask";
   const metricParam = one("metric");
   const metric: MetricKey = (METRICS as readonly string[]).includes(
     metricParam ?? "",
@@ -52,12 +56,53 @@ export default async function AnalysisPage({
     metric,
   };
 
-  const [t, lang, dataset, projects] = await Promise.all([
+  const [t, lang, dataset, projects, history] = await Promise.all([
     getT(),
     getLang(),
-    loadAnalysisDataset(session, scope),
+    mode === "manual"
+      ? loadAnalysisDataset(session, scope)
+      : Promise.resolve(null),
     listAnalysisProjects(session),
+    mode === "ask" ? listAnalysisRuns(session) : Promise.resolve([]),
   ]);
+
+  const tabs = (
+    <div className="flex border border-line rounded-[4px] overflow-hidden w-fit">
+      {(["ask", "manual"] as const).map((m) => (
+        <Link
+          key={m}
+          href={m === "ask" ? "/analysis" : "/analysis?mode=manual"}
+          className={
+            "text-[12px] font-semibold px-3.5 h-8 flex items-center gap-1.5 " +
+            (mode === m
+              ? "bg-ink text-white"
+              : "bg-surface text-charcoal hover:bg-subtle")
+          }
+        >
+          <Icon name={m === "ask" ? "Sparkles" : "Rows3"} size={13} />
+          {t(m === "ask" ? "an.askTab" : "an.manualTab")}
+        </Link>
+      ))}
+    </div>
+  );
+
+  if (mode === "ask") {
+    return (
+      <main className="h-full overflow-y-auto bg-subtle">
+        <div className="max-w-5xl mx-auto p-3 sm:p-6 space-y-4">
+          <div>
+            <h1 className="text-lg font-bold">{t("an.title")}</h1>
+            <p className="text-xs text-muted max-w-3xl">
+              {t("an.askSubtitle")}
+            </p>
+          </div>
+          {tabs}
+          <AskPanel history={history} lang={lang} />
+        </div>
+      </main>
+    );
+  }
+  if (!dataset) return null;
 
   const condition = scope.condition
     ? dataset.conditions.find((c) => c.key === scope.condition)
@@ -100,6 +145,7 @@ export default async function AnalysisPage({
           <h1 className="text-lg font-bold">{t("an.title")}</h1>
           <p className="text-xs text-muted max-w-3xl">{t("an.subtitle")}</p>
         </div>
+        {tabs}
 
         <ScopeBar projects={projects} conditions={dataset.conditions} />
 
