@@ -33,6 +33,7 @@ export async function getOrganizationAdminData(actor: Actor) {
         facilityAdmin: true,
         recipeAccess: true,
         recipeSteward: true,
+        deviceAdmin: true,
         projectId: true,
       },
     }),

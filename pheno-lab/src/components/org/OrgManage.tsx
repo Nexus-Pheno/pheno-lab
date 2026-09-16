@@ -31,6 +31,7 @@ export type OrgUserRow = {
   facilityAdmin: boolean;
   recipeAccess: boolean;
   recipeSteward: boolean;
+  deviceAdmin: boolean;
   projectId: string | null;
 };
 
@@ -91,6 +92,12 @@ const STEWARDSHIPS = [
     label: "org.recipeSteward",
     hint: "org.recipeStewardHint",
     icon: "BookOpen",
+  },
+  {
+    key: "deviceAdmin",
+    label: "org.stewDevices",
+    hint: "org.stewDevicesHint",
+    icon: "Tablet",
   },
 ] as const;
 

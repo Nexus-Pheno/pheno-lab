@@ -150,6 +150,7 @@ export const permissionSchema = z.enum([
   "facilityAdmin",
   "recipeAccess",
   "recipeSteward",
+  "deviceAdmin",
 ]);
 
 export const categoryCreateSchema = z.object({

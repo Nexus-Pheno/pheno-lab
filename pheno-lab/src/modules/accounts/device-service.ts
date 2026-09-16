@@ -3,7 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
-import { assertAdmin } from "@/modules/authorization/policy";
+import { assertStewardship } from "@/modules/stewardship/service";
 import { recordSystemAudit, recordUserAudit } from "@/modules/audit/writer";
 import { deviceLabelSchema, deviceIdSchema, setupTokenSchema } from "./schema";
 
@@ -53,7 +53,7 @@ const DEVICE_SELECT = {
 } as const;
 
 export async function listDevices(actor: Actor): Promise<SharedDeviceRow[]> {
-  assertAdmin(actor);
+  await assertStewardship(actor, "deviceAdmin");
   const rows = await db.sharedDevice.findMany({
     where: { organizationId: actor.org },
     select: DEVICE_SELECT,
@@ -68,7 +68,7 @@ export async function listDevices(actor: Actor): Promise<SharedDeviceRow[]> {
  * label reflects where the tablet actually ended up.
  */
 export async function createDevice(actor: Actor): Promise<SharedDeviceRow> {
-  assertAdmin(actor);
+  await assertStewardship(actor, "deviceAdmin");
   const setupToken = randomBytes(24).toString("base64url");
   return db.$transaction(async (tx) => {
     const device = await tx.sharedDevice.create({
@@ -92,7 +92,7 @@ export async function createDevice(actor: Actor): Promise<SharedDeviceRow> {
 }
 
 export async function revokeDevice(actor: Actor, rawId: unknown) {
-  assertAdmin(actor);
+  await assertStewardship(actor, "deviceAdmin");
   const id = deviceIdSchema.parse(rawId);
   await db.$transaction(async (tx) => {
     const device = await tx.sharedDevice.findFirst({

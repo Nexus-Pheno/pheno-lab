@@ -125,6 +125,7 @@ model User {
   facilityAdmin         Boolean                  @default(false) // locations & lab environments
   recipeAccess          Boolean                  @default(false) // may view/edit recipe contents
   recipeSteward         Boolean                  @default(false)
+  deviceAdmin           Boolean                  @default(false) // shared tablets: register, hand out setup links, revoke
   // 项目组 (2026-09-13): the team this person works in. New experiments are
   // filed under it by default; unassigned people stay "ungrouped".
   projectId             String?

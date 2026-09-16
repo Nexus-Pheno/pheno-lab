@@ -2,7 +2,11 @@
 
 import { requireSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { submitMaterialEdit as submitMaterialEditService, reviewMaterialEdit as reviewMaterialEditService, reviewRecipe as reviewRecipeService } from "@/modules/library/service";
+import {
+  submitMaterialEdit as submitMaterialEditService,
+  reviewMaterialEdit as reviewMaterialEditService,
+  reviewRecipe as reviewRecipeService,
+} from "@/modules/library/service";
 import type { MaterialCard, RecipePayload } from "@/lib/materials-meta";
 import {
   createMaterialCategory as createMaterialCategoryService,
@@ -58,7 +62,12 @@ export async function getRecipePayload(
 export async function setUserPermission(
   userId: string,
   permission:
-    "materialAdmin" | "equipmentAdmin" | "facilityAdmin" | "recipeAccess" | "recipeSteward",
+    | "materialAdmin"
+    | "equipmentAdmin"
+    | "facilityAdmin"
+    | "recipeAccess"
+    | "recipeSteward"
+    | "deviceAdmin",
   value: boolean,
 ) {
   await setUserStewardship(await requireSession(), userId, permission, value);
@@ -66,18 +75,30 @@ export async function setUserPermission(
   revalidatePath("/library");
 }
 
-export async function submitMaterialEdit(materialId: string, changes: MaterialCard) {
-  const result = await submitMaterialEditService(await requireSession(), { materialId, changes });
+export async function submitMaterialEdit(
+  materialId: string,
+  changes: MaterialCard,
+) {
+  const result = await submitMaterialEditService(await requireSession(), {
+    materialId,
+    changes,
+  });
   revalidatePath("/library");
   return result;
 }
 
-export async function reviewMaterialEdit(id: string, decision: "APPROVED" | "REJECTED") {
+export async function reviewMaterialEdit(
+  id: string,
+  decision: "APPROVED" | "REJECTED",
+) {
   await reviewMaterialEditService(await requireSession(), { id, decision });
   revalidatePath("/library");
 }
 
-export async function reviewRecipe(id: string, decision: "APPROVED" | "REJECTED") {
+export async function reviewRecipe(
+  id: string,
+  decision: "APPROVED" | "REJECTED",
+) {
   await reviewRecipeService(await requireSession(), { id, decision });
   revalidatePath("/library");
 }
