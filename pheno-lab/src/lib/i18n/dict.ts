@@ -982,7 +982,8 @@ export const en = {
     "views approved recipe contents; does not grant editing",
   "org.recipeSteward": "Recipe steward",
   "org.stewDevices": "Tablets",
-  "org.stewDevicesHint": "registers shared tablets, hands out setup links, revokes them",
+  "org.stewDevicesHint":
+    "registers shared tablets, hands out setup links, revokes them",
   "org.recipeStewardHint": "views, edits, archives and approves recipes",
   "review.materials": "Material edit suggestions",
   "review.submit": "Submit for approval",
@@ -1352,6 +1353,21 @@ export const en = {
   "req.asksAccess": "requests access to this experiment",
   "req.approve": "Approve",
   "req.decline": "Decline",
+  "notif.draft_idle_warning":
+    "will archive your idle draft in 3 days — open and edit it to keep it",
+  "notif.draft_idle_archived":
+    "archived your idle draft — open it to renew in one click",
+  "idle.warnChip": "Idle · archives in 3 days",
+  "idle.warnHint":
+    "No edits for 7 days. Any edit keeps it; otherwise it is archived automatically.",
+  "idle.archivedChip": "Archived for inactivity",
+  "idle.archivedHint":
+    "Archived automatically after 10 idle days. Renew to continue.",
+  "idle.renew": "Renew draft",
+  "idle.archivedBanner":
+    "This draft was archived for inactivity. Nothing was deleted.",
+  "idle.warnBanner":
+    "Idle for 7 days — it will be archived automatically in 3 days unless something changes. Any edit counts.",
   "notif.title": "Notifications",
   "notif.loading": "Loading…",
   "notif.empty": "Nothing yet — colleague interactions will show up here.",
@@ -2650,6 +2666,16 @@ export const zh: Record<TKey, string> = {
   "req.asksAccess": "申请访问此实验",
   "req.approve": "批准",
   "req.decline": "拒绝",
+  "notif.draft_idle_warning": "将在 3 天后归档你闲置的草稿——打开并编辑即可保留",
+  "notif.draft_idle_archived": "已归档你闲置的草稿——打开后一键即可恢复",
+  "idle.warnChip": "闲置 · 3 天后归档",
+  "idle.warnHint": "7 天没有编辑。任何编辑都会保留它；否则将自动归档。",
+  "idle.archivedChip": "因闲置已归档",
+  "idle.archivedHint": "闲置 10 天后自动归档。点击恢复即可继续。",
+  "idle.renew": "恢复草稿",
+  "idle.archivedBanner": "此草稿因长期未编辑已自动归档。内容没有删除。",
+  "idle.warnBanner":
+    "已闲置 7 天——如 3 天内没有任何编辑，将自动归档。任何修改都算。",
   "notif.title": "通知",
   "notif.loading": "加载中…",
   "notif.empty": "暂无通知——同事间的互动会显示在这里。",

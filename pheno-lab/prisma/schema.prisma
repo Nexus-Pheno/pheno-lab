@@ -324,6 +324,12 @@ model Experiment {
   // Pinned as an org-wide template: anyone may start a new experiment from a
   // copy of its plan, even without read access to the original. Staff-set.
   templatePinnedAt  DateTime?
+  // Idle-draft housekeeping (Michael, 2026-09-16): a draft untouched for 7
+  // days is warned, for 10 days (3 after the warning) is archived by the
+  // nightly sweep. idleArchivedAt marks an archive the creator may undo in
+  // one click, as opposed to a deliberate one.
+  idleWarnedAt      DateTime?
+  idleArchivedAt    DateTime?
   observation       String             @default("")
   problem           String             @default("")
   hypothesis        String             @default("")

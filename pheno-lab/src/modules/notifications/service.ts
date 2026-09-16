@@ -28,7 +28,9 @@ export type NotificationKind =
   | "material_edit_rejected"
   | "recipe_approval_requested"
   | "recipe_approved"
-  | "recipe_rejected";
+  | "recipe_rejected"
+  | "draft_idle_warning"
+  | "draft_idle_archived";
 
 type DbClient = Prisma.TransactionClient | typeof db;
 

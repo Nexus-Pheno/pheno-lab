@@ -59,6 +59,7 @@ import {
   setProjectActive as setProjectActiveService,
   listProjects as listProjectsService,
   assignUserProject as assignUserProjectService,
+  renewIdleDraft as renewIdleDraftService,
 } from "@/modules/experiments/service";
 
 export async function canViewWhere(
@@ -157,6 +158,12 @@ export async function updateExperimentMeta(
     data.conclusion,
   ]);
   revalidatePath("/");
+}
+
+export async function renewIdleDraft(id: string) {
+  await renewIdleDraftService(await requireSession(), id);
+  revalidatePath("/");
+  revalidatePath(`/experiments/${id}`);
 }
 
 export async function sendExperimentToLab(id: string) {

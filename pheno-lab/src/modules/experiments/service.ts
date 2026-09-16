@@ -15,4 +15,5 @@ export {
 } from "./plan-service";
 export * from "./preset-service";
 export * from "./project-service";
+export * from "./idle-service";
 export * from "./summary-service";
