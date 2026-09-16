@@ -61,6 +61,10 @@ export async function retrieveExperiments(
 
   const or: Prisma.ExperimentWhereInput[] = ts.flatMap((t) => {
     const c = { contains: t, mode: "insensitive" as const };
+    // A short term like "50" is a value, not a substring: "50" must not
+    // pull in every "1500rpm".
+    const valueMatch =
+      t.length <= 3 ? { equals: t, mode: "insensitive" as const } : c;
     return [
       { title: c },
       { code: c },
@@ -68,15 +72,21 @@ export async function retrieveExperiments(
       { hypothesis: c },
       { conclusion: c },
       { observation: c },
+      { createdBy: { name: c } },
+      { steps: { some: { name: c } } },
       {
         steps: {
-          some: { parameters: { some: { OR: [{ name: c }, { value: c }] } } },
+          some: {
+            parameters: { some: { OR: [{ name: c }, { value: valueMatch }] } },
+          },
         },
       },
       {
         steps: {
           some: {
-            parameters: { some: { variations: { some: { value: c } } } },
+            parameters: {
+              some: { variations: { some: { value: valueMatch } } },
+            },
           },
         },
       },
@@ -107,8 +117,10 @@ export async function retrieveExperiments(
       campaign: true,
       hypothesis: true,
       conclusion: true,
+      createdBy: { select: { name: true } },
       steps: {
         select: {
+          name: true,
           process: { select: { name: true } },
           materials: { select: { material: { select: { name: true } } } },
           parameters: {
@@ -139,13 +151,17 @@ export async function retrieveExperiments(
   // contribute a number.
   const lower = ts.map((t) => t.toLowerCase());
   const scored = rows.map((row) => {
-    const hay = [
-      row.title,
-      row.campaign,
+    // What the experiment is ABOUT (title, campaign, creator) outranks a
+    // term that merely appears somewhere in its recipe.
+    const head = [row.title, row.campaign, row.createdBy.name]
+      .join("\n")
+      .toLowerCase();
+    const body = [
       row.hypothesis,
       row.conclusion,
       ...row.steps.flatMap((s) => [
         s.process.name,
+        s.name,
         ...s.materials.map((m) => m.material.name),
         ...s.parameters.flatMap((p) => [
           p.name,
@@ -156,9 +172,13 @@ export async function retrieveExperiments(
     ]
       .join("\n")
       .toLowerCase();
-    const hits = lower.filter((t) => hay.includes(t)).length;
-    const measured = row.samples.some((s) => s.results.length > 0) ? 1 : 0;
-    return { id: row.id, score: hits * 2 + measured };
+    let score = 0;
+    for (const t of lower) {
+      if (head.includes(t)) score += 4;
+      else if (body.includes(t)) score += 2;
+    }
+    if (row.samples.some((s) => s.results.length > 0)) score += 1;
+    return { id: row.id, score };
   });
   scored.sort((a, b) => b.score - a.score);
   return {

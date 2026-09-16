@@ -39,6 +39,11 @@ TEMPLATE_FIRST_IDS = {
 
 # Master-sheet column → the process that produced it, plus the parameter
 # columns that describe that step. Mirrors the lab's actual process library.
+# Substrate columns live on the cleaning step so they read as recipe
+# conditions (added 2026-09-16 after the import dropped them; see
+# backfill-substrate.py for the historical repair).
+SUBSTRATE_COLS = [("模组尺寸", "模组尺寸"), ("基底", "基底"), ("模组结构", "器件结构"), ("器件结构", "器件结构")]
+
 STEP_MAP = [
     ("基底清洗工艺", "Cleaning / washing", "Substrate cleaning", []),
     ("NiOx层", "Sputter PVD", "NiOx layer", []),
@@ -220,6 +225,13 @@ def parse(operator, out_path):
                         pv = get(pc)
                         if pv:
                             params.append({"name": pc, "unit": "", "value": pv})
+                    if src == "基底清洗工艺":
+                        seen = set()
+                        for src_col, pname in SUBSTRATE_COLS:
+                            pv = get(src_col)
+                            if pv and pname not in seen:
+                                seen.add(pname)
+                                params.append({"name": pname, "unit": "", "value": pv})
                     mats = [val] if src in ("SAM材料",) else []
                     recipe = get("钙钛矿配方") if src == "钙钛矿层工艺" else ""
                     steps.append({

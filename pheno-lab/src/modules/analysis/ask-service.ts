@@ -47,6 +47,7 @@ export type AnalysisRunRow = {
   experiments: number;
   samples: number;
   experimentCodes: string[];
+  terms: string[];
   requestedBy: string;
   startedAt: string;
   finishedAt: string | null;
@@ -62,6 +63,7 @@ function toRow(run: {
   experiments: number;
   samples: number;
   experimentCodes: string[];
+  terms: string[];
   startedAt: Date;
   finishedAt: Date | null;
   requestedBy: { name: string };
@@ -76,6 +78,7 @@ function toRow(run: {
     experiments: run.experiments,
     samples: run.samples,
     experimentCodes: run.experimentCodes,
+    terms: run.terms,
     requestedBy: run.requestedBy.name,
     startedAt: fmtBeijing(run.startedAt),
     finishedAt: run.finishedAt ? fmtBeijing(run.finishedAt) : null,
@@ -92,6 +95,7 @@ const runSelect = {
   experiments: true,
   samples: true,
   experimentCodes: true,
+  terms: true,
   startedAt: true,
   finishedAt: true,
   requestedBy: { select: { name: true } },
@@ -245,6 +249,7 @@ async function generate(
     experiments: experiments.length,
     samples: rows.length,
     experimentCodes: experiments.map((e) => e.code),
+    terms: retrieved.terms,
   };
 }
 

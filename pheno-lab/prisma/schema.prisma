@@ -1008,6 +1008,7 @@ model AnalysisRun {
   experiments     Int          @default(0)
   samples         Int          @default(0)
   experimentCodes String[]     @default([])
+  terms           String[]     @default([]) // what retrieval searched for, so "why these experiments" has an answer
   startedAt       DateTime     @default(now())
   finishedAt      DateTime?
 

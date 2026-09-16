@@ -144,6 +144,11 @@ export function AskPanel({
                 <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap text-ink pt-3">
                   {run.text}
                 </div>
+                {run.terms.length > 0 && (
+                  <p className="mt-3 text-[10px] text-muted mono leading-relaxed">
+                    {t("an.terms")}: {run.terms.join(" · ")}
+                  </p>
+                )}
                 {run.experimentCodes.length > 0 && (
                   <p className="mt-3 text-[10px] text-muted mono leading-relaxed">
                     {t("an.experimentsRead")}: {run.experimentCodes.join(" · ")}
