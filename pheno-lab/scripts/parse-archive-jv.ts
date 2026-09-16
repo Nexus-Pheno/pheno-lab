@@ -138,8 +138,31 @@ async function main() {
       return;
     }
     const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+    // The import attached one file to several samples: identical content is
+    // stored once, later attachments of it are skipped.
+    const sameContent = await db.instrumentUpload.findUnique({
+      where: { instrumentId_sha256: { instrumentId, sha256 } },
+      select: { id: true },
+    });
+    if (sameContent) {
+      stats.duplicates += 1;
+      return;
+    }
     const experimentId = link!.characterization.experimentId;
-    const sampleId = link!.sampleId;
+    // A LIGHTSKY file carries dozens of scans for many samples: link each
+    // scan to the sample whose code its serial matches inside this
+    // experiment ("2018-8-Rev" on the rig, "2018" on the sheet: longest
+    // prefix wins), else leave it at experiment level.
+    const samples = await samplesOf(experimentId);
+    const sampleFor = (serial: string): string | null => {
+      const key = normalizeSerial(serial);
+      const exact = samples.find((smp) => smp.key === key);
+      if (exact) return exact.id;
+      const byPrefix = samples
+        .filter((smp) => smp.key.length >= 2 && key.startsWith(smp.key))
+        .sort((a, b) => b.key.length - a.key.length)[0];
+      return byPrefix?.id ?? null;
+    };
 
     await db.$transaction(async (tx) => {
       const upload = await tx.instrumentUpload.create({
@@ -185,10 +208,10 @@ async function main() {
             curve: scan.curve as Prisma.InputJsonValue,
             settings: scan.settings as Prisma.InputJsonValue,
             experimentId,
-            sampleId,
+            sampleId: sampleFor(scan.serial),
             status: "MATCHED",
             matchNote:
-              "archive: linked through the result the file was attached to",
+              "archive: experiment from the attached result; sample by serial",
           },
         });
         stored += 1;
@@ -207,6 +230,19 @@ async function main() {
         metadata: { attachmentId: att.id, scans: stored, points: storedPoints },
       });
     });
+  };
+
+  const sampleCache = new Map<string, { id: string; key: string }[]>();
+  const samplesOf = async (experimentId: string) => {
+    const hit = sampleCache.get(experimentId);
+    if (hit) return hit;
+    const rows = await db.sample.findMany({
+      where: { experimentId },
+      select: { id: true, code: true },
+    });
+    const list = rows.map((r) => ({ id: r.id, key: normalizeSerial(r.code) }));
+    sampleCache.set(experimentId, list);
+    return list;
   };
 
   const select = {
