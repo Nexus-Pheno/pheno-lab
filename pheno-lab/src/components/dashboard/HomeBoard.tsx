@@ -857,10 +857,20 @@ export function HomeBoard({
                   return seen[e.status] <= cap;
                 });
             const hidden = listRows.length - rows.length;
+            // Title and team carry the words people scan for; they get a
+            // width floor and the table scrolls sideways rather than clipping
+            // them to "CPI基底…".
+            const WIDTH: Partial<Record<ListSortKey, string>> = {
+              title: " min-w-[260px]",
+              project: " min-w-[150px]",
+              createdBy: " min-w-[110px]",
+            };
             const th = (key: ListSortKey, label: string, right = false) => (
               <th
                 className={
-                  "px-3 py-1.5 font-bold" + (right ? " text-right" : "")
+                  "px-3 py-1.5 font-bold" +
+                  (right ? " text-right" : "") +
+                  (WIDTH[key] ?? "")
                 }
               >
                 <button
@@ -919,7 +929,7 @@ export function HomeBoard({
             );
             return (
               <div className="bg-surface border border-line rounded-[6px] overflow-x-auto">
-                <table className="w-full min-w-[760px] text-[12.5px]">
+                <table className="w-full min-w-[1080px] text-[12.5px]">
                   <thead>
                     <tr className="text-left text-[10.5px] uppercase text-muted border-b border-line">
                       {th("code", t("list.code"))}
@@ -996,10 +1006,11 @@ export function HomeBoard({
                             {e.code}
                           </Link>
                         </td>
-                        <td className="px-3 py-1.5">
+                        <td className="px-3 py-1.5 min-w-[260px]">
                           <Link
                             href={`/experiments/${e.id}`}
-                            className="line-clamp-1"
+                            className="line-clamp-2 leading-snug"
+                            title={e.title}
                           >
                             {e.title}
                           </Link>
@@ -1007,8 +1018,11 @@ export function HomeBoard({
                         <td className="px-3 py-1.5 whitespace-nowrap">
                           {statusChip(e.status)}
                         </td>
-                        <td className="px-3 py-1.5 text-charcoal">
-                          <span className="line-clamp-1">
+                        <td className="px-3 py-1.5 text-charcoal min-w-[150px]">
+                          <span
+                            className="line-clamp-2 leading-snug"
+                            title={e.project ?? ""}
+                          >
                             {e.project ?? "—"}
                           </span>
                         </td>
