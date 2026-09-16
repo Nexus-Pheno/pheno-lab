@@ -226,8 +226,11 @@ describe("idle-draft sweep against PostgreSQL", () => {
       const result = await sweepIdleDrafts();
       expect(result.reset).toBeGreaterThanOrEqual(1);
       expect((await stateOf(stale.id)).idleWarnedAt).toBeNull();
-      await db.process.delete({ where: { id: process.id } }).catch(() => {});
     } finally {
+      // Steps reference the process: experiments go first, then the process.
+      await db.experiment.deleteMany({
+        where: { organizationId: f.organization.id },
+      });
       await db.process.deleteMany({
         where: { organizationId: f.organization.id },
       });
