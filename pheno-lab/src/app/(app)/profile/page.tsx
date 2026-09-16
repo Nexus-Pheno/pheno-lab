@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hasStewardship } from "@/modules/stewardship/service";
 import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { ProfileForms } from "@/components/profile/ProfileForms";
@@ -12,6 +13,7 @@ import { fmtBeijing } from "@/lib/datetime";
 
 export default async function ProfilePage() {
   const session = await requireSession();
+  const deviceSteward = await hasStewardship(session, "deviceAdmin");
   const t = await getT();
   const [{ user, organization: org, aiProviders, statistics }, myFeedback] =
     await Promise.all([getProfileData(session), listMyFeedback(session)]);
@@ -183,6 +185,17 @@ export default async function ProfilePage() {
               className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-warn hover:underline"
             >
               <Icon name="FlaskConical" size={13} /> {t("test.nav")}
+            </Link>
+          </div>
+        )}
+
+        {session.role !== "ADMIN" && deviceSteward && !session.device && (
+          <div className="flex flex-wrap gap-4">
+            <Link
+              href="/kiosk"
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-deep hover:underline"
+            >
+              <Icon name="Tablet" size={13} /> {t("kiosk.manage")}
             </Link>
           </div>
         )}

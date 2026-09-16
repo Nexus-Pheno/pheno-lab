@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { listDevices } from "@/modules/accounts/device-service";
+import { hasStewardship } from "@/modules/stewardship/service";
 import { KioskManager } from "@/components/kiosk/KioskManager";
 
 // Admin console for the lab's shared tablets: register a tablet, hand its
@@ -9,7 +10,8 @@ import { KioskManager } from "@/components/kiosk/KioskManager";
 // where, and cut a lost tablet off.
 export default async function KioskPage() {
   const session = await requireSession();
-  if (session.role !== "ADMIN") notFound();
+  // Admins and the tablet stewards (deviceAdmin) run this console.
+  if (!(await hasStewardship(session, "deviceAdmin"))) notFound();
   assertPersonalDevice(session);
   const t = await getT();
   const devices = await listDevices(session);

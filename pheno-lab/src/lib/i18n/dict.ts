@@ -981,6 +981,8 @@ export const en = {
   "org.stewRecipesHint":
     "views approved recipe contents; does not grant editing",
   "org.recipeSteward": "Recipe steward",
+  "org.stewDevices": "Tablets",
+  "org.stewDevicesHint": "registers shared tablets, hands out setup links, revokes them",
   "org.recipeStewardHint": "views, edits, archives and approves recipes",
   "review.materials": "Material edit suggestions",
   "review.submit": "Submit for approval",
@@ -2303,6 +2305,8 @@ export const zh: Record<TKey, string> = {
   "org.stewRecipes": "配方",
   "org.stewRecipesHint": "查看已批准配方内容，不包含编辑权限",
   "org.recipeSteward": "配方负责人",
+  "org.stewDevices": "共享平板",
+  "org.stewDevicesHint": "注册共享平板、发放设置链接、吊销设备",
   "org.recipeStewardHint": "查看、编辑、归档和审批配方",
   "review.materials": "材料修改建议",
   "review.submit": "提交审批",
