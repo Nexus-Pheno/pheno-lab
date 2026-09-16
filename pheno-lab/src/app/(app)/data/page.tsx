@@ -5,12 +5,21 @@ import { AiAnalysis } from "@/components/data/AiAnalysis";
 import { DataTable } from "@/components/data/DataTable";
 import { DatabaseSummaryBar } from "@/components/dashboard/DatabaseSummary";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
-import { getDatabaseSummary } from "@/modules/insights/query";
+import {
+  getDatabaseSummary,
+  searchExperiments,
+} from "@/modules/insights/query";
 
 // The data table flattens every experiment into one row per sample, with all
 // parameters resolved for that sample's variation group — tagged, cleaned,
 // AI-ready. It is paged: the lab holds tens of thousands of samples, and
 // rendering them all at once froze the browser.
+//
+// One search box (Michael, 2026-09-16): the query goes through the
+// experiment search — people, materials, processes, formulas, notes, values,
+// with a question reduced to terms — and the table then shows exactly those
+// experiments in the same ranked order. Every finished experiment is here
+// automatically; with no query the newest sit on top.
 
 const PER_PAGE = 10; // experiments per page (a page carries all their samples)
 
@@ -22,13 +31,15 @@ export default async function DataPage({
   const { page: pageParam, q } = await searchParams;
   const session = await requireSession();
   const page = Math.max(1, Number(pageParam) || 1);
-  const query = (q ?? "").slice(0, 120);
+  const query = (q ?? "").slice(0, 120).trim();
 
+  const search = query ? await searchExperiments(session, query) : null;
   const [data, summary, lang] = await Promise.all([
     loadDataPage(experimentVisibilityScope(session), {
       page,
       perPage: PER_PAGE,
       q: query,
+      ids: search ? search.hits.map((h) => h.id) : undefined,
     }),
     getDatabaseSummary(session),
     getLang(),
@@ -50,6 +61,8 @@ export default async function DataPage({
           page={data.page}
           perPage={PER_PAGE}
           query={query}
+          hits={search?.hits ?? null}
+          interpreted={search?.interpreted ?? ""}
           canExportDirectly={session.role === "ADMIN"}
         />
       </div>

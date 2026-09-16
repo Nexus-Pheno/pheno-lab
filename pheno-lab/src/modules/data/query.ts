@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/infrastructure/db/client";
+import { experimentTermWhere } from "@/modules/experiments/search-where";
 import type { Prisma } from "@prisma/client";
 import type { TestPlan } from "@/lib/library";
 
@@ -89,52 +90,19 @@ export type DataPage = {
 };
 
 /**
- * Search matches anything a person would name: the experiment's code, title,
- * campaign and notes; who created, is assigned to, or is a member of it; the
- * processes, materials, step text and parameter values inside it; sample
- * codes; and the operator on its instrument scans. "Joey" finding nothing
- * because only four fields were searched is the 2026-09-16 feedback §一.
+ * Free-text filter for callers that only have a term (the CSV export
+ * without a ranked search). Every term typed must match somewhere.
  */
 function whereFor(
   base: Prisma.ExperimentWhereInput,
   q: string,
 ): Prisma.ExperimentWhereInput {
-  const term = q.trim();
-  if (!term) return base;
-  const c = { contains: term, mode: "insensitive" as const };
-  return {
-    AND: [
-      base,
-      {
-        OR: [
-          { code: c },
-          { title: c },
-          { campaign: c },
-          { hypothesis: c },
-          { problem: c },
-          { conclusion: c },
-          { observation: c },
-          { createdBy: { name: c } },
-          { assignee: { name: c } },
-          { members: { some: { user: { name: c } } } },
-          { samples: { some: { code: c } } },
-          { jvMeasurements: { some: { operator: c } } },
-          {
-            steps: {
-              some: {
-                OR: [
-                  { name: c },
-                  { process: { name: c } },
-                  { materials: { some: { material: { name: c } } } },
-                  { parameters: { some: { OR: [{ name: c }, { value: c }] } } },
-                ],
-              },
-            },
-          },
-        ],
-      },
-    ],
-  };
+  const terms = q
+    .split(/[\s,;、，]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (terms.length === 0) return base;
+  return { AND: [base, ...terms.map(experimentTermWhere)] };
 }
 
 function buildRows(experiments: FullExperiment[]): DataPage {
@@ -279,13 +247,33 @@ export async function loadDataPage(
     page = 1,
     perPage = 25,
     q = "",
-  }: { page?: number; perPage?: number; q?: string },
+    ids,
+  }: {
+    page?: number;
+    perPage?: number;
+    q?: string;
+    /** Ranked experiment ids from the search; the page follows their order. */
+    ids?: string[];
+  },
 ): Promise<DataPage> {
+  if (ids) {
+    const slice = ids.slice((page - 1) * perPage, page * perPage);
+    const rows = await db.experiment.findMany({
+      where: { AND: [base, { id: { in: slice } }] },
+      include: experimentInclude,
+    });
+    const order = new Map(slice.map((id, index) => [id, index]));
+    rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    const built = buildRows(rows);
+    return { ...built, total: ids.length, page, pageSize: perPage };
+  }
   const where = whereFor(base, q);
   const total = await db.experiment.count({ where });
   const experiments = await db.experiment.findMany({
     where,
-    orderBy: { code: "asc" },
+    // Newest first: what the lab finished this week sits on top, the
+    // imported history below it (Michael, 2026-09-16).
+    orderBy: [{ createdAt: "desc" }, { code: "desc" }],
     skip: (page - 1) * perPage,
     take: perPage,
     include: experimentInclude,
@@ -299,13 +287,20 @@ export async function loadDataForExport(
   base: Prisma.ExperimentWhereInput,
   q: string,
   maxExperiments = 300,
+  ids?: string[],
 ): Promise<DataPage> {
-  const where = whereFor(base, q);
+  const where = ids
+    ? { AND: [base, { id: { in: ids.slice(0, maxExperiments) } }] }
+    : whereFor(base, q);
   const experiments = await db.experiment.findMany({
     where,
-    orderBy: { code: "asc" },
+    orderBy: [{ createdAt: "desc" }, { code: "desc" }],
     take: maxExperiments,
     include: experimentInclude,
   });
+  if (ids) {
+    const order = new Map(ids.map((id, index) => [id, index]));
+    experiments.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  }
   return buildRows(experiments);
 }

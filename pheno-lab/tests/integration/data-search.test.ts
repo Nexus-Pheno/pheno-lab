@@ -69,6 +69,30 @@ describe("data table search against PostgreSQL", () => {
       const miss = await loadDataPage(base, { q: "nobody-here" });
       expect(miss.rows).toHaveLength(0);
 
+      // A second, older experiment: with no query the newest is first; with
+      // ranked ids the page follows the ranking, whatever the dates say.
+      const older = await db.experiment.create({
+        data: {
+          organizationId: organization.id,
+          code: `SRCH-OLD-${suffix.slice(0, 6)}`,
+          title: "Older batch",
+          createdById: joey.id,
+          createdAt: new Date("2025-01-01T00:00:00Z"),
+          samples: { create: [{ code: "S1" }] },
+        },
+      });
+      const newestFirst = await loadDataPage(base, {});
+      expect(newestFirst.rows[0].Experiment).toBe(`SRCH-${suffix.slice(0, 6)}`);
+      expect(newestFirst.rows[1].Experiment).toBe(older.code);
+      const newer = (
+        await db.experiment.findFirstOrThrow({
+          where: { code: `SRCH-${suffix.slice(0, 6)}` },
+        })
+      ).id;
+      const ranked = await loadDataPage(base, { ids: [older.id, newer] });
+      expect(ranked.total).toBe(2);
+      expect(ranked.rows[0].Experiment).toBe(older.code);
+
       // Headers are named after the process; the step's text has its own
       // column instead of leaking into every parameter header.
       expect(byPerson.columns).toContain("02 Blade coating · Step");
