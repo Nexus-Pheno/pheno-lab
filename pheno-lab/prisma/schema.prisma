@@ -48,6 +48,9 @@ model Organization {
   emailDomains   String[]                 @default([]) // registration allowed only for these domains
   status         String                   @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
   createdAt      DateTime                 @default(now())
+  // Running total of measurement data points — every (x, y) point of every
+  // stored curve. Incremented where scans are stored, recounted nightly.
+  dataPoints     Int                      @default(0)
   users          User[]
   experiments    Experiment[]
   processes      Process[]

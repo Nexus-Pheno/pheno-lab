@@ -24,57 +24,10 @@ export type DatabaseSummary = {
   recipes: number;
   equipment: number;
   processes: number;
-  /** Individual recorded values — see countDataPoints for what counts. */
+  /** Every (x, y) point of every stored measurement curve (running total). */
   dataPoints: number;
   testExperiments: number;
 };
-
-function jsonKeys(v: unknown): number {
-  if (!v || typeof v !== "object") return 0;
-  if (Array.isArray(v)) return v.length;
-  return Object.keys(v as Record<string, unknown>).length;
-}
-
-/**
- * How many individual data points the database holds.
- *
- * A data point is one recorded value — the row × column intersection the lab
- * thinks in. Counted:
- *   - every planned step parameter          (one name/value pair)
- *   - every metric on a characterisation    (PCE, Voc, FF … each counts)
- *   - every actual captured against a step  (plus its environment readings)
- *   - every property on a material          (CAS, HOMO, supplier …)
- * Samples, experiments and files are counted separately, as their own totals.
- */
-async function countDataPoints(
-  orgId: string,
-  experimentWhere: Prisma.ExperimentWhereInput,
-): Promise<number> {
-  const [params, results, execs, materials] = await Promise.all([
-    db.stepParameter.count({
-      where: { step: { experiment: experimentWhere } },
-    }),
-    db.characterizationResult.findMany({
-      where: { characterization: { experiment: experimentWhere } },
-      select: { metrics: true },
-    }),
-    db.stepExecution.findMany({
-      where: { step: { experiment: experimentWhere } },
-      select: { actuals: true, environmentConditions: true },
-    }),
-    db.material.findMany({
-      where: { organizationId: orgId, archived: false },
-      select: { properties: true },
-    }),
-  ]);
-
-  let n = params;
-  for (const r of results) n += jsonKeys(r.metrics);
-  for (const e of execs)
-    n += jsonKeys(e.actuals) + jsonKeys(e.environmentConditions);
-  for (const m of materials) n += jsonKeys(m.properties);
-  return n;
-}
 
 export async function getDatabaseSummary(
   actor: Actor,
@@ -126,7 +79,11 @@ export async function getDatabaseSummary(
     db.equipment.count({ where: { organizationId: org, archived: false } }),
     db.process.count({ where: { organizationId: org, archived: false } }),
     db.experiment.count({ where: visibleTestWhere }),
-    countDataPoints(org, where),
+    // The running total kept on the organization: every (x, y) point of
+    // every stored curve. Bumped where scans are stored, recounted nightly.
+    db.organization
+      .findUniqueOrThrow({ where: { id: org }, select: { dataPoints: true } })
+      .then((row) => row.dataPoints),
   ]);
 
   return {

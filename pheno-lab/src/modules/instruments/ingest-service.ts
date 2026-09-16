@@ -250,6 +250,14 @@ export async function ingestInstrumentUpload(
         },
       });
     }
+    // The data-point total is a running count kept alongside the scans it
+    // counts, so the summary never has to walk every curve.
+    const points = accepted.reduce((n, a) => n + a.scan.curve.length, 0);
+    if (points > 0)
+      await transaction.organization.update({
+        where: { id: instrument.organizationId },
+        data: { dataPoints: { increment: points } },
+      });
     await recordInstrumentAudit(transaction, {
       organizationId: instrument.organizationId,
       instrumentId: instrument.id,
