@@ -461,7 +461,10 @@ export const en = {
   "data.subtitle":
     "One row per sample — parameters resolved per variation group, tagged and export-ready.",
   "data.filter": "Filter rows…",
-  "data.search": "Search experiments, samples…",
+  "data.search":
+    "Search a person, material, process, sample, formula… or ask a question",
+  "data.showMatches": "Show matches",
+  "data.hideMatches": "Hide matches",
   "data.searchGo": "Search",
   "data.pageOf": "Page {page} of {pages}",
   "data.expMatching": "{n} experiments",
@@ -1837,7 +1840,9 @@ export const zh: Record<TKey, string> = {
   "data.title": "数据表",
   "data.subtitle": "每个样品一行——参数已按变量组解析，带标签、可直接导出。",
   "data.filter": "筛选行…",
-  "data.search": "搜索实验、样品…",
+  "data.search": "搜索人员、材料、工艺、样品、配方……或直接提问",
+  "data.showMatches": "展开匹配的实验",
+  "data.hideMatches": "收起",
   "data.searchGo": "搜索",
   "data.pageOf": "第 {page} / {pages} 页",
   "data.expMatching": "{n} 个实验",

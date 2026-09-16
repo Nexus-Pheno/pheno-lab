@@ -3,6 +3,7 @@ import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
 import { loadDataForExport } from "@/modules/data/query";
+import { searchExperiments } from "@/modules/insights/query";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
@@ -194,7 +195,17 @@ export async function pendingExportCount(actor: Actor): Promise<number> {
 
 export async function buildDataCsv(actor: Actor, rawQuery: unknown) {
   const query = exportSearchSchema.parse(rawQuery);
-  const data = await loadDataForExport(experimentVisibilityScope(actor), query);
+  // The file covers exactly what the page showed: the ranked search when
+  // there was a query, everything newest-first otherwise.
+  const ids = query
+    ? (await searchExperiments(actor, query)).hits.map((h) => h.id)
+    : undefined;
+  const data = await loadDataForExport(
+    experimentVisibilityScope(actor),
+    query,
+    300,
+    ids,
+  );
   const escape = (value: string) => `"${(value ?? "").replaceAll('"', '""')}"`;
   const csv = [
     data.columns.map(escape).join(","),

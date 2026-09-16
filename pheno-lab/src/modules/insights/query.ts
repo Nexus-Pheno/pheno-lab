@@ -5,6 +5,7 @@ import { db } from "@/infrastructure/db/client";
 import { nameKey } from "@/lib/name-match";
 import { chat, jsonFrom } from "@/modules/ai/client";
 import { latinPhrases, mergeTerms, terms } from "./terms";
+import { experimentTermWhere } from "@/modules/experiments/search-where";
 import type { Actor } from "@/modules/authorization/actor";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 
@@ -311,23 +312,9 @@ export async function searchExperiments(
     }),
   ]);
 
-  const textOr = ts.flatMap((t) => [
-    { title: { contains: t, mode: "insensitive" as const } },
-    { code: { contains: t, mode: "insensitive" as const } },
-    { campaign: { contains: t, mode: "insensitive" as const } },
-    { hypothesis: { contains: t, mode: "insensitive" as const } },
-    { problem: { contains: t, mode: "insensitive" as const } },
-    { conclusion: { contains: t, mode: "insensitive" as const } },
-    { observation: { contains: t, mode: "insensitive" as const } },
-    { createdBy: { name: { contains: t, mode: "insensitive" as const } } },
-    {
-      samples: {
-        some: { code: { contains: t, mode: "insensitive" as const } },
-      },
-    },
-  ]);
-
-  const or: Record<string, unknown>[] = [...textOr];
+  // The same clause the data table filters on, so both agree on what
+  // "matches" — creator, assignee, members, notes, steps, materials, values.
+  const or: Record<string, unknown>[] = ts.map((t) => experimentTermWhere(t));
   if (materials.length)
     or.push({
       steps: {
@@ -355,8 +342,10 @@ export async function searchExperiments(
 
   const rows = await db.experiment.findMany({
     where: { AND: [where, { OR: or }] },
-    orderBy: { updatedAt: "desc" },
-    take: 60,
+    // Newest first before ranking, so ties (same reasons) keep recent work
+    // on top and the data table pages follow the same order.
+    orderBy: [{ createdAt: "desc" }, { code: "desc" }],
+    take: 400,
     select: {
       id: true,
       code: true,
@@ -367,6 +356,8 @@ export async function searchExperiments(
       hypothesis: true,
       conclusion: true,
       createdBy: { select: { name: true } },
+      assignee: { select: { name: true } },
+      members: { select: { user: { select: { name: true } } } },
       _count: { select: { samples: true } },
       steps: {
         select: {
@@ -412,6 +403,15 @@ export async function searchExperiments(
         reasons.push(`formula: ${s.recipe.name}`);
       }
     }
+    const people = [
+      r.createdBy?.name ?? "",
+      r.assignee?.name ?? "",
+      ...r.members.map((m) => m.user.name),
+    ];
+    for (const t of ts) {
+      const who = people.find((n) => n.toLowerCase().includes(t.toLowerCase()));
+      if (who) reasons.push(`person: ${who}`);
+    }
     const hay =
       `${r.title} ${r.code} ${r.campaign} ${r.hypothesis} ${r.conclusion}`.toLowerCase();
     for (const t of ts)
@@ -430,7 +430,7 @@ export async function searchExperiments(
 
   // Most explained matches first — an experiment matching a material AND a
   // process is a better answer than one matching a word in its title.
-  hits.sort((a, b) => b.reasons.length - a.reasons.length);
+  hits.sort((a, b) => b.reasons.length - a.reasons.length); // stable: keeps newest-first within a tier
 
   const named = [
     ...materials.map((m) => `material ${m.name}`),
