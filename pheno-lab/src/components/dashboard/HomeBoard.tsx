@@ -40,6 +40,17 @@ export type ExpRow = {
   updatedAt: string;
 };
 
+type ListSortKey =
+  | "code"
+  | "title"
+  | "status"
+  | "project"
+  | "createdBy"
+  | "samples"
+  | "steps"
+  | "labels"
+  | "updatedAt";
+
 /** Sentinel for the "filed under nothing yet" bucket in the project filter. */
 const NO_PROJECT = "\u0000none";
 
@@ -82,6 +93,13 @@ export function HomeBoard({
   });
   const [query, setQuery] = useState("");
   const [project, setProject] = useState("");
+  // List view: click a header to sort (again to flip); the row under the
+  // headers filters column by column. Both are client-side over the board.
+  const [sortKey, setSortKey] = useState<ListSortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [colFilter, setColFilter] = useState<
+    Partial<Record<ListSortKey, string>>
+  >({});
   const [moveBlocked, setMoveBlocked] = useState<{
     id: string;
     blocker: "title" | "project";
@@ -129,6 +147,80 @@ export function HomeBoard({
       ].some((v) => v.toLowerCase().includes(q)),
     );
   }, [experiments, query, project]);
+
+  const creatorOptions = useMemo(
+    () => [...new Set(experiments.map((e) => e.createdBy))].sort(),
+    [experiments],
+  );
+
+  const toggleSort = (key: ListSortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir(
+        key === "samples" || key === "steps" || key === "updatedAt"
+          ? "desc"
+          : "asc",
+      );
+    }
+  };
+
+  const listRows = useMemo(() => {
+    const has = (v: string | undefined) => v !== undefined && v !== "";
+    let rows = filtered.filter((e) =>
+      (Object.entries(colFilter) as [ListSortKey, string][]).every(
+        ([key, value]) => {
+          if (!has(value)) return true;
+          const v = value.toLowerCase();
+          switch (key) {
+            case "status":
+              return e.status === value;
+            case "project":
+              return value === NO_PROJECT ? !e.project : e.project === value;
+            case "createdBy":
+              return e.createdBy === value;
+            case "labels":
+              return e.labels.some((l) => l.toLowerCase().includes(v));
+            case "samples":
+            case "steps":
+              return String(e[key]).includes(value);
+            default:
+              return String(e[key] ?? "")
+                .toLowerCase()
+                .includes(v);
+          }
+        },
+      ),
+    );
+    if (sortKey) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      const rank = (e: ExpRow): string | number => {
+        switch (sortKey) {
+          case "status":
+            return STATUSES.indexOf(e.status as ExperimentStatus);
+          case "samples":
+          case "steps":
+            return e[sortKey];
+          case "labels":
+            return e.labels.join(", ").toLowerCase();
+          case "project":
+            return (e.project ?? "").toLowerCase();
+          default:
+            return String(e[sortKey] ?? "").toLowerCase();
+        }
+      };
+      rows = [...rows].sort((a, b) => {
+        const x = rank(a);
+        const y = rank(b);
+        if (x === y) return 0;
+        return (x < y ? -1 : 1) * dir;
+      });
+    }
+    return rows;
+  }, [filtered, colFilter, sortKey, sortDir]);
+
+  const filtering =
+    sortKey !== null || Object.values(colFilter).some((v) => v && v !== "");
 
   const projectOptions = useMemo(
     () =>
@@ -358,8 +450,8 @@ export function HomeBoard({
       className="bg-surface border border-line rounded-[6px] p-3 hover:border-charcoal/40"
     >
       <Link href={`/experiments/${e.id}`} className="block">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="mono text-[11px] font-bold text-brand-deep">
+        <div className="flex items-center gap-2 mb-1 min-w-0">
+          <span className="mono text-[11px] font-bold text-brand-deep whitespace-nowrap shrink-0">
             {e.code}
           </span>
           {e.isTemplate && (
@@ -368,7 +460,7 @@ export function HomeBoard({
             </span>
           )}
           {!e.openable && <Icon name="Lock" size={11} className="text-muted" />}
-          <span className="ml-auto mono text-[10px] text-muted">
+          <span className="ml-auto mono text-[10px] text-muted whitespace-nowrap truncate min-w-0">
             {e.updatedAt}
           </span>
           {e.editable && (
@@ -385,11 +477,11 @@ export function HomeBoard({
         <div className="text-[12.5px] font-medium leading-snug mb-2">
           {e.title}
         </div>
-        <div className="flex items-center gap-3 text-[10.5px] text-muted mono">
-          <span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-muted mono">
+          <span className="whitespace-nowrap">
             {e.samples} {t("designer.samples")}
           </span>
-          <span>
+          <span className="whitespace-nowrap">
             {e.steps} {t("list.steps").toLowerCase()}
           </span>
           {e.project && (
@@ -420,15 +512,17 @@ export function HomeBoard({
           )}
         </div>
       </Link>
-      <div className="flex items-center gap-1 mt-2">
-        {/* First names, not initials — contributors are recognizable at a glance. */}
+      <div className="flex flex-wrap items-center gap-1 mt-2">
+        {/* First names, not initials — contributors are recognizable at a
+            glance. The pill clips at its end (not centred, which cut "Loris"
+            to "ori") and is wide enough for a Chinese given name. */}
         {[e.createdBy, ...e.members.filter((m) => m !== e.createdBy)]
           .slice(0, 3)
           .map((m) => (
             <span
               key={m}
               title={m}
-              className="h-5 px-1.5 rounded-full bg-subtle border border-line text-[9px] font-bold text-charcoal flex items-center justify-center max-w-16 truncate"
+              className="h-5 px-1.5 rounded-full bg-subtle border border-line text-[10px] font-bold text-charcoal inline-block leading-5 max-w-24 truncate"
             >
               {firstName(m)}
             </span>
@@ -441,7 +535,12 @@ export function HomeBoard({
 
   return (
     <main ref={mainRef} className="h-full overflow-y-auto bg-subtle">
-      <div className="max-w-6xl mx-auto p-3 sm:p-6">
+      <div
+        className={
+          (view === "kanban" ? "max-w-[1440px]" : "max-w-6xl") +
+          " mx-auto p-3 sm:p-6"
+        }
+      >
         {/* Stable two-row header: identical in both views so the toggle
             never reshuffles the top controls. */}
         {moveBlocked && (
@@ -687,7 +786,10 @@ export function HomeBoard({
         ) : view === "kanban" ? (
           <div
             ref={boardRef}
-            className="flex gap-3 overflow-x-auto no-scrollbar items-start pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 lg:grid lg:grid-cols-5 lg:gap-2.5 lg:overflow-visible lg:pb-0"
+            // Five columns that never drop below a readable width: when the
+            // window is narrower than that, the board scrolls sideways rather
+            // than squeezing codes and names into three lines (Michael, 09-16).
+            className="flex gap-3 overflow-x-auto no-scrollbar items-start pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 lg:grid lg:grid-cols-[repeat(5,minmax(236px,1fr))] lg:gap-2.5 lg:overflow-x-auto lg:pb-1"
           >
             {STATUSES.map((status) => {
               const items = filtered.filter((e) => e.status === status);
@@ -709,7 +811,7 @@ export function HomeBoard({
                     moveTo(status);
                   }}
                   className={
-                    "rounded-[6px] border p-2.5 min-h-40 w-64 shrink-0 lg:w-auto lg:shrink " +
+                    "rounded-[6px] border p-2.5 min-h-40 w-72 shrink-0 lg:w-auto lg:min-w-0 " +
                     (dropCol === status
                       ? "border-brand border-dashed bg-brand-soft/40"
                       : "border-line bg-surface/50")
@@ -746,46 +848,138 @@ export function HomeBoard({
             // Finished rows are capped like the kanban columns — the history
             // is one click away instead of pushing the table off-screen.
             const seen: Record<string, number> = {};
-            const rows = filtered.filter((e) => {
-              const cap = doneShown[e.status];
-              if (!cap) return true;
-              seen[e.status] = (seen[e.status] ?? 0) + 1;
-              return seen[e.status] <= cap;
-            });
-            const hidden = filtered.length - rows.length;
+            const rows = filtering
+              ? listRows
+              : listRows.filter((e) => {
+                  const cap = doneShown[e.status];
+                  if (!cap) return true;
+                  seen[e.status] = (seen[e.status] ?? 0) + 1;
+                  return seen[e.status] <= cap;
+                });
+            const hidden = listRows.length - rows.length;
+            const th = (key: ListSortKey, label: string, right = false) => (
+              <th
+                className={
+                  "px-3 py-1.5 font-bold" + (right ? " text-right" : "")
+                }
+              >
+                <button
+                  onClick={() => toggleSort(key)}
+                  className={
+                    "inline-flex items-center gap-1 uppercase hover:text-ink " +
+                    (sortKey === key ? "text-ink" : "")
+                  }
+                  title={t("list.sortHint")}
+                >
+                  {label}
+                  <Icon
+                    name={
+                      sortKey !== key
+                        ? "ChevronsUpDown"
+                        : sortDir === "asc"
+                          ? "ChevronUp"
+                          : "ChevronDown"
+                    }
+                    size={11}
+                    className={
+                      sortKey === key ? "text-brand-deep" : "text-muted/50"
+                    }
+                  />
+                </button>
+              </th>
+            );
+            const filterInput = (key: ListSortKey) => (
+              <input
+                className="w-full h-6 border border-line rounded-[3px] px-1.5 text-[11px] bg-surface font-normal normal-case"
+                placeholder={t("list.filterHint")}
+                value={colFilter[key] ?? ""}
+                onChange={(ev) =>
+                  setColFilter((f) => ({ ...f, [key]: ev.target.value }))
+                }
+              />
+            );
+            const filterSelect = (
+              key: ListSortKey,
+              options: { value: string; label: string }[],
+            ) => (
+              <select
+                className="w-full h-6 border border-line rounded-[3px] px-1 text-[11px] bg-surface font-normal normal-case"
+                value={colFilter[key] ?? ""}
+                onChange={(ev) =>
+                  setColFilter((f) => ({ ...f, [key]: ev.target.value }))
+                }
+              >
+                <option value="">{t("list.all")}</option>
+                {options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            );
             return (
               <div className="bg-surface border border-line rounded-[6px] overflow-x-auto">
                 <table className="w-full min-w-[760px] text-[12.5px]">
                   <thead>
                     <tr className="text-left text-[10.5px] uppercase text-muted border-b border-line">
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("list.code")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("list.titleCol")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("list.status")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("dash.project")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("list.createdBy")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold text-right">
-                        {t("list.samples")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold text-right">
-                        {t("list.steps")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("list.labels")}
-                      </th>
-                      <th className="px-3 py-1.5 font-bold">
-                        {t("list.updated")}
-                      </th>
+                      {th("code", t("list.code"))}
+                      {th("title", t("list.titleCol"))}
+                      {th("status", t("list.status"))}
+                      {th("project", t("dash.project"))}
+                      {th("createdBy", t("list.createdBy"))}
+                      {th("samples", t("list.samples"), true)}
+                      {th("steps", t("list.steps"), true)}
+                      {th("labels", t("list.labels"))}
+                      {th("updatedAt", t("list.updated"))}
                       <th className="px-3 py-1.5" />
+                    </tr>
+                    <tr className="border-b border-line bg-subtle/60">
+                      <td className="px-3 py-1">{filterInput("code")}</td>
+                      <td className="px-3 py-1">{filterInput("title")}</td>
+                      <td className="px-3 py-1">
+                        {filterSelect(
+                          "status",
+                          STATUSES.map((st) => ({
+                            value: st,
+                            label: t(`status.${st}` as "status.DRAFT"),
+                          })),
+                        )}
+                      </td>
+                      <td className="px-3 py-1">
+                        {filterSelect("project", [
+                          ...projectOptions.map((name) => ({
+                            value: name,
+                            label: name,
+                          })),
+                          { value: NO_PROJECT, label: t("dash.noProject") },
+                        ])}
+                      </td>
+                      <td className="px-3 py-1">
+                        {filterSelect(
+                          "createdBy",
+                          creatorOptions.map((name) => ({
+                            value: name,
+                            label: name,
+                          })),
+                        )}
+                      </td>
+                      <td className="px-3 py-1">{filterInput("samples")}</td>
+                      <td className="px-3 py-1">{filterInput("steps")}</td>
+                      <td className="px-3 py-1">{filterInput("labels")}</td>
+                      <td className="px-3 py-1">{filterInput("updatedAt")}</td>
+                      <td className="px-3 py-1 text-right">
+                        {filtering && (
+                          <button
+                            onClick={() => {
+                              setColFilter({});
+                              setSortKey(null);
+                            }}
+                            className="text-[10.5px] font-semibold text-muted hover:text-ink normal-case whitespace-nowrap"
+                          >
+                            {t("list.clearFilters")}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   </thead>
                   <tbody>
