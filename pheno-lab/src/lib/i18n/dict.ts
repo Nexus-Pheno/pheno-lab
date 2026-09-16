@@ -283,6 +283,7 @@ export const en = {
   "an.runFailed": "could not complete",
   "an.basedOn": "{experiments} experiments · {samples} samples",
   "an.experimentsRead": "Experiments read",
+  "an.terms": "Searched for",
   "an.recipeSource": "from recipes",
   "an.title": "Cross-experiment analysis",
   "an.subtitle":
@@ -1666,6 +1667,7 @@ export const zh: Record<TKey, string> = {
   "an.runFailed": "未能完成",
   "an.basedOn": "{experiments} 个实验 · {samples} 个样品",
   "an.experimentsRead": "读取的实验",
+  "an.terms": "检索词",
   "an.recipeSource": "来自配方差异",
   "an.title": "跨实验分析",
   "an.subtitle":

@@ -88,24 +88,47 @@ export type DataPage = {
   pageSize: number;
 };
 
-/** Search matches an experiment's code/title/campaign or a sample's code. */
+/**
+ * Search matches anything a person would name: the experiment's code, title,
+ * campaign and notes; who created, is assigned to, or is a member of it; the
+ * processes, materials, step text and parameter values inside it; sample
+ * codes; and the operator on its instrument scans. "Joey" finding nothing
+ * because only four fields were searched is the 2026-09-16 feedback §一.
+ */
 function whereFor(
   base: Prisma.ExperimentWhereInput,
   q: string,
 ): Prisma.ExperimentWhereInput {
   const term = q.trim();
   if (!term) return base;
+  const c = { contains: term, mode: "insensitive" as const };
   return {
     AND: [
       base,
       {
         OR: [
-          { code: { contains: term, mode: "insensitive" } },
-          { title: { contains: term, mode: "insensitive" } },
-          { campaign: { contains: term, mode: "insensitive" } },
+          { code: c },
+          { title: c },
+          { campaign: c },
+          { hypothesis: c },
+          { problem: c },
+          { conclusion: c },
+          { observation: c },
+          { createdBy: { name: c } },
+          { assignee: { name: c } },
+          { members: { some: { user: { name: c } } } },
+          { samples: { some: { code: c } } },
+          { jvMeasurements: { some: { operator: c } } },
           {
-            samples: {
-              some: { code: { contains: term, mode: "insensitive" } },
+            steps: {
+              some: {
+                OR: [
+                  { name: c },
+                  { process: { name: c } },
+                  { materials: { some: { material: { name: c } } } },
+                  { parameters: { some: { OR: [{ name: c }, { value: c }] } } },
+                ],
+              },
             },
           },
         ],
@@ -163,8 +186,13 @@ function buildRows(experiments: FullExperiment[]): DataPage {
       };
 
       for (const step of exp.steps) {
-        const prefix = `${String(step.position + 1).padStart(2, "0")} ${step.name}`;
-        row[col(`${prefix} · Process`)] = step.process.name;
+        // The column family is named after the PROCESS, not the step's free
+        // text: imported steps carry the whole condition string as their name
+        // ("SAM deposition — CELL4 0.8浓度，纯甲醇体系，20倍旋涂1500RPM-30S"), which
+        // made every header unreadable (实验系统反馈 2026-09-16 §二). The text
+        // is still here, in its own column.
+        const prefix = `${String(step.position + 1).padStart(2, "0")} ${step.process.name}`;
+        row[col(`${prefix} · Step`)] = step.name;
         if (step.equipment)
           row[col(`${prefix} · Equipment`)] = step.equipment.name;
         if (step.materials.length > 0) {

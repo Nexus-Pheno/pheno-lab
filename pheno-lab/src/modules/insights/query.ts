@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
 import { nameKey } from "@/lib/name-match";
 import { chat, jsonFrom } from "@/modules/ai/client";
+import { latinPhrases, mergeTerms, terms } from "./terms";
 import type { Actor } from "@/modules/authorization/actor";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 
@@ -166,71 +167,6 @@ export type SearchResponse = {
 };
 
 /** Split a question into searchable terms, dropping filler words. */
-const STOP = new Set([
-  "the",
-  "a",
-  "an",
-  "of",
-  "in",
-  "on",
-  "for",
-  "with",
-  "and",
-  "or",
-  "to",
-  "is",
-  "are",
-  "what",
-  "which",
-  "show",
-  "me",
-  "all",
-  "any",
-  "find",
-  "experiments",
-  "experiment",
-  "that",
-  "used",
-  "use",
-  "using",
-  "was",
-  "were",
-  "did",
-  "do",
-  "have",
-  "has",
-  "how",
-  "best",
-  "highest",
-  "most",
-  "was",
-  "从",
-  "的",
-  "了",
-  "和",
-  "与",
-  "哪些",
-  "实验",
-]);
-
-function terms(q: string): string[] {
-  return [
-    ...new Set(
-      q
-        .split(/[\s,;、，。?？!！"'()]+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 1 && !STOP.has(s.toLowerCase())),
-    ),
-  ].slice(0, 8);
-}
-
-/**
- * Find experiments related to a query.
- *
- * Deliberately searches the things a scientist would name — a material, a
- * process, a formula, an operator, a sample code — not just the title text,
- * and reports which of those matched so a result is never unexplained.
- */
 /**
  * Reduce a question in plain language ("which experiments used Cell-17 on
  * FTO?") to the names worth searching for. The model only ever picks search
@@ -242,7 +178,11 @@ export async function questionTerms(
   org: string,
   q: string,
 ): Promise<{ terms: string[]; interpreted: boolean }> {
-  let ts = terms(q);
+  // Names written in Latin letters (customers, products, materials) are
+  // kept whatever the model decides — "First solar" glued into a Chinese
+  // sentence was lost entirely before (实验系统反馈 2026-09-16 §四).
+  const must = latinPhrases(q);
+  let ts = mergeTerms(terms(q), must);
   let interpreted = false;
   // Chinese questions rarely contain whitespace; a long enough string is a
   // sentence whichever script it is written in.
@@ -250,7 +190,7 @@ export async function questionTerms(
     (/\s/.test(q.trim()) && q.trim().split(/\s+/).length >= 4) ||
     q.trim().length >= 12;
   if (wordy) {
-    const [mats, procs, recs] = await Promise.all([
+    const [mats, procs, recs, params] = await Promise.all([
       db.material.findMany({
         where: { organizationId: org, archived: false },
         select: { name: true },
@@ -264,7 +204,30 @@ export async function questionTerms(
         where: { organizationId: org, archived: false },
         select: { name: true },
       }),
+      // The parameter vocabulary, so "50 尺寸基底" can become the term the
+      // data actually carries ("50" under 基底尺寸) instead of nothing.
+      db.stepParameter.groupBy({
+        by: ["name", "value"],
+        where: {
+          step: { experiment: { organizationId: org } },
+          value: { not: "" },
+        },
+        _count: { _all: true },
+        orderBy: { _count: { value: "desc" } },
+        take: 600,
+      }),
     ]);
+    const vocab = new Map<string, string[]>();
+    for (const row of params) {
+      if (row.value.length > 24) continue;
+      const list = vocab.get(row.name) ?? [];
+      if (list.length < 8) list.push(row.value);
+      vocab.set(row.name, list);
+    }
+    const paramLines = [...vocab.entries()]
+      .slice(0, 40)
+      .map(([name, values]) => `${name}: ${values.join(" | ")}`)
+      .join("\n");
     const reply = await chat(
       org,
       [
@@ -272,8 +235,10 @@ export async function questionTerms(
           role: "system",
           content:
             "You turn a lab question into search terms. Reply ONLY with JSON: " +
-            '{"terms":["..."]}. Pick terms from the provided lists where they match, ' +
-            "otherwise use the user's own words. Maximum 6 terms. Never invent material names.",
+            '{"terms":["..."]}. Pick terms from the provided lists where they match — ' +
+            "material, process and formula names, and for parameters the VALUE as written " +
+            '(a question about "50尺寸基底" becomes the 基底尺寸 value "50"). ' +
+            "Otherwise use the user's own words. Maximum 6 terms. Never invent names.",
         },
         {
           role: "user",
@@ -283,7 +248,8 @@ export async function questionTerms(
               .slice(0, 400)
               .join(", ")}` +
             `\n\nProcesses: ${procs.map((p) => p.name).join(", ")}` +
-            `\n\nFormulas: ${recs.map((r) => r.name).join(", ")}`,
+            `\n\nFormulas: ${recs.map((r) => r.name).join(", ")}` +
+            `\n\nParameters (name: values):\n${paramLines}`,
         },
       ],
       { maxTokens: 200 },
@@ -297,7 +263,7 @@ export async function questionTerms(
       .filter((x) => x.length > 1)
       .slice(0, 6);
     if (clean.length) {
-      ts = clean;
+      ts = mergeTerms(clean, must);
       interpreted = true;
     }
   }
