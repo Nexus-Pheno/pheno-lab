@@ -9,20 +9,17 @@ const fmt = (n: number) => n.toLocaleString();
 export function DatabaseSummaryBar({ summary }: { summary: DatabaseSummary }) {
   const t = useT();
 
+  // Two numbers, by decision (Michael, 2026-09-16): data points — every
+  // (x, y) point of every measurement curve — and experiments, where every
+  // sample counts as one. The other totals were noise next to these.
   const tiles: [string, number, string?][] = [
     [t("sum.dataPoints"), summary.dataPoints, t("sum.dataPointsHint")],
-    [t("sum.experiments"), summary.experiments],
-    [t("sum.samples"), summary.samples],
-    [t("sum.results"), summary.results],
-    [t("sum.runs"), summary.runs],
-    [t("sum.materials"), summary.materials],
-    [t("sum.recipes"), summary.recipes],
-    [t("sum.files"), summary.attachments],
+    [t("sum.experiments"), summary.samples, t("sum.experimentsHint")],
   ];
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5 max-w-xl">
         {tiles.map(([label, n, hint], i) => (
           <div
             key={label}

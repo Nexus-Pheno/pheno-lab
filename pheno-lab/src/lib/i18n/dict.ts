@@ -797,8 +797,9 @@ export const en = {
   "test.nav": "Test data",
   "sum.dataPoints": "Data points",
   "sum.dataPointsHint":
-    "Every individual recorded value: step parameters, characterisation metrics, captured actuals and material properties.",
+    "实验室存储的每条测量曲线上的每一个 (x, y) 数据点——累计总数。",
   "sum.experiments": "Experiments",
+  "sum.experimentsHint": "Every sample counts as one experiment.",
   "sum.samples": "Samples",
   "sum.results": "Measurements",
   "sum.runs": "Runs",
@@ -2155,9 +2156,9 @@ export const zh: Record<TKey, string> = {
   "test.promoteHint": "将该实验移入正式数据库",
   "test.nav": "测试数据",
   "sum.dataPoints": "数据点",
-  "sum.dataPointsHint":
-    "每一个已记录的数值：工艺参数、表征指标、采集实测值与材料属性。",
+  "sum.dataPointsHint": "实验室存储的每条测量曲线上的每一个 (x, y) 数据点——累计总数。",
   "sum.experiments": "实验",
+  "sum.experimentsHint": "每个样品计为一个实验。",
   "sum.samples": "样品",
   "sum.results": "测量记录",
   "sum.runs": "运行",
