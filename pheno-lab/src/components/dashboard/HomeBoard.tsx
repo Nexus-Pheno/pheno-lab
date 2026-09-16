@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ExperimentStatus } from "@prisma/client";
 import {
+  renewIdleDraft,
   sendExperimentToLab,
   updateExperimentMeta,
   createExperiment,
@@ -30,6 +31,8 @@ export type ExpRow = {
   members: string[];
   labels: string[];
   project: string | null;
+  idleWarned: boolean;
+  idleArchived: boolean;
   campaign: string;
   samples: number;
   steps: number;
@@ -176,6 +179,20 @@ export function HomeBoard({
     scrollEls: () => [boardRef.current, mainRef.current],
   });
 
+  const renew = async (id: string) => {
+    setBusy(true);
+    try {
+      await renewIdleDraft(id);
+      setExperiments((es) =>
+        es.map((e) =>
+          e.id === id ? { ...e, status: "DRAFT", idleArchived: false } : e,
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const duplicate = async (id: string) => {
     setConfirmingCopy(null);
     setBusy(true);
@@ -243,6 +260,17 @@ export function HomeBoard({
         >
           <Icon name="ClipboardPen" size={14} />
         </Link>
+      )}
+      {e.idleArchived && e.editable && (
+        <button
+          onClick={() => renew(e.id)}
+          disabled={busy}
+          title={t("idle.renew")}
+          className="h-6 px-2 rounded-[3px] bg-brand text-[#243000] text-[10.5px] font-bold flex items-center gap-1 disabled:opacity-50"
+        >
+          <Icon name="RotateCcw" size={11} />
+          {t("idle.renew")}
+        </button>
       )}
       {e.editable &&
         (confirmingCopy === e.id ? (
@@ -367,6 +395,22 @@ export function HomeBoard({
           {e.project && (
             <span className="text-[9.5px] font-sans font-semibold px-1.5 py-0.5 rounded-[3px] bg-brand-soft border border-brand/40 text-brand-deep truncate max-w-28">
               {e.project}
+            </span>
+          )}
+          {e.idleWarned && (
+            <span
+              title={t("idle.warnHint")}
+              className="text-[9.5px] font-sans font-semibold px-1.5 py-0.5 rounded-[3px] bg-warn-soft border border-warn-line text-warn"
+            >
+              {t("idle.warnChip")}
+            </span>
+          )}
+          {e.idleArchived && (
+            <span
+              title={t("idle.archivedHint")}
+              className="text-[9.5px] font-sans font-semibold px-1.5 py-0.5 rounded-[3px] bg-subtle border border-line text-muted"
+            >
+              {t("idle.archivedChip")}
             </span>
           )}
           {e.campaign && (

@@ -28,6 +28,7 @@ import {
   saveCharacterization,
   deleteCharacterization,
   createProject,
+  renewIdleDraft,
   sendExperimentToLab,
   updateExperimentMeta,
   deleteExperiment,
@@ -299,6 +300,17 @@ export default function Designer({
     router.push("/");
   };
 
+  const handleRenew = async () => {
+    const ok = await track(renewIdleDraft(exp.id));
+    if (ok !== null)
+      setExp((e) => ({
+        ...e,
+        status: "DRAFT",
+        idleArchivedAt: null,
+        idleWarnedAt: null,
+      }));
+  };
+
   const handleCreateProject = async (name: string) => {
     const created = await track(createProject(name));
     if (created) setProjects((list) => [...list, created]);
@@ -414,6 +426,25 @@ export default function Designer({
             <Icon name="QrCode" size={13} />
             {t("labels.title")}
           </Link>
+        )}
+        {exp.idleArchivedAt && exp.status === "ARCHIVED" && (
+          <span className="flex items-center gap-2 text-[11.5px] text-muted">
+            {t("idle.archivedBanner")}
+            {canEdit && (
+              <button
+                onClick={handleRenew}
+                className="h-7 px-2.5 rounded-[4px] bg-brand text-[#243000] text-[11px] font-bold flex items-center gap-1"
+              >
+                <Icon name="RotateCcw" size={12} />
+                {t("idle.renew")}
+              </button>
+            )}
+          </span>
+        )}
+        {exp.idleWarnedAt && exp.status === "DRAFT" && (
+          <span className="text-[11px] text-warn bg-warn-soft border border-warn-line rounded-[4px] px-2 py-1">
+            {t("idle.warnBanner")}
+          </span>
         )}
         {exp.status === "COMPLETE" && (
           <Link

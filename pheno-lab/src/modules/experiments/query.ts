@@ -54,6 +54,8 @@ export async function listDashboardExperiments(actor: Actor) {
     members: row.members.map((member) => member.user.name),
     labels: row.labels.map((label) => label.label.name),
     project: row.project?.name ?? null,
+    idleWarned: row.status === "DRAFT" && row.idleWarnedAt !== null,
+    idleArchived: row.status === "ARCHIVED" && row.idleArchivedAt !== null,
     campaign: row.campaign,
     samples: row._count.samples,
     steps: row._count.steps,
