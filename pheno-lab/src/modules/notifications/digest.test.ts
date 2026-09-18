@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { championPce, digestWindow } from "./digest";
+import {
+  activityLine,
+  championPce,
+  championScan,
+  digestWindow,
+} from "./digest";
 
 describe("morning digest", () => {
   it("uses the previous calendar day in Asia/Shanghai", () => {
@@ -30,5 +35,34 @@ describe("morning digest", () => {
         { metrics: { pce: 21.56 } },
       ]),
     ).toBe(21.56);
+  });
+
+  it("names who ran the best scan — assignee first, creator otherwise", () => {
+    const exp = (code: string, creator: string, assignee: string | null) => ({
+      code,
+      createdBy: { name: creator },
+      assignee: assignee ? { name: assignee } : null,
+    });
+    expect(
+      championScan([
+        { metrics: { pce: 20 }, experiment: exp("E-1", "Lily", null) },
+        { metrics: { pce: 22.5 }, experiment: exp("E-2", "Roger", "Dennis") },
+        { metrics: { pce: 101 }, experiment: exp("E-3", "Nobody", null) },
+      ]),
+    ).toEqual({ pce: 22.5, code: "E-2", who: "Dennis" });
+    expect(
+      championScan([{ metrics: { pce: "25" }, experiment: null }]),
+    ).toBeNull();
+  });
+
+  it("lists yesterday's people busiest first", () => {
+    expect(
+      activityLine([
+        { name: "Joey", experiments: 1 },
+        { name: "Lily", experiments: 3 },
+        { name: "Dennis", experiments: 3 },
+      ]),
+    ).toBe("Dennis 3、Lily 3、Joey 1");
+    expect(activityLine([])).toBe("暂无");
   });
 });
