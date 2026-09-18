@@ -6,7 +6,8 @@ import { db } from "@/infrastructure/db/client";
 import { serverConfig } from "@/infrastructure/config/server";
 import { sendDingTalkText } from "@/infrastructure/push/dingtalk";
 import { log } from "@/infrastructure/logging/logger";
-import { championPce, digestWindow } from "./digest";
+import { activityLine, championScan, digestWindow } from "./digest";
+import { experimentsTouchedYesterday } from "./activity";
 
 export async function runMorningDigest(
   now = new Date(),
@@ -65,7 +66,16 @@ export async function runMorningDigest(
           measuredAt: { gte: start, lt: end },
           experiment: { organizationId: organization.id, isTest: false },
         },
-        select: { metrics: true },
+        select: {
+          metrics: true,
+          experiment: {
+            select: {
+              code: true,
+              createdBy: { select: { name: true } },
+              assignee: { select: { name: true } },
+            },
+          },
+        },
       }),
       db.user.count({ where: { ...where, pendingApproval: true } }),
       db.accessRequest.count({
@@ -101,8 +111,14 @@ export async function runMorningDigest(
         id: { in: completionEvents.map((event) => event.entityId) },
       },
     });
-    const champion = championPce(measurements);
-    const content = `早间摘要 ${date}（北京时间）\n昨日完成实验：${completed}\n昨日最高有效光照扫描 PCE：${champion === null ? "暂无有效数据" : `${champion.toFixed(2)}%`}\n待审批注册：${registrations}\n待处理访问申请：${access}\n待审批材料修改：${materialEdits}\n待审批配方：${recipes}\n未匹配扫描：${unmatched}\n待回复 @提及（超24小时未读）：${staleMentions}\n请登录 Pheno Lab 查看授权范围内的详情。`;
+    const champion = championScan(measurements);
+    // Names are allowed here by decision (Michael, 2026-09-18): who ran the
+    // best cell and who worked yesterday. Titles, notes and emails still
+    // never leave the platform.
+    const activity = activityLine(
+      await experimentsTouchedYesterday(organization.id, start, end),
+    );
+    const content = `早间摘要 ${date}（北京时间）\n昨日完成实验：${completed}\n昨日最高有效光照扫描 PCE：${champion === null ? "暂无有效数据" : `${champion.pce.toFixed(2)}%（${champion.who} · ${champion.code}）`}\n昨日参与实验的同事（实验数）：${activity}\n待审批注册：${registrations}\n待处理访问申请：${access}\n待审批材料修改：${materialEdits}\n待审批配方：${recipes}\n未匹配扫描：${unmatched}\n待回复 @提及（超24小时未读）：${staleMentions}\n请登录 Pheno Lab 查看授权范围内的详情。`;
     try {
       await db.auditEvent.create({
         data: {

@@ -377,18 +377,21 @@ describe("morning digest on PostgreSQL", () => {
             entityId: context.experiment.id,
             action: "experiment.approve",
             createdAt: yesterday,
+            actorUserId: context.ownerActor.uid,
           },
           {
             ...where,
             entityId: context.experiment.id,
             action: "experiment.update",
             createdAt: yesterday,
+            actorUserId: context.ownerActor.uid,
           },
           {
             ...where,
             entityId: testExperiment.id,
             action: "experiment.complete-from-capture",
             createdAt: yesterday,
+            actorUserId: context.requesterActor.uid,
           },
           {
             ...where,
@@ -506,7 +509,9 @@ describe("morning digest on PostgreSQL", () => {
       expect(text).toContain("早间摘要 2026-09-08（北京时间）");
       for (const line of [
         "昨日完成实验：1",
-        "昨日最高有效光照扫描 PCE：25.25%",
+        `昨日最高有效光照扫描 PCE：25.25%（Private test owner · ${context.experiment.code}）`,
+        // The requester only touched the test sandbox: not counted.
+        "昨日参与实验的同事（实验数）：Private test owner 1",
         "待审批注册：1",
         "待处理访问申请：1",
         "待审批材料修改：1",
@@ -515,7 +520,11 @@ describe("morning digest on PostgreSQL", () => {
         "待回复 @提及（超24小时未读）：0",
       ])
         expect(text).toContain(line);
-      expect(text).not.toMatch(/Private|PRIVATE|synthetic|example\.test/);
+      // Names are allowed in the digest (Michael, 2026-09-18); titles, notes,
+      // instrument names and emails are not.
+      expect(text).not.toMatch(
+        /Private test run|Private current day|Private recipe|Private instrument|Private pending|synthetic|example\.test/,
+      );
       expect(await runMorningDigest(morning)).toBe("skipped");
       expect(
         await db.auditEvent.count({
