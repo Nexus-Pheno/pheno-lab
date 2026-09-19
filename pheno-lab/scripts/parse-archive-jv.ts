@@ -28,6 +28,7 @@ import {
 } from "../src/lib/instruments";
 import { scanKeyOf } from "../src/lib/instruments/scan-key";
 import { normalizeSerial } from "../src/lib/instruments/normalize";
+import { curveDataPoints } from "../src/lib/instruments/points";
 import { recordSystemAudit } from "../src/modules/audit/writer";
 
 const args = process.argv.slice(2);
@@ -126,7 +127,10 @@ async function main() {
     }
     stats.byKind[parsed.instrument] =
       (stats.byKind[parsed.instrument] ?? 0) + 1;
-    const points = parsed.scans.reduce((n, s) => n + s.curve.length, 0);
+    const points = parsed.scans.reduce(
+      (n, s) => n + curveDataPoints(s.curve),
+      0,
+    );
     stats.scans += parsed.scans.length;
     stats.points += points;
     if (!apply) return;
@@ -215,7 +219,7 @@ async function main() {
           },
         });
         stored += 1;
-        storedPoints += scan.curve.length;
+        storedPoints += curveDataPoints(scan.curve);
       }
       if (storedPoints > 0)
         await tx.organization.update({

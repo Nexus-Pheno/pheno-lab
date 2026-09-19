@@ -24,8 +24,13 @@ export type DatabaseSummary = {
   recipes: number;
   equipment: number;
   processes: number;
-  /** Every (x, y) point of every stored measurement curve (running total). */
+  /** Every (x, y) combination of every stored measurement curve (running total). */
   dataPoints: number;
+  /** Devices: every sample on record, plus measured devices never filed on a sheet. */
+  devices: number;
+  /** The same two figures for the most recent 7 days. */
+  dataPoints7d: number;
+  devices7d: number;
   testExperiments: number;
 };
 
@@ -53,6 +58,7 @@ export async function getDatabaseSummary(
     processes,
     testExperiments,
     dataPoints,
+    recent,
   ] = await Promise.all([
     db.experiment.count({ where }),
     db.sample.count({ where: { experiment: where } }),
@@ -79,11 +85,12 @@ export async function getDatabaseSummary(
     db.equipment.count({ where: { organizationId: org, archived: false } }),
     db.process.count({ where: { organizationId: org, archived: false } }),
     db.experiment.count({ where: visibleTestWhere }),
-    // The running total kept on the organization: every (x, y) point of
-    // every stored curve. Bumped where scans are stored, recounted nightly.
+    // The running total kept on the organization: every (x, y) combination
+    // of every stored curve. Bumped where scans are stored, recounted nightly.
     db.organization
       .findUniqueOrThrow({ where: { id: org }, select: { dataPoints: true } })
       .then((row) => row.dataPoints),
+    recentActivity(org),
   ]);
 
   return {
@@ -99,7 +106,48 @@ export async function getDatabaseSummary(
     equipment,
     processes,
     dataPoints,
+    devices: samples + recent.unfiledDevices,
+    dataPoints7d: recent.dataPoints7d,
+    devices7d: recent.devices7d,
     testExperiments,
+  };
+}
+
+/**
+ * The last 7 days and the devices no sheet ever listed. Measured devices are
+ * experiments too: a serial the instrument saw that matches no sample is a
+ * device someone made and tested, whether or not it was written up.
+ */
+async function recentActivity(orgId: string) {
+  const since = new Date(Date.now() - 7 * 24 * 3_600_000);
+  const [points, unfiled, unfiledRecent, samplesRecent] = await Promise.all([
+    db.$queryRaw<{ points: bigint | number | null }[]>`
+      SELECT COALESCE(SUM(CASE WHEN jsonb_typeof("curve") = 'array' AND jsonb_array_length("curve") > 0
+                               THEN jsonb_array_length("curve")
+                                    * GREATEST((SELECT count(*) FROM jsonb_object_keys("curve"->0)) - 1, 0)
+                               ELSE 0 END), 0) AS points
+      FROM "JvMeasurement"
+      WHERE "organizationId" = ${orgId} AND COALESCE("measuredAt", "createdAt") >= ${since}`,
+    db.$queryRaw<{ n: bigint | number }[]>`
+      SELECT count(DISTINCT "serialKey") AS n FROM "JvMeasurement"
+      WHERE "organizationId" = ${orgId} AND "sampleId" IS NULL AND "serialKey" <> ''`,
+    db.$queryRaw<{ n: bigint | number }[]>`
+      SELECT count(*) AS n FROM (
+        SELECT "serialKey", MIN(COALESCE("measuredAt", "createdAt")) AS first_seen
+        FROM "JvMeasurement"
+        WHERE "organizationId" = ${orgId} AND "sampleId" IS NULL AND "serialKey" <> ''
+        GROUP BY "serialKey") d
+      WHERE d.first_seen >= ${since}`,
+    db.sample.count({
+      where: {
+        experiment: { organizationId: orgId, createdAt: { gte: since } },
+      },
+    }),
+  ]);
+  return {
+    dataPoints7d: Number(points[0]?.points ?? 0),
+    unfiledDevices: Number(unfiled[0]?.n ?? 0),
+    devices7d: samplesRecent + Number(unfiledRecent[0]?.n ?? 0),
   };
 }
 

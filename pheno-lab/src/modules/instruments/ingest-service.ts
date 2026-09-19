@@ -16,6 +16,7 @@ import {
   refreshSampleJvResult,
 } from "./matching-service";
 import { scanKeyOf } from "@/lib/instruments/scan-key";
+import { curveDataPoints } from "@/lib/instruments/points";
 import { recordInstrumentAudit } from "@/modules/audit/writer";
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
@@ -252,7 +253,10 @@ export async function ingestInstrumentUpload(
     }
     // The data-point total is a running count kept alongside the scans it
     // counts, so the summary never has to walk every curve.
-    const points = accepted.reduce((n, a) => n + a.scan.curve.length, 0);
+    const points = accepted.reduce(
+      (n, a) => n + curveDataPoints(a.scan.curve),
+      0,
+    );
     if (points > 0)
       await transaction.organization.update({
         where: { id: instrument.organizationId },

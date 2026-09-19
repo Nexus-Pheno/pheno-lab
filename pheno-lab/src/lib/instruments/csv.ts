@@ -40,7 +40,13 @@ export function decodeLabText(buf: Buffer): string {
  *  parsers index by column, so padding must not shift anything. */
 export function parseCsvGrid(text: string): string[][] {
   const rows: string[][] = [];
+  // The GiantForce per-pixel ".txt" report is the same document as its CSV
+  // twin, tab-separated. A line with tabs and no commas is split on tabs.
   for (const line of text.split(/\r?\n/)) {
+    if (line.includes("\t") && !line.includes(",")) {
+      rows.push(line.split("\t"));
+      continue;
+    }
     const cells: string[] = [];
     let cur = "";
     let quoted = false;

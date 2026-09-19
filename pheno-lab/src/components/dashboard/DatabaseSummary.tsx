@@ -14,25 +14,27 @@ export function DatabaseSummaryBar({ summary }: { summary: DatabaseSummary }) {
   // sample counts as one. The other totals were noise next to these.
   const tiles: [string, number, string?][] = [
     [t("sum.dataPoints"), summary.dataPoints, t("sum.dataPointsHint")],
-    [t("sum.experiments"), summary.samples, t("sum.experimentsHint")],
+    [t("sum.experiments"), summary.devices, t("sum.experimentsHint")],
+    [t("sum.dataPoints7d"), summary.dataPoints7d, t("sum.recentHint")],
+    [t("sum.experiments7d"), summary.devices7d, t("sum.recentHint")],
   ];
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-1.5 max-w-xl">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 max-w-4xl">
         {tiles.map(([label, n, hint], i) => (
           <div
             key={label}
             title={hint}
             className={
               "bg-surface border rounded-[6px] px-2.5 py-2 " +
-              (i === 0 ? "border-brand/50 bg-brand-soft" : "border-line")
+              (i < 2 ? "border-brand/50 bg-brand-soft" : "border-line")
             }
           >
             <div
               className={
                 "mono font-bold leading-none " +
-                (i === 0 ? "text-[17px] text-brand-deep" : "text-[15px]")
+                (i < 2 ? "text-[22px] text-brand-deep" : "text-[18px]")
               }
             >
               {fmt(n)}

@@ -797,9 +797,13 @@ export const en = {
   "test.nav": "Test data",
   "sum.dataPoints": "Data points",
   "sum.dataPointsHint":
-    "实验室存储的每条测量曲线上的每一个 (x, y) 数据点——累计总数。",
+    "Every (x, y) combination of every measurement curve the lab has stored — a J-V row gives (V,I), (V,J) and (V,P). Running total.",
   "sum.experiments": "Experiments",
-  "sum.experimentsHint": "Every sample counts as one experiment.",
+  "sum.experimentsHint":
+    "Every device: each sample on record, plus every measured device no sheet ever listed.",
+  "sum.dataPoints7d": "Data points · last 7 days",
+  "sum.experiments7d": "Experiments · last 7 days",
+  "sum.recentHint": "Measured or created in the most recent 7 days.",
   "sum.samples": "Samples",
   "sum.results": "Measurements",
   "sum.runs": "Runs",
@@ -2156,9 +2160,14 @@ export const zh: Record<TKey, string> = {
   "test.promoteHint": "将该实验移入正式数据库",
   "test.nav": "测试数据",
   "sum.dataPoints": "数据点",
-  "sum.dataPointsHint": "实验室存储的每条测量曲线上的每一个 (x, y) 数据点——累计总数。",
+  "sum.dataPointsHint":
+    "实验室存储的每条测量曲线上的每一个 (x, y) 组合——J-V 的一行即 (V,I)、(V,J)、(V,P) 三个点。累计总数。",
   "sum.experiments": "实验",
-  "sum.experimentsHint": "每个样品计为一个实验。",
+  "sum.experimentsHint":
+    "每个器件计为一个实验：所有登记的样品，加上仪器测过但未登记在表格里的器件。",
+  "sum.dataPoints7d": "近 7 天数据点",
+  "sum.experiments7d": "近 7 天实验",
+  "sum.recentHint": "最近 7 天内测量或新建。",
   "sum.samples": "样品",
   "sum.results": "测量记录",
   "sum.runs": "运行",
