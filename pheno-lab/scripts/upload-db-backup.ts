@@ -32,7 +32,9 @@ async function main(): Promise<void> {
   if (body.length < 1024) {
     // A dump this small is a failed pg_dump, not a backup. Refuse to
     // overwrite a good COS copy with it.
-    console.error(`refusing to upload suspiciously small dump (${body.length} bytes)`);
+    console.error(
+      `refusing to upload suspiciously small dump (${body.length} bytes)`,
+    );
     process.exit(1);
   }
   const storage = objectStorage();
@@ -43,7 +45,9 @@ async function main(): Promise<void> {
     contentType: "application/octet-stream",
     sha256: createHash("sha256").update(body).digest("hex"),
   });
-  console.log(`uploaded ${basename(dumpPath)} -> ${key} (${body.length} bytes)`);
+  console.log(
+    `uploaded ${basename(dumpPath)} -> ${key} (${body.length} bytes)`,
+  );
 
   const expired = new Date(Date.now() - 61 * 24 * 3600 * 1000);
   try {

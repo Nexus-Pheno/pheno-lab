@@ -92,10 +92,13 @@ describe("instrument parser fixtures", () => {
     // Real 2026-08-28 session: the operator typed "2026-001-26-2-S25-8" into
     // the trace-name field but the summary table carried "13A25-8" — every
     // scan came out with an empty metrics object.
-    const parsed = parseInstrumentFile(fixture("lightsky-simcode-summary.csv"), {
-      fileName: "20260828-PLASMA.csv",
-      fileModifiedAt: new Date("2026-08-28T03:00:00Z"),
-    });
+    const parsed = parseInstrumentFile(
+      fixture("lightsky-simcode-summary.csv"),
+      {
+        fileName: "20260828-PLASMA.csv",
+        fileModifiedAt: new Date("2026-08-28T03:00:00Z"),
+      },
+    );
     expect(parsed.instrument).toBe("LIGHTSKY_LIV");
     expect(parsed.scans.map((s) => s.serial)).toEqual([
       "2026-001-26-2-S25-8",
@@ -128,9 +131,9 @@ describe("instrument parser fixtures", () => {
     expect(parsed.scans[0].serial).toBe("2026-001-26-2-S15-8");
     expect(parsed.scans[0].direction).toBe("FORWARD");
     expect(parsed.scans[0].metrics).toMatchObject({ voc: 1.95, pce: 20.44 });
-    expect(
-      parsed.warnings.some((w) => w.includes("direction was kept")),
-    ).toBe(true);
+    expect(parsed.warnings.some((w) => w.includes("direction was kept"))).toBe(
+      true,
+    );
   });
 
   it("keeps every repeat when one cell is scanned twice in the same direction", () => {
@@ -165,5 +168,23 @@ describe("instrument parser fixtures", () => {
       expect(crossing).toBeDefined();
       expect(Math.abs(crossing!.v - scan.metrics.voc!)).toBeLessThan(0.15);
     }
+  });
+});
+
+describe("GiantForce per-pixel report (.txt, tab-separated)", () => {
+  it("parses the tab-separated twin of the CSV report", () => {
+    const parsed = parseInstrumentFile(fixture("giantforce-report-tab.txt"), {
+      fileName: "Cbz-4_Wanda_PVK_Light_Normal_Rev_1_144912.txt",
+    });
+    expect(parsed.instrument).toBe("GIANTFORCE_IV");
+    expect(parsed.scans).toHaveLength(1);
+    expect(parsed.scans[0]).toMatchObject({
+      serial: "Cbz-4",
+      operator: "Wanda",
+      direction: "REVERSE",
+      condition: "LIGHT",
+    });
+    expect(parsed.scans[0].curve.length).toBeGreaterThan(90);
+    expect(parsed.scans[0].metrics.pce).toBeCloseTo(13.342047, 5);
   });
 });

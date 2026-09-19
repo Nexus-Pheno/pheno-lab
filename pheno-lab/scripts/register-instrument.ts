@@ -109,7 +109,10 @@ async function main() {
   }
 
   const key = generateApiKey();
-  const credentials = { apiKeyHash: hashApiKey(key), apiKeyHint: key.slice(-4) };
+  const credentials = {
+    apiKeyHash: hashApiKey(key),
+    apiKeyHint: key.slice(-4),
+  };
 
   // The credential change and its audit record land together or not at all.
   await prisma.$transaction(async (transaction) => {
