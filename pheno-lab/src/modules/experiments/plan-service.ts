@@ -11,6 +11,7 @@ import {
   syncSampleSerials,
 } from "@/modules/instruments/sample-serial-service";
 import { assertEdit, assertEditByChar, assertEditByStep } from "./access";
+import { reconcileSamples } from "./sample-plan-service";
 import {
   characterizationDraftSchema,
   charPresetPayloadSchema,
@@ -509,7 +510,7 @@ export async function deleteCharacterization(actor: Actor, rawId: unknown) {
 // ---- Test plan ----
 //
 // Global groups (rows) x variables (columns). Each variable is a process
-// parameter or a material choice varied per group. Applying regenerates the
+// parameter or a material choice varied per group. Applying preserves the
 // sample set, wires each variable onto its process step (created if missing),
 // and removes variations left over from a previous plan.
 
@@ -588,26 +589,20 @@ export async function applyTestPlan(
       }
     }
 
-    // 2. Regenerate samples. With a substrate batch the technician drags
-    //    chips between groups, so membership comes from plan.assignments
-    //    (EXTRA → ungrouped spare, ERROR → scrapped); otherwise the legacy
-    //    replicates-per-group generation applies.
-    await tx.sample.deleteMany({ where: { experimentId } });
+    // 2. Update grouping in place; issued labels, QR IDs and evidence survive.
+    const desired: { code: string; variationGroup: string | null }[] = [];
     if (plan.substrates?.count) {
       const labels = new Set(groups.map((g) => g.label));
       for (let i = 1; i <= plan.substrates.count; i++) {
         const code = `S${i}`;
         const zone = plan.assignments?.[code] ?? "EXTRA";
-        await tx.sample.create({
-          data: {
-            experimentId,
-            code,
-            variationGroup: labels.has(zone)
-              ? zone
-              : zone === "ERROR"
-                ? "ERROR"
-                : null,
-          },
+        desired.push({
+          code,
+          variationGroup: labels.has(zone)
+            ? zone
+            : zone === "ERROR"
+              ? "ERROR"
+              : null,
         });
       }
     } else {
@@ -615,12 +610,11 @@ export async function applyTestPlan(
       for (const g of groups) {
         for (let i = 0; i < g.samples; i++) {
           n += 1;
-          await tx.sample.create({
-            data: { experimentId, code: `S${n}`, variationGroup: g.label },
-          });
+          desired.push({ code: `S${n}`, variationGroup: g.label });
         }
       }
     }
+    await reconcileSamples(tx, actor.org, experimentId, desired);
     await syncSampleSerials(tx, experimentId);
 
     // 3. Wire each variable onto its process step.
@@ -723,7 +717,7 @@ export async function applyTestPlan(
     // 4. Persist the plan.
     const metadata = {
       ...((expBefore.metadata as object) ?? {}),
-      testPlan: { groups, variables },
+      testPlan: { ...plan, groups, variables },
     };
     await tx.experiment.update({
       where: { id: experimentId },
@@ -751,8 +745,7 @@ export async function applyTestPlan(
   });
 
   await syncAutoLabels(experimentId);
-  // The plan rebuilt the samples: re-attach measurements that were pointing at
-  // the old rows. Serials are derived, so they land on the same samples.
+  // Refresh derived instrument results without rebuilding samples.
   await refreshExperimentSerials(experimentId);
   return db.experiment.findUniqueOrThrow({
     where: { id: experimentId },

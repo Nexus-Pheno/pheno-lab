@@ -11,6 +11,38 @@ const fixtures = path.join(
 const fixture = (name: string) => readFileSync(path.join(fixtures, name));
 
 describe("instrument parser fixtures", () => {
+  it("preserves expanded simulator codes in both instrument formats", () => {
+    const giant = Buffer.from(
+      fixture("giantforce-auto-single.csv")
+        .toString()
+        .replaceAll("C1-1", "123AA100-1"),
+    );
+    const gf = parseInstrumentFile(giant, {
+      fileName: "123AA100-1_Cindy_perovskite_Light_Normal_Rev_1_143040.csv",
+    });
+    expect(gf.scans[0].serial).toBe("123AA100-1");
+    expect(gf.scans[0].metrics.pce).toBeCloseTo(25.804105);
+    const light = Buffer.from(
+      fixture("lightsky-simcode-summary.csv")
+        .toString()
+        .replaceAll("2026-001-26-2-S25-8", "123AA100-8")
+        .replaceAll("13A25-8", "123AA100-8"),
+    );
+    const ls = parseInstrumentFile(light, { fileName: "20260828-test.csv" });
+    expect(ls.scans.map((s) => s.serial)).toEqual(["123AA100-8", "123AA100-8"]);
+    expect(ls.scans.map((s) => s.metrics.pce)).toEqual([19.9, 18.8]);
+    const mixed = Buffer.from(
+      fixture("lightsky-simcode-summary.csv")
+        .toString()
+        .replaceAll("2026-001-26-2-S25-8", "2026-001-123-2-S100-8")
+        .replaceAll("13A25-8", "123AA100-8"),
+    );
+    const joined = parseInstrumentFile(mixed, {
+      fileName: "20260828-test.csv",
+    });
+    expect(joined.scans.map((s) => s.metrics.pce)).toEqual([19.9, 18.8]);
+  });
+
   it("parses a GiantForce auto-saved pixel", () => {
     const parsed = parseInstrumentFile(fixture("giantforce-auto-single.csv"), {
       fileName: "C1-1_Cindy_perovskite_Light_Normal_Rev_1_143040.csv",

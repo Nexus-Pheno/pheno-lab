@@ -55,7 +55,7 @@ function canonicalKey(name: string): string | null {
   const { serial } = splitDirection(name.trim());
   const m =
     serial.match(/[sS](\d{1,3})-(\d{1,3})$/) ?? // …-S25-8 (full serial)
-    serial.match(/^\d{1,2}[a-zA-Z](\d{1,3})-(\d{1,3})$/); // 13A25-8 (sim code)
+    serial.match(/^\d+[a-zA-Z]+(\d{1,5})-(\d{1,3})$/); // 13A25-8 (sim code)
   if (!m) return null;
   return `s${Number(m[1])}-${Number(m[2])}`;
 }

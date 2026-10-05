@@ -694,6 +694,8 @@ cd /srv/pheno-lab/source/pheno-lab
 失败；脚本会继续轮询 authenticated readiness。最终 readiness 失败时脚本自动切回上一代码
 release，但数据库 migration 不会自动回滚。
 
+首次发布永久样品代码账本（20261005000000 / 20261005010000 migration）时，在 artifact 构建与校验通过后、执行 4.4 的 deploy-release.sh 前，短暂停止现有 `pheno-lab.service`。旧版本分配器不能在历史代码快照后继续签发未登记的代码。发布脚本会在迁移和代码切换后启动现有服务；不新增任何服务或配置。若脚本在切换前失败，保留旧 current、恢复原 APP_VERSION 并启动原服务，再诊断失败；不得重跑数据修复。后续已应用这两项迁移的普通发布不需要此暂停。
+
 ### 4.5 发布后验收
 
 ```bash

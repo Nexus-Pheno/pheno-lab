@@ -404,11 +404,11 @@ export function TestPlanCard({
           <div>
             <FieldLabel>{t("plan.substrateCount")}</FieldLabel>
             <input
-              type="number" min={1} max={99}
+              type="number" min={1} max={198}
               className="mono w-20 border border-line rounded-[3px] px-2 py-1.5"
               value={draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)}
               onChange={(e) => {
-                const count = Math.min(99, Math.max(1, Number(e.target.value) || 1));
+                const count = Math.min(198, Math.max(1, Number(e.target.value) || 1));
                 const assignments: Record<string, string> = {};
                 for (let i = 1; i <= count; i++) {
                   assignments[`S${i}`] = draft.assignments?.[`S${i}`] ?? EXTRA_GROUP;
@@ -416,6 +416,9 @@ export function TestPlanCard({
                 setDraft({ ...draft, substrates: { ...draft.substrates, count }, assignments });
               }}
             />
+            {(draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)) < sampleCount && (
+              <p role="alert" className="text-[11px] text-danger mt-1">{t("plan.keepIssuedSamples")}</p>
+            )}
           </div>
           <div className="flex-1 min-w-40">
             <FieldLabel>{t("plan.substrateMaterial")}</FieldLabel>
@@ -610,6 +613,7 @@ export function TestPlanCard({
         <button
           disabled={
             busy ||
+            (draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)) < sampleCount ||
             draft.variables.some((v) => !v.parameter.trim() || !v.processId) ||
             draft.variables.some((v) => draft.groups.some((g) => !(v.values[g.label] ?? "").trim()))
           }

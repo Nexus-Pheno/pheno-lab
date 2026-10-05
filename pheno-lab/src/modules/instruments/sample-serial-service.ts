@@ -35,8 +35,7 @@ export async function healOrphanedMeasurements(
 export async function refreshExperimentSerials(
   experimentId: string,
 ): Promise<void> {
-  await syncSampleSerials(db, experimentId);
-  await healOrphanedMeasurements(experimentId);
+  await db.$transaction((tx) => syncSampleSerials(tx, experimentId));
   const samples = await db.sample.findMany({
     where: { experimentId },
     select: { id: true },

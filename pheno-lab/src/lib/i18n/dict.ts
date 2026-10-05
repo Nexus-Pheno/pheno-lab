@@ -170,6 +170,7 @@ export const en = {
   "plan.dropHere": "drag substrates here",
   "plan.substrates": "Substrate batch",
   "plan.substrateCount": "Substrates to prepare",
+  "plan.keepIssuedSamples": "Keep the existing batch size to preserve sample labels and recorded work. Move unused samples to Extras or Trash / problem.",
   "plan.substrateMaterial": "Substrate material",
   "plan.substrateHint":
     "Drag each substrate into its group. Spares wait in Extras; scrapped ones go to Error — swap in a spare without renumbering.",
@@ -184,7 +185,7 @@ export const en = {
   "plan.total": "Total samples:",
   "plan.autoCalc": "(auto-calculated)",
   "plan.applyNote":
-    "Applying regenerates samples and highlights each tested variable on its process step (added if missing). Variables removed from the plan are cleaned off the flow.",
+    "Applying preserves existing sample labels and recorded work, adds new samples if needed, and updates the tested variables on their process steps.",
   "plan.cancel": "Cancel",
   "plan.apply": "Apply test plan",
 
@@ -1575,6 +1576,7 @@ export const zh: Record<TKey, string> = {
   "plan.dropHere": "拖拽基片到此",
   "plan.substrates": "基片批次",
   "plan.substrateCount": "准备基片数量",
+  "plan.keepIssuedSamples": "请保留现有批次数量，避免影响样品标签和已记录的数据。未使用的样品可移入“备用”或“报废 / 问题”。",
   "plan.substrateMaterial": "基片材料",
   "plan.substrateHint":
     "将每片基片拖入对应组。备用基片放在“备用”，出错的拖入“报废”，随时用备用片替换，编号不变。",
@@ -1589,7 +1591,7 @@ export const zh: Record<TKey, string> = {
   "plan.total": "样品总数：",
   "plan.autoCalc": "（自动计算）",
   "plan.applyNote":
-    "应用后将重新生成样品，并在对应工艺步骤上标记被测变量（如无该步骤则自动添加）。从方案中移除的变量会同步从流程中清除。",
+    "应用后保留现有样品标签和已记录的数据，按需新增样品，并更新对应工艺步骤上的被测变量。",
   "plan.cancel": "取消",
   "plan.apply": "应用实验方案",
 
