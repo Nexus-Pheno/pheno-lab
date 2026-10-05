@@ -103,6 +103,22 @@ async function matchByInstrumentCode(
     parts.slice(0, parts.length - i).join("-"),
   );
 
+  // A historical claim still matters after reassignment or hard purge. Never
+  // attach a delayed scan to today's sole remaining claimant by accident.
+  const historicalConflicts = await prisma.sampleCodeReservation.findMany({
+    where: {
+      organizationId,
+      ambiguous: true,
+      key: { in: candidates.map((c) => `SAMPLE:${canonicalSerialKey(c)}`) },
+    },
+    select: { key: true },
+  });
+  if (historicalConflicts.length) {
+    return unmatched(
+      `"${serial}" was used by more than one historical sample; review the original experiment and attach it by hand.`,
+    );
+  }
+
   const SAMPLE_SELECT = {
     id: true,
     code: true,

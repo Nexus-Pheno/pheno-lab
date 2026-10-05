@@ -1,15 +1,43 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { serialsFor, shortCodeFor } from "@/lib/instruments/serial";
-import { normalizeSerial } from "@/lib/instruments/normalize";
+import { canonicalSerialKey } from "@/lib/instruments/normalize";
 
-export type SampleSerialClient = Pick<
-  PrismaClient,
-  "experiment" | "organization" | "sample" | "user"
->;
+// Every caller must supply an interactive transaction. The organization row
+// lock serializes allocation; reservation keys provide database uniqueness.
+export type SampleSerialClient = Prisma.TransactionClient;
 
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+export function experimentLetters(n: number): string {
+  let result = "";
+  while (n > 0) {
+    n -= 1;
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26);
+  }
+  return result;
+}
 
-/** Assign an immutable per-organization short code the first time it is needed. */
+/** Reserve simulator-shaped aliases too; removing one never frees its name. */
+export async function reserveInstrumentCodes(
+  client: SampleSerialClient,
+  organizationId: string,
+  codes: string[],
+): Promise<void> {
+  const keys = new Set<string>();
+  for (const code of codes) {
+    const match = canonicalSerialKey(code).match(/^(\d+[A-Z]+)(\d+)(?:-|$)/);
+    if (!match) continue;
+    keys.add(`PREFIX:${match[1]}`);
+    keys.add(`SAMPLE:${match[1]}${match[2]}`);
+  }
+  if (keys.size) {
+    await client.sampleCodeReservation.createMany({
+      data: [...keys].map((key) => ({ organizationId, key })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+/** Immutable per-organization short handle, protected by the caller's org lock. */
 export async function ensureShortCode(
   client: SampleSerialClient,
   experimentId: string,
@@ -19,7 +47,6 @@ export async function ensureShortCode(
     select: { shortCode: true, organizationId: true },
   });
   if (experiment.shortCode) return experiment.shortCode;
-
   const organization = await client.organization.update({
     where: { id: experiment.organizationId },
     data: { nextShortNo: { increment: 1 } },
@@ -33,100 +60,121 @@ export async function ensureShortCode(
   return shortCode;
 }
 
-/**
- * The 3-char prefix of this experiment's solar-simulator codes:
- * 2-digit employee number of the responsible person (assignee, falling back
- * to the creator) plus a letter that is unique among that person's other
- * in-flight experiments — so 01A05 and 01B05 never collide even when one
- * technician runs two experiments at once.
- */
 async function ensureSimCodePrefix(
   client: SampleSerialClient,
   experimentId: string,
-): Promise<string | null> {
+): Promise<string> {
   const experiment = await client.experiment.findUniqueOrThrow({
     where: { id: experimentId },
     select: {
       organizationId: true,
-      codeLetter: true,
+      simCodePrefix: true,
       assigneeId: true,
       createdById: true,
-      status: true,
     },
   });
-  // Closed experiments never sit at the simulator; keeping their codes out
-  // of the serial index stops them from shadowing an active experiment that
-  // reuses the same letter.
-  if (experiment.status === "COMPLETE" || experiment.status === "ARCHIVED") {
-    return null;
-  }
-  const ownerId = experiment.assigneeId ?? experiment.createdById;
-  const owner = await client.user.findUnique({
-    where: { id: ownerId },
+  if (experiment.simCodePrefix) return experiment.simCodePrefix;
+  const owner = await client.user.findUniqueOrThrow({
+    where: { id: experiment.assigneeId ?? experiment.createdById },
     select: { userNumber: true },
   });
-  if (!owner) return null;
-  const employee = String(owner.userNumber % 100).padStart(2, "0");
-
-  const others = await client.experiment.findMany({
-    where: {
-      organizationId: experiment.organizationId,
-      id: { not: experimentId },
-      deletedAt: null,
-      codeLetter: { not: null },
-      status: { notIn: ["COMPLETE", "ARCHIVED"] },
-      OR: [{ assigneeId: ownerId }, { assigneeId: null, createdById: ownerId }],
-    },
-    select: { codeLetter: true },
-  });
-  const used = new Set(others.map((o) => o.codeLetter));
-  let letter = experiment.codeLetter;
-  if (!letter || used.has(letter)) {
-    letter = [...LETTERS].find((l) => !used.has(l)) ?? "Z";
+  // No modulo: employee 123 must never share the namespace of employee 23.
+  const employee = String(owner.userNumber).padStart(2, "0");
+  const used = new Set(
+    (
+      await client.sampleCodeReservation.findMany({
+        where: {
+          organizationId: experiment.organizationId,
+          key: { startsWith: "PREFIX:" },
+        },
+        select: { key: true },
+      })
+    ).map((row) => row.key),
+  );
+  for (let n = 1; ; n += 1) {
+    const letter = experimentLetters(n);
+    const prefix = employee + letter;
+    const key = `PREFIX:${canonicalSerialKey(prefix)}`;
+    if (used.has(key)) continue;
+    await client.sampleCodeReservation.create({
+      data: { organizationId: experiment.organizationId, key, experimentId },
+    });
     await client.experiment.update({
       where: { id: experimentId },
-      data: { codeLetter: letter },
+      data: { simCodePrefix: prefix, codeLetter: letter },
     });
+    return prefix;
   }
-  return employee + letter;
 }
 
-/** Recompute derived serials and sim codes while retaining lab aliases. */
+/** Issue missing codes once; preserve every existing code and serial alias. */
 export async function syncSampleSerials(
   client: SampleSerialClient,
   experimentId: string,
 ): Promise<void> {
+  const experiment = await client.experiment.findUniqueOrThrow({
+    where: { id: experimentId },
+    select: { organizationId: true },
+  });
+  await client.organization.update({
+    where: { id: experiment.organizationId },
+    data: { nextShortNo: { increment: 0 } },
+  });
   const shortCode = await ensureShortCode(client, experimentId);
-  const prefix = await ensureSimCodePrefix(client, experimentId);
   const samples = await client.sample.findMany({
     where: { experimentId },
     select: { id: true, code: true, simCode: true, instrumentCodes: true },
   });
+  // Reserve aliases introduced by legacy imports before allocating anything.
+  await reserveInstrumentCodes(
+    client,
+    experiment.organizationId,
+    samples.flatMap((s) => [s.simCode ?? "", ...s.instrumentCodes]),
+  );
+  let prefix: string | undefined;
   for (const sample of samples) {
-    const number = Number.parseInt(sample.code.replace(/\D/g, ""), 10);
-    const simCode =
-      prefix && Number.isFinite(number) && number >= 1 && number <= 99
-        ? `${prefix}${String(number).padStart(2, "0")}`
-        : null;
-
-    const derived = new Set(
-      [
-        serialsFor(shortCode, sample.code)[0],
-        sample.simCode ? normalizeSerial(sample.simCode) : "",
-        simCode ? normalizeSerial(simCode) : "",
-      ].filter(Boolean),
-    );
-    const aliases = sample.instrumentCodes.filter((code) => !derived.has(code));
-    const next = serialsFor(shortCode, sample.code, aliases);
-    if (simCode) {
-      const key = normalizeSerial(simCode);
-      if (key && !next.includes(key)) next.push(key);
+    let simCode = sample.simCode;
+    const number = /^S([0-9]+)$/i.exec(sample.code)?.[1];
+    if (
+      !simCode &&
+      number &&
+      Number.isSafeInteger(Number(number)) &&
+      Number(number) >= 1
+    ) {
+      prefix ??= await ensureSimCodePrefix(client, experimentId);
+      simCode = prefix + String(Number(number)).padStart(2, "0");
+      const key = `SAMPLE:${canonicalSerialKey(simCode)}`;
+      const previous = await client.sampleCodeReservation.findUnique({
+        where: {
+          organizationId_key: {
+            organizationId: experiment.organizationId,
+            key,
+          },
+        },
+      });
+      if (previous) {
+        throw new Error(
+          `Sample code ${simCode} was already issued. Keep the existing sample or use a new sample number.`,
+        );
+      }
+      await client.sampleCodeReservation.create({
+        data: {
+          organizationId: experiment.organizationId,
+          key,
+          experimentId,
+          sampleCode: sample.code,
+        },
+      });
     }
-    const same =
-      simCode === sample.simCode &&
-      next.length === sample.instrumentCodes.length &&
-      next.every((code, index) => code === sample.instrumentCodes[index]);
-    if (!same) {
+    const next = serialsFor(shortCode, sample.code, [
+      ...sample.instrumentCodes,
+      ...(simCode ? [simCode] : []),
+    ]);
+    if (
+      simCode !== sample.simCode ||
+      next.length !== sample.instrumentCodes.length ||
+      next.some((code, index) => code !== sample.instrumentCodes[index])
+    ) {
       await client.sample.update({
         where: { id: sample.id },
         data: { simCode, instrumentCodes: next },

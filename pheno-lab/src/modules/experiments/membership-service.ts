@@ -9,6 +9,7 @@ import {
   syncSampleSerials,
 } from "@/modules/instruments/sample-serial-service";
 import { assertEdit } from "./access";
+import { reconcileSamples } from "./sample-plan-service";
 import { experimentIdSchema, sampleSetSchema } from "./schema";
 
 // ---- Members / access ----
@@ -105,14 +106,7 @@ export async function setSamples(
   const samples = sampleSetSchema.parse(rawSamples);
   await assertEdit(actor, experimentId);
   await db.$transaction(async (tx) => {
-    await tx.sample.deleteMany({ where: { experimentId } });
-    await tx.sample.createMany({
-      data: samples.map((s) => ({
-        experimentId,
-        code: s.code,
-        variationGroup: s.variationGroup,
-      })),
-    });
+    await reconcileSamples(tx, actor.org, experimentId, samples);
     await syncSampleSerials(tx, experimentId);
     await recordUserAudit(tx, {
       actor,
@@ -122,8 +116,7 @@ export async function setSamples(
       changes: { samples },
     });
   });
-  // Rebuilding the sample set strands any measurement that pointed at the old
-  // rows; re-matching puts them back on the same serial.
+  // Existing physical samples and their results retain their identities.
   await refreshExperimentSerials(experimentId);
   return db.sample.findMany({
     where: { experimentId },

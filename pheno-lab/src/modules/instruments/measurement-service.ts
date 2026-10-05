@@ -7,6 +7,8 @@ import {
   type RematchSummary,
 } from "./measurement-rematch-service";
 import { sampleSerial, serialsFor } from "@/lib/instruments/serial";
+import { canonicalSerialKey } from "@/lib/instruments/normalize";
+import { reserveInstrumentCodes } from "./sample-serial-engine";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import type { Actor } from "@/modules/authorization/actor";
 import { assertStaff, isStaff } from "@/modules/authorization/policy";
@@ -406,6 +408,7 @@ export async function setSampleAliases(
     where: { id: sampleId },
     select: {
       code: true,
+      simCode: true,
       experimentId: true,
       instrumentCodes: true,
       experiment: { select: { shortCode: true } },
@@ -414,28 +417,47 @@ export async function setSampleAliases(
   await assertCapture(actor, sample.experimentId);
 
   const primary = sampleSerial(sample.experiment.shortCode ?? "", sample.code);
-  const next = serialsFor(
-    sample.experiment.shortCode ?? "",
-    sample.code,
-    aliases,
-  );
-
-  // A serial may only ever mean one sample.
-  const taken = await db.sample.findMany({
-    where: {
-      instrumentCodes: { hasSome: next.filter((c) => c !== primary) },
-      experiment: { organizationId: actor.org },
-      NOT: { id: sampleId },
-    },
-    select: { code: true, experiment: { select: { code: true } } },
-  });
-  if (taken.length) {
-    throw new Error(
-      `Already used by ${taken.map((t) => `${t.experiment.code}-${t.code}`).join(", ")}.`,
-    );
-  }
+  const next = serialsFor(sample.experiment.shortCode ?? "", sample.code, [
+    ...aliases,
+    ...(sample.simCode ? [sample.simCode] : []),
+  ]);
 
   await db.$transaction(async (tx) => {
+    await tx.organization.update({
+      where: { id: actor.org },
+      data: { nextShortNo: { increment: 0 } },
+    });
+    const current = new Set(sample.instrumentCodes.map(canonicalSerialKey));
+    const added = next.filter(
+      (c) => c !== primary && !current.has(canonicalSerialKey(c)),
+    );
+    const taken = added.length
+      ? await tx.sample.findMany({
+          where: {
+            instrumentCodes: { hasSome: added },
+            experiment: { organizationId: actor.org },
+            NOT: { id: sampleId },
+          },
+          select: { code: true, experiment: { select: { code: true } } },
+        })
+      : [];
+    if (taken.length) {
+      throw new Error(
+        `Already used by ${taken.map((t) => `${t.experiment.code}-${t.code}`).join(", ")}.`,
+      );
+    }
+    const reserved = await tx.sampleCodeReservation.findMany({
+      where: {
+        organizationId: actor.org,
+        key: { in: added.map((c) => `SAMPLE:${canonicalSerialKey(c)}`) },
+      },
+    });
+    if (reserved.length) {
+      throw new Error(
+        "This alias was already issued. Review the original sample instead of reassigning its code.",
+      );
+    }
+    await reserveInstrumentCodes(tx, actor.org, next);
     await tx.sample.update({
       where: { id: sampleId },
       data: { instrumentCodes: next },

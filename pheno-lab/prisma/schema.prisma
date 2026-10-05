@@ -76,6 +76,7 @@ model Organization {
   materialEdits  MaterialEditSuggestion[]
   projects       Project[]
   analysisRuns   AnalysisRun[]
+  codeLedger     SampleCodeReservation[]
 }
 
 // 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
@@ -305,25 +306,26 @@ model Location {
 }
 
 model Experiment {
-  id                String             @id @default(cuid())
+  id                String              @id @default(cuid())
   organizationId    String
-  organization      Organization       @relation(fields: [organizationId], references: [id])
-  code              String             @unique // YYYY-ORG-USER-SEQ, e.g. 2026-001-1-4
+  organization      Organization        @relation(fields: [organizationId], references: [id])
+  code              String              @unique // YYYY-ORG-USER-SEQ, e.g. 2026-001-1-4
   // Short handle used for instrument serials, e.g. "E7" → sample S5 is "E7-S5".
   // Short enough to type on a lab keyboard; unique within the organization.
   // Nullable so pre-existing experiments can be backfilled one at a time.
   shortCode         String?
-  // Letter that makes this experiment's simCodes unique among the assignee's
-  // concurrent experiments (the A in 01A05). Reassigned with the assignee.
+  // Legacy letter, retained for compatibility. New allocations also store the
+  // complete immutable prefix; neither follows subsequent staff assignments.
   codeLetter        String?
+  simCodePrefix     String?
   title             String
-  campaign          String             @default("") // legacy free-text group; superseded by projectId
+  campaign          String              @default("") // legacy free-text group; superseded by projectId
   projectId         String?
-  project           Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  status            ExperimentStatus   @default(DRAFT)
+  project           Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  status            ExperimentStatus    @default(DRAFT)
   // Test runs live alongside real work but are excluded from every real view
   // and can be cleared in one action. Chosen when the experiment is created.
-  isTest            Boolean            @default(false)
+  isTest            Boolean             @default(false)
   // Pinned as an org-wide template: anyone may start a new experiment from a
   // copy of its plan, even without read access to the original. Staff-set.
   templatePinnedAt  DateTime?
@@ -333,22 +335,22 @@ model Experiment {
   // one click, as opposed to a deliberate one.
   idleWarnedAt      DateTime?
   idleArchivedAt    DateTime?
-  observation       String             @default("")
-  problem           String             @default("")
-  hypothesis        String             @default("")
-  conclusion        String             @default("")
+  observation       String              @default("")
+  problem           String              @default("")
+  hypothesis        String              @default("")
+  conclusion        String              @default("")
   metadata          Json? // includes testPlan: variables tested, control, groups
   // Assignment + sign-off workflow
   assigneeId        String? // technician responsible for running it
-  assignee          User?              @relation("ExperimentAssignee", fields: [assigneeId], references: [id])
+  assignee          User?               @relation("ExperimentAssignee", fields: [assigneeId], references: [id])
   submittedAt       DateTime? // when the assignee submitted for review
-  submitNote        String             @default("") // assignee's handover note
+  submitNote        String              @default("") // assignee's handover note
   approvedAt        DateTime?
   approvedById      String?
-  approvedBy        User?              @relation("ExperimentApprover", fields: [approvedById], references: [id])
-  reviewNote        String             @default("") // manager's closing notes / thoughts
+  approvedBy        User?               @relation("ExperimentApprover", fields: [approvedById], references: [id])
+  reviewNote        String              @default("") // manager's closing notes / thoughts
   createdById       String
-  createdBy         User               @relation(fields: [createdById], references: [id])
+  createdBy         User                @relation(fields: [createdById], references: [id])
   members           ExperimentMember[]
   samples           Sample[]
   steps             ProcessStep[]
@@ -356,8 +358,8 @@ model Experiment {
   labels            ExperimentLabel[]
   runs              Run[]
   jvMeasurements    JvMeasurement[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   accessRequests    AccessRequest[]
   comments          ExperimentComment[]
   attachments       Attachment[]
@@ -366,7 +368,7 @@ model Experiment {
   // hidden from every scope and purged ~30 days after deletion.
   deletedAt         DateTime?
   deletedById       String?
-  deletedBy         User?              @relation("ExperimentDeleter", fields: [deletedById], references: [id])
+  deletedBy         User?               @relation("ExperimentDeleter", fields: [deletedById], references: [id])
 
   @@unique([organizationId, shortCode])
   @@index([organizationId, deletedAt])
@@ -444,8 +446,8 @@ model Sample {
   experimentId    String
   experiment      Experiment               @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   code            String // S1, S2, ... full ID is <experiment.code>-<code>
-  // 5-char solar-simulator code: <2-digit assignee number><experiment letter><2-digit sample no>,
-  // e.g. 01A05. Typed into the simulator; also present in instrumentCodes for scan matching.
+  // Immutable simulator code, e.g. 01A05 or 01AA100. Digits identify the
+  // original issuer, not the current assignee. Also registered for scan matching.
   simCode         String?
   variationGroup  String? // "A", "B", "C" — null = no group
   note            String                   @default("")
@@ -460,6 +462,23 @@ model Sample {
 
   @@unique([experimentId, code])
   @@index([instrumentCodes])
+}
+
+// Append-only reservations outlive experiments/samples, including hard purge.
+// Keys are PREFIX:<canonical prefix> or SAMPLE:<canonical serial>. Legacy
+// reservations deliberately have no owner: historical conflicts are not repaired
+// or guessed by migration. Organization scope is the instrument matching scope.
+model SampleCodeReservation {
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  key            String
+  experimentId   String?
+  sampleCode     String?
+  ambiguous      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@id([organizationId, key])
+  @@index([organizationId, experimentId])
 }
 
 model ProcessStep {
