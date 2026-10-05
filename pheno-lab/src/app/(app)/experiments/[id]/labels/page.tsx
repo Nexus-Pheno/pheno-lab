@@ -125,7 +125,7 @@ export default async function LabelsPage({
                       {experiment.code}-{label.code}
                     </p>
                     {label.simCode && (
-                      <p className="mono font-bold text-black text-[15pt] leading-tight mt-[1mm]">
+                      <p className="mono font-bold text-black break-all text-[15pt] leading-tight mt-[1mm]">
                         {label.simCode}
                       </p>
                     )}
