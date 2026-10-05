@@ -32,9 +32,15 @@ Read-only production inventory:
 
 ```bash
 # Use the existing production environment, with no credential output.
-node --conditions=react-server node_modules/tsx/dist/cli.mjs scripts/audit-sample-identities.ts
+node node_modules/tsx/dist/cli.mjs scripts/audit-sample-identities.ts
 ```
 
 Deploy through the existing `deploy/README.md` release flow after merging green CI to main. Both migrations are additive and retain compatibility with the previous release. During the migration/code-switch window, stop the existing Web service so the previous allocator cannot issue codes after the historical snapshot. The existing deploy script restarts it; no new service/config is introduced. Confirm authenticated readiness, release version, HTTPS and label/scan pages.
 
 Do not guess a historical scan's rightful experiment, rewrite issued labels or run bulk repair as part of deployment. The October 5 pre-release audit found 183 distinct currently duplicated codes and 48 historical serials linked to multiple samples; these are pre-release observations, not a post-release acceptance claim.
+
+## Verified release
+
+Released `20261005-001` on October 5 at 08:27 China time from merged main `45df0ed` ([PR #88](https://github.com/Nexus-Pheno/pheno-lab/pull/88)). Both migrations applied successfully. PostgreSQL/COS readiness and public HTTPS passed. Production fingerprints for samples, executions, results, attachments and measurement identities/links were identical before and after release.
+
+The 08:29 read-only inventory found 1,054 experiments, 19,320 samples, 37,658 scans, zero matched scans without a sample, 763 reservations and 184 ambiguous ledger keys. The 183 existing distinct duplicate labels remain unchanged and require a separate historical review. Authenticated browser checks rendered 16 existing labels and followed an original QR into mobile capture in both English and Chinese, with no browser errors. These checks used a short-lived server-signed verification session and did not alter scientific records. Actual password login was exercised in the isolated browser suite, not repeated against a real production user's password.
