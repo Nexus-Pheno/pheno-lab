@@ -1787,3 +1787,16 @@ manager/admin 可见）。
 **待办**：仪器上实际写的 operator 名字目前不对应任何 active 账号（GiantForce 全部写
 "River"，但没有 River 账号），所以第二级匹配暂时不会命中。需要先给操作者开账号，并让账号
 名与他们在仪器上输入的名字一致。
+
+
+### 17.6 release `20261005-001` (October 5, 2026)
+
+Michael explicitly approved the September 30 technician-feedback revision, GitHub publication and server deployment. PR #88 merged to main `45df0ed185c07464d038e5fd33241d98f6745cbf`; PR and merged-main GitHub Actions passed (runs 37246587048 and 37246972676). Local verification passed 208 unit tests, 82 PostgreSQL integration tests and 11 browser tests, including both instrument parser formats. The production host repeated the existing full build-release verification and checksum check.
+
+The existing release workflow deployed `20261005-001` at 08:27 China time. The service paused only for the initial historical reservation snapshot and migration/code switch. Both additive migrations applied successfully; the existing script restored service, passed authenticated readiness and retained `20260919-002` for code rollback. Existing APP_VERSION had been stale at `20260828-004`; this release updated only that field to the actual release ID, with a protected temporary backup. No Nginx, systemd, COS, database permissions, credentials or other services were changed.
+
+Before/after fingerprints were identical for all 19,320 samples, 3,877 step executions, 24,237 characterization results, 45,842 attachments and the identities/metrics/links of 37,658 scans. Existing labels, sample IDs and measurement ownership were not repaired or relabeled. At 08:29 the read-only audit found 1,054 experiments, zero MATCHED scans without a sample, 763 reserved keys, 184 ambiguous ledger keys and the same 183 distinct existing duplicate labels. Historical ambiguity now blocks future automatic matching and remains a separate review item.
+
+Post-release checks confirmed the current release, loopback-only port 3457, PostgreSQL/COS readiness, HTTP 301 to HTTPS and public liveness version `20261005-001`. Authenticated production browser checks displayed 16 existing labels and followed an original QR into mobile capture in English and Chinese, with zero browser errors. They used a short-lived server-signed verification session; no real password was retrieved and no scientific records were written. Password login and destructive-edit guards were exercised in the isolated E2E suite. Physical instrument operator validation remains outstanding.
+
+The new read-only audit helper initially failed on CommonJS top-level await. Its correction uses an async entry point and a direct Prisma client, and was successfully exercised against the protected local test database. The release acceptance inventory above was independently collected with read-only Prisma queries. This helper is an operations command, not an application runtime dependency.
