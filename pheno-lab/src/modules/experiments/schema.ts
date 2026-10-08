@@ -121,40 +121,56 @@ export const presetUpdateSchema = z
 
 export const presetNameSchema = z.string().trim().min(1).max(500);
 
-export const testPlanSchema = z.object({
-  substrates: z
-    .object({
-      count: z.number().int().min(1).max(198),
-      materialName: z.string().max(300).optional(),
-    })
-    .optional(),
-  assignments: z
-    .record(z.string().max(10), z.string().trim().max(100))
-    .optional(),
-  groups: z
-    .array(
-      z.object({
-        label: z.string().trim().min(1).max(100),
-        samples: z.number().int().min(1).max(10_000),
-        isControl: z.boolean(),
-      }),
-    )
-    .min(1)
-    .max(100),
-  variables: z
-    .array(
-      z.object({
-        kind: z.enum(["parameter", "material"]),
-        processId: experimentIdSchema,
-        equipmentId: experimentIdSchema.optional(),
-        layer: z.string().max(200).optional(),
-        parameter: z.string().trim().min(1).max(200),
-        unit: z.string().max(100),
-        values: z.record(z.string().max(100), z.string().max(4_000)),
-      }),
-    )
-    .max(500),
-});
+export const testPlanSchema = z
+  .object({
+    substrates: z
+      .object({
+        count: z.number().int().min(1).max(198),
+        materialName: z.string().max(300).optional(),
+      })
+      .optional(),
+    assignments: z
+      .record(z.string().max(10), z.string().trim().max(100))
+      .optional(),
+    groups: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1).max(100),
+          samples: z.number().int().min(0).max(10_000),
+          isControl: z.boolean(),
+        }),
+      )
+      .min(1)
+      .max(100),
+    variables: z
+      .array(
+        z.object({
+          kind: z.enum(["parameter", "material"]),
+          processId: experimentIdSchema,
+          equipmentId: z.preprocess(
+            (value) => (value === "" ? undefined : value),
+            experimentIdSchema.optional(),
+          ),
+          layer: z.string().max(200).optional(),
+          parameter: z.string().trim().min(1).max(200),
+          unit: z.string().max(100),
+          values: z.record(z.string().max(100), z.string().max(4_000)),
+        }),
+      )
+      .max(500),
+  })
+  .superRefine((plan, ctx) => {
+    if (!plan.substrates) {
+      plan.groups.forEach((group, index) => {
+        if (group.samples === 0)
+          ctx.addIssue({
+            code: "custom",
+            path: ["groups", index, "samples"],
+            message: "Count-based plans need at least one sample per group.",
+          });
+      });
+    }
+  });
 
 export const orderedIdsSchema = z
   .array(experimentIdSchema)

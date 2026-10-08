@@ -18,6 +18,7 @@ import type {
   CharDraft,
 } from "@/lib/types";
 import { STATUS_META, type TestPlan } from "@/lib/library";
+import { testPlanGroupLabels } from "@/lib/test-plan";
 import { fmtBeijing } from "@/lib/datetime";
 import {
   addStep,
@@ -129,12 +130,12 @@ export default function Designer({
     }
   }, []);
 
-  const groups = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of exp.samples)
-      if (s.variationGroup) set.add(s.variationGroup);
-    return [...set].sort();
-  }, [exp.samples]);
+  const testPlan =
+    (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan ?? null;
+  const groups = useMemo(
+    () => testPlanGroupLabels(testPlan, exp.samples),
+    [testPlan, exp.samples],
+  );
 
   const orderedSteps = useMemo(
     () => [...exp.steps].sort((a, b) => a.position - b.position),
@@ -148,9 +149,6 @@ export default function Designer({
     () => processes.filter((p) => p.kind === "CHARACTERIZATION"),
     [processes],
   );
-  const testPlan =
-    (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan ?? null;
-
   // ---- steps ----
 
   const handleAddStep = async (processId: string) => {
@@ -596,7 +594,7 @@ export default function Designer({
             layers={layers}
             categoryLayers={categoryLayers}
             categories={categoryLayers}
-            sampleCount={exp.samples.length}
+            samples={exp.samples}
             canEdit={canEdit}
             canManageMaterials={canManageMaterials}
             onApply={handleApplyTestPlan}
@@ -734,7 +732,7 @@ export default function Designer({
             <StepInspector
               key={
                 selectedStep.id +
-                String(selectedStep.parameters.map((p) => p.id).join(","))
+                JSON.stringify(selectedStep.parameters.map((p) => [p.id, p.value, p.variations]))
               }
               step={selectedStep}
               groups={groups}

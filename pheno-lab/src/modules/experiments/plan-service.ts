@@ -1,4 +1,5 @@
 import "server-only";
+import { substrateCounts } from "@/lib/test-plan";
 
 import type { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -522,9 +523,12 @@ export async function applyTestPlan(
   const experimentId = experimentIdSchema.parse(rawExperimentId);
   const plan = testPlanSchema.parse(rawPlan) as TestPlan;
   await assertEdit(actor, experimentId);
-  const groups = plan.groups.filter(
-    (g) => g.label.trim() && (plan.substrates ? true : g.samples > 0),
-  );
+  const counts = plan.substrates
+    ? substrateCounts(plan.groups, plan.substrates.count, plan.assignments)
+    : null;
+  const groups = plan.groups
+    .filter((g) => g.label.trim() && (plan.substrates ? true : g.samples > 0))
+    .map((g) => (counts ? { ...g, samples: counts.byGroup[g.label] } : g));
   if (groups.length === 0)
     throw new Error("The test plan needs at least one group.");
   const variables = plan.variables.filter(

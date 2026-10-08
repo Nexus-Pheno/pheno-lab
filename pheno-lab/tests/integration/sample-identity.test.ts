@@ -8,6 +8,7 @@ import {
   updateExperimentMeta,
 } from "@/modules/experiments/lifecycle-service";
 import { applyTestPlan } from "@/modules/experiments/plan-service";
+import { regroupSampleService } from "@/modules/runs/service";
 import { setSamples } from "@/modules/experiments/membership-service";
 import { deleteExperiment } from "@/modules/experiments/lifecycle-service";
 import {
@@ -213,7 +214,12 @@ describe("permanent sample identities against PostgreSQL", () => {
     expect(
       (await db.experiment.findUniqueOrThrow({ where: { id: f.exp.id } }))
         .metadata,
-    ).toMatchObject({ testPlan: plan() });
+    ).toMatchObject({
+      testPlan: {
+        ...plan(),
+        groups: [{ label: "A", samples: 3, isControl: true }],
+      },
+    });
     await setSamples(
       f.actor,
       f.exp.id,
@@ -229,6 +235,130 @@ describe("permanent sample identities against PostgreSQL", () => {
       await db.characterizationResult.findUnique({ where: { id: result.id } }),
     ).toEqual(result);
     expect(await f.samples()).toHaveLength(4);
+  });
+
+  it("retains empty group settings and sample evidence through allocation and return to Extras", async () => {
+    const f = await fixture();
+    const original = await f.samples();
+    const process = await db.process.create({
+      data: {
+        organizationId: f.org.id,
+        name: "Empty group process",
+        kind: "PROCESSING",
+      },
+    });
+    const emptyGroupsPlan = {
+      substrates: { count: 17 },
+      groups: ["A", "B", "C", "D", "E"].map((label) => ({
+        label,
+        samples: 0,
+        isControl: label === "A",
+      })),
+      variables: [
+        {
+          kind: "parameter",
+          processId: process.id,
+          parameter: "Speed",
+          unit: "rpm",
+          values: { A: "1000", B: "1100", C: "1200", D: "1300", E: "1400" },
+        },
+      ],
+      assignments: Object.fromEntries(
+        Array.from({ length: 17 }, (_, i) => [`S${i + 1}`, "EXTRA"]),
+      ),
+    };
+    await applyTestPlan(f.actor, f.exp.id, emptyGroupsPlan);
+    const samples = await f.samples();
+    expect(samples).toHaveLength(17);
+    expect(samples.every((sample) => sample.variationGroup === null)).toBe(
+      true,
+    );
+    expect(
+      samples
+        .filter((sample) => original.some((old) => old.id === sample.id))
+        .map((sample) => [sample.id, sample.simCode]),
+    ).toEqual(original.map((sample) => [sample.id, sample.simCode]));
+    const step = await db.processStep.findFirstOrThrow({
+      where: { experimentId: f.exp.id },
+    });
+    const run = await db.run.create({
+      data: { experimentId: f.exp.id, runNo: 1 },
+    });
+    const capture = await db.stepExecution.create({
+      data: {
+        runId: run.id,
+        stepId: step.id,
+        sampleId: samples[0].id,
+        actuals: { Speed: "1050" },
+        note: "Recorded evidence",
+      },
+    });
+    await regroupSampleService(f.actor, samples[0].id, "B");
+    const allocated = await db.experiment.findUniqueOrThrow({
+      where: { id: f.exp.id },
+    });
+    expect(allocated.metadata).toMatchObject({
+      testPlan: {
+        groups: [
+          { label: "A", samples: 0 },
+          { label: "B", samples: 1 },
+          { label: "C", samples: 0 },
+          { label: "D", samples: 0 },
+          { label: "E", samples: 0 },
+        ],
+        assignments: { [samples[0].code]: "B" },
+      },
+    });
+    await regroupSampleService(f.actor, samples[0].id, "EXTRA");
+    expect(
+      (await db.experiment.findUniqueOrThrow({ where: { id: f.exp.id } }))
+        .metadata,
+    ).toMatchObject({ testPlan: emptyGroupsPlan });
+    expect(
+      await db.stepExecution.findUnique({ where: { id: capture.id } }),
+    ).toEqual(capture);
+    expect(
+      (await f.samples()).map((sample) => [sample.id, sample.simCode]),
+    ).toEqual(samples.map((sample) => [sample.id, sample.simCode]));
+    expect(
+      await db.parameterVariation.findMany({
+        where: { parameter: { stepId: step.id } },
+        orderBy: { variationGroup: "asc" },
+        select: { variationGroup: true, value: true },
+      }),
+    ).toEqual(
+      Object.entries(emptyGroupsPlan.variables[0].values).map(
+        ([variationGroup, value]) => ({ variationGroup, value }),
+      ),
+    );
+    expect(
+      await db.auditEvent.count({
+        where: {
+          organizationId: f.org.id,
+          action: "sample.regroup",
+          entityId: samples[0].id,
+        },
+      }),
+    ).toBe(2);
+    await Promise.all([
+      regroupSampleService(f.actor, samples[0].id, "B"),
+      regroupSampleService(f.actor, samples[1].id, "C"),
+    ]);
+    expect(
+      (await db.experiment.findUniqueOrThrow({ where: { id: f.exp.id } }))
+        .metadata,
+    ).toMatchObject({
+      testPlan: {
+        assignments: { [samples[0].code]: "B", [samples[1].code]: "C" },
+        groups: [
+          { label: "A", samples: 0 },
+          { label: "B", samples: 1 },
+          { label: "C", samples: 1 },
+          { label: "D", samples: 0 },
+          { label: "E", samples: 0 },
+        ],
+      },
+    });
   });
 
   it("never reuses prefixes after complete, archive, trash, restore or hard purge", async () => {
@@ -276,9 +406,12 @@ describe("permanent sample identities against PostgreSQL", () => {
       orderBy: { simCodePrefix: "asc" },
     });
     expect(allocated.map((e) => e.simCodePrefix)).toEqual(["123AA", "123AB"]);
-    await applyTestPlan(f.actor, one.id, plan(100));
+    const firstAllocated = allocated[0];
+    await applyTestPlan(f.actor, firstAllocated.id, plan(100));
     const sample = await db.sample.findUniqueOrThrow({
-      where: { experimentId_code: { experimentId: one.id, code: "S100" } },
+      where: {
+        experimentId_code: { experimentId: firstAllocated.id, code: "S100" },
+      },
     });
     expect(sample.simCode).toBe("123AA100");
     expect(await matchSerial(f.org.id, "123AA100-2")).toMatchObject({
@@ -289,10 +422,16 @@ describe("permanent sample identities against PostgreSQL", () => {
       status: "UNMATCHED",
     });
     const prefix = allocated[0].simCodePrefix;
-    await assignExperiment(f.actor, { experimentId: one.id, userId: null });
+    await assignExperiment(f.actor, {
+      experimentId: firstAllocated.id,
+      userId: null,
+    });
     expect(
-      (await db.experiment.findUniqueOrThrow({ where: { id: one.id } }))
-        .simCodePrefix,
+      (
+        await db.experiment.findUniqueOrThrow({
+          where: { id: firstAllocated.id },
+        })
+      ).simCodePrefix,
     ).toBe(prefix);
   });
 
