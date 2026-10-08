@@ -9,7 +9,6 @@ import {
   sendExperimentToLab,
   updateExperimentMeta,
   createExperiment,
-  createExperimentFrom,
   duplicateExperiment,
   deleteExperiment,
   setTemplatePin,
@@ -107,6 +106,14 @@ export function HomeBoard({
   const [busy, setBusy] = useState(false);
   const [newMode, setNewMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
+  const [pickerPage, setPickerPage] = useState(1);
+  const [pickerError, setPickerError] = useState(false);
+  const newExperimentRef = useRef<HTMLButtonElement>(null);
+  const closePicker = () => {
+    setPickerOpen(false);
+    requestAnimationFrame(() => newExperimentRef.current?.focus());
+  };
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [confirmingCopy, setConfirmingCopy] = useState<string | null>(null);
   // Per-row rights come from the server; creation is open to everyone now.
@@ -680,6 +687,7 @@ export function HomeBoard({
                   </span>
                 ) : (
                   <button
+                    ref={newExperimentRef}
                     onClick={() => setNewMode(true)}
                     disabled={busy}
                     className="h-8 bg-brand text-[#243000] rounded-[4px] px-4 text-[12.5px] font-bold disabled:opacity-50 flex items-center gap-1.5"
@@ -691,44 +699,85 @@ export function HomeBoard({
                 {pickerOpen && (
                   <div
                     className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
-                    onClick={() => setPickerOpen(false)}
+                    onClick={() => { if (!busy) closePicker(); }}
                   >
                     <div
-                      className="w-full max-w-md max-h-[80vh] overflow-y-auto bg-surface border border-line rounded-[8px] p-4"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="source-picker-title"
+                      className="w-full max-w-lg max-h-[85dvh] flex flex-col bg-surface border border-line rounded-[8px] p-4"
                       onClick={(ev) => ev.stopPropagation()}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Escape" && !busy) closePicker();
+                        if (ev.key !== "Tab") return;
+                        const controls = [...ev.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled)")];
+                        const first = controls[0];
+                        const last = controls.at(-1);
+                        if (ev.shiftKey && document.activeElement === first) {
+                          ev.preventDefault();
+                          last?.focus();
+                        } else if (!ev.shiftKey && document.activeElement === last) {
+                          ev.preventDefault();
+                          first?.focus();
+                        }
+                      }}
                     >
                       <div className="flex items-center gap-2 mb-3">
-                        <p className="text-sm font-bold text-charcoal">
+                        <p id="source-picker-title" className="text-sm font-bold text-charcoal">
                           {t("dash.fromTpl")}
                         </p>
                         <button
-                          onClick={() => setPickerOpen(false)}
-                          className="ml-auto p-1 text-muted"
+                          onClick={closePicker}
+                          aria-label={t("dash.tplClose")}
+                          disabled={busy}
+                          className="ml-auto min-h-11 min-w-11 flex items-center justify-center text-muted"
                         >
                           <Icon name="X" size={14} />
                         </button>
                       </div>
+                      <input
+                        type="search"
+                        autoFocus
+                        aria-label={t("dash.tplSearch")}
+                        placeholder={t("dash.tplSearch")}
+                        value={pickerQuery}
+                        onChange={(ev) => { setPickerQuery(ev.target.value); setPickerPage(1); }}
+                        className="w-full min-h-11 border border-line rounded-[4px] px-3 text-[12px] mb-3 shrink-0"
+                      />
+                      {pickerError && <p role="alert" className="text-[12px] text-danger mb-3">{t("dash.tplCopyError")}</p>}
                       {(() => {
-                        const templates = experiments.filter(
-                          (e) => e.isTemplate,
+                        const q = pickerQuery.trim().toLowerCase();
+                        const matches = experiments.filter((e) =>
+                          (e.isTemplate || e.editable) &&
+                          (!q || e.code.toLowerCase().includes(q) || e.title.toLowerCase().includes(q)),
                         );
-                        const recent = experiments
-                          .filter((e) => e.editable && !e.isTemplate)
-                          .slice(0, 8);
+                        const templates = matches.filter((e) => e.isTemplate);
+                        const history = matches.filter((e) => !e.isTemplate);
+                        const pages = Math.max(1, Math.ceil(history.length / 20));
+                        const page = Math.min(pickerPage, pages);
+                        const recent = history.slice((page - 1) * 20, page * 20);
                         const SourceRow = ({ e }: { e: ExpRow }) => (
                           <button
                             disabled={busy}
                             onClick={async () => {
                               setBusy(true);
-                              await createExperimentFrom(e.id);
+                              setPickerError(false);
+                              try {
+                                const copy = await duplicateExperiment(e.id);
+                                router.push(`/experiments/${copy.id}`);
+                              } catch {
+                                setPickerError(true);
+                              } finally {
+                                setBusy(false);
+                              }
                             }}
-                            className="w-full text-left border border-line rounded-[6px] p-2.5 hover:border-brand hover:bg-brand-soft/30 disabled:opacity-50"
+                            className="w-full min-h-11 text-left border border-line rounded-[6px] p-2.5 hover:border-brand hover:bg-brand-soft/30 disabled:opacity-50"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="mono text-[11px] font-bold text-brand-deep">
+                              <span className="mono text-[11px] font-bold text-brand-deep break-all">
                                 {e.code}
                               </span>
-                              <span className="ml-auto mono text-[10px] text-muted">
+                              <span className="ml-auto mono text-[10px] text-muted shrink-0">
                                 {e.samples} {t("designer.samples")} · {e.steps}{" "}
                                 {t("list.steps").toLowerCase()}
                               </span>
@@ -736,14 +785,16 @@ export function HomeBoard({
                             <div className="text-[12.5px] font-medium leading-snug">
                               {e.title}
                             </div>
+                            <div className="text-[10.5px] text-muted mt-1">{e.createdBy} · {e.updatedAt}</div>
                           </button>
                         );
                         return templates.length === 0 && recent.length === 0 ? (
                           <p className="text-[12px] text-muted py-6 text-center">
-                            {t("dash.tplEmpty")}
+                            {q ? t("dash.tplNoMatch") : t("dash.tplEmpty")}
                           </p>
                         ) : (
-                          <div className="space-y-3">
+                          <>
+                          <div className="space-y-3 overflow-y-auto min-h-0">
                             {templates.length > 0 && (
                               <div>
                                 <p className="text-[10.5px] font-bold uppercase text-muted mb-1.5">
@@ -769,6 +820,16 @@ export function HomeBoard({
                               </div>
                             )}
                           </div>
+                          {history.length > 0 && (
+                            <div className="shrink-0 border-t border-line mt-3 pt-3 space-y-2">
+                              <p aria-live="polite" className="text-[11px] text-muted">{t("dash.tplPage", { page: String(page), pages: String(pages), total: String(history.length) })}</p>
+                              {pages > 1 && <div className="flex justify-between gap-3">
+                                <button disabled={page === 1 || busy} onClick={() => setPickerPage(page - 1)} className="min-h-11 px-3 border border-line rounded-[4px] text-[12px] disabled:opacity-40">{t("dash.tplPrevious")}</button>
+                                <button disabled={page === pages || busy} onClick={() => setPickerPage(page + 1)} className="min-h-11 px-3 border border-line rounded-[4px] text-[12px] disabled:opacity-40">{t("dash.tplNext")}</button>
+                              </div>}
+                            </div>
+                          )}
+                          </>
                         );
                       })()}
                     </div>

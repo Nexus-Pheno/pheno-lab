@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Process, Equipment, Material } from "@prisma/client";
 import type { TestPlan, TestPlanVariable } from "@/lib/library";
 import { GROUP_LABELS } from "@/lib/library";
+import { substrateCounts } from "@/lib/test-plan";
 import { equipmentOptionLabel, paramDefs } from "@/lib/types";
 import { MaterialCombobox } from "@/components/designer/inspectors";
 import { Icon, inputCls, selectCls, FieldLabel } from "@/components/ui";
@@ -28,8 +29,8 @@ const distribute = (groups: { label: string; samples: number }[], count: number)
 
 const emptyPlan = (processId: string): TestPlan => {
   const groups = [
-    { label: "A", samples: 3, isControl: true },
-    { label: "B", samples: 3, isControl: false },
+    { label: "A", samples: 0, isControl: true },
+    { label: "B", samples: 0, isControl: false },
   ];
   return {
     groups,
@@ -47,7 +48,7 @@ export function TestPlanCard({
   layers,
   categoryLayers = [],
   categories = [],
-  sampleCount,
+  samples,
   canEdit,
   canManageMaterials = false,
   onApply,
@@ -61,13 +62,20 @@ export function TestPlanCard({
   categoryLayers?: { code: string; layers: string[] }[];
   /** Full category rows for the in-page material creation modal. */
   categories?: CategoryRow[];
-  sampleCount: number;
+  samples: { code: string; variationGroup: string | null }[];
   canEdit: boolean;
   canManageMaterials?: boolean;
   onApply: (plan: TestPlan) => Promise<void>;
   onMaterialCreated?: (m: Material) => void;
 }) {
   const t = useT();
+  const sampleCount = samples.length;
+  const currentAssignments = Object.fromEntries(
+    samples.map((sample) => [sample.code, sample.variationGroup ?? EXTRA_GROUP]),
+  );
+  const savedCounts = plan?.substrates
+    ? substrateCounts(plan.groups, sampleCount, currentAssignments)
+    : null;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TestPlan | null>(null);
   const [busy, setBusy] = useState(false);
@@ -134,7 +142,9 @@ export function TestPlanCard({
             groups: plan.groups.map((g) => ({ ...g })),
             variables: plan.variables.map((v) => ({ ...v, values: { ...v.values } })),
             substrates: plan.substrates ? { ...plan.substrates } : undefined,
-            assignments: plan.assignments ? { ...plan.assignments } : undefined,
+            assignments: plan.substrates
+              ? { ...plan.assignments, ...currentAssignments }
+              : plan.assignments ? { ...plan.assignments } : undefined,
           }
         : emptyPlan(processing[0]?.id ?? "")
     );
@@ -170,7 +180,17 @@ export function TestPlanCard({
     );
   };
 
-  const total = draft?.groups.reduce((sum, g) => sum + (g.samples || 0), 0) ?? 0;
+  const counts = draft?.substrates
+    ? substrateCounts(draft.groups, draft.substrates.count, draft.assignments)
+    : null;
+  const total = counts?.total ?? draft?.groups.reduce((sum, g) => sum + (g.samples || 0), 0) ?? 0;
+  const summary = (value: NonNullable<typeof counts>) => (
+    <span data-testid="substrate-summary" className="text-[11px] text-muted flex flex-wrap gap-x-3 gap-y-1">
+      <span>{t("plan.grouped")} {value.grouped}</span>
+      <span>{t("plan.extras")} {value.extras}</span>
+      <span>{t("plan.errors")} {value.errors}</span>
+    </span>
+  );
 
   // ---- display mode ----
   if (!editing) {
@@ -214,7 +234,7 @@ export function TestPlanCard({
             </button>
           )}
         </div>
-        {plan && plan.variables.length > 0 && (
+        {plan && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {plan.groups.map((g) => (
               <span
@@ -225,11 +245,12 @@ export function TestPlanCard({
                 }
               >
                 {g.label}
-                {g.isControl && ` (${t("plan.controlWord")})`}: {plan.variables.map((v) => `${v.values[g.label] ?? "—"}${v.unit ? " " + v.unit : ""}`).join(" · ")} · {g.samples}×
+                {g.isControl && ` (${t("plan.controlWord")})`}: {plan.variables.map((v) => `${v.values[g.label] ?? "—"}${v.unit ? " " + v.unit : ""}`).join(" · ")} · {savedCounts?.byGroup[g.label] ?? g.samples}×
               </span>
             ))}
           </div>
         )}
+        {savedCounts && <div className="mt-2">{summary(savedCounts)}</div>}
       </div>
     );
   }
@@ -237,7 +258,7 @@ export function TestPlanCard({
   // ---- edit mode ----
   if (!draft) return null;
   return (
-    <div className="mt-4 bg-surface border-2 border-brand-deep rounded-[6px] px-3.5 py-3 space-y-3.5">
+    <div data-testid="test-plan-editor" className="mt-4 bg-surface border-2 border-brand-deep rounded-[6px] px-3.5 py-3 space-y-3.5">
       <div className="flex items-center gap-2">
         <span className="text-[11px] font-bold uppercase text-muted flex items-center gap-1.5">
           <Icon name="TestTubes" size={13} /> {t("plan.title")}
@@ -405,6 +426,7 @@ export function TestPlanCard({
             <FieldLabel>{t("plan.substrateCount")}</FieldLabel>
             <input
               type="number" min={1} max={198}
+              aria-label={t("plan.substrateCount")}
               className="mono w-20 border border-line rounded-[3px] px-2 py-1.5"
               value={draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)}
               onChange={(e) => {
@@ -487,9 +509,11 @@ export function TestPlanCard({
                 <td className="py-1 pr-2 mono font-bold">{g.label}</td>
                 <td className="py-1 pr-2">
                   <input
-                    type="number" min={1} max={48}
+                    type="number" min={draft.substrates ? 0 : 1} max={draft.substrates ? undefined : 48}
                     className="mono w-16 border border-line rounded-[3px] px-2 py-1.5"
-                    value={g.samples}
+                    value={counts?.byGroup[g.label] ?? g.samples}
+                    readOnly={Boolean(draft.substrates)}
+                    aria-label={`${g.label} ${t("plan.samples")}`}
                     onChange={(e) =>
                       setDraft({
                         ...draft,
@@ -586,7 +610,7 @@ export function TestPlanCard({
               draft.groups.length < GROUP_LABELS.length &&
               setDraft({
                 ...draft,
-                groups: [...draft.groups, { label: GROUP_LABELS[draft.groups.length], samples: 3, isControl: false }],
+                groups: [...draft.groups, { label: GROUP_LABELS[draft.groups.length], samples: draft.substrates ? 0 : 3, isControl: false }],
               })
             }
             className="text-[11px] font-semibold text-brand-deep flex items-center gap-1"
@@ -600,6 +624,7 @@ export function TestPlanCard({
         </div>
       </div>
 
+      {counts && summary(counts)}
       <div className="flex flex-wrap gap-2 justify-end items-center">
         <span className="text-[10.5px] text-muted mr-auto max-w-lg">
           {t("plan.applyNote")}
@@ -625,10 +650,7 @@ export function TestPlanCard({
                     ...draft,
                     groups: draft.groups.map((g) => ({
                       ...g,
-                      samples: Math.max(
-                        1,
-                        Object.values(draft.assignments ?? {}).filter((z) => z === g.label).length,
-                      ),
+                      samples: counts?.byGroup[g.label] ?? 0,
                     })),
                   }
                 : draft;

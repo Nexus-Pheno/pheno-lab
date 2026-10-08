@@ -569,42 +569,79 @@ export async function regroupSampleService(
     select: { id: true, code: true, experimentId: true, note: true },
   });
   await requireExperimentPermission(actor, sample.experimentId, "capture");
-  const experiment = await db.experiment.findUniqueOrThrow({
-    where: { id: sample.experimentId },
-    select: { metadata: true },
-  });
-  const metadata = (experiment.metadata ?? {}) as Record<string, unknown>;
-  const plan = metadata.testPlan as
-    | { groups?: { label: string }[]; assignments?: Record<string, string> }
-    | undefined;
-  const labels = new Set((plan?.groups ?? []).map((g) => g.label));
   const clean = zone.trim();
-  if (!labels.has(clean) && clean !== "EXTRA" && clean !== "ERROR") {
-    throw new Error("Unknown group.");
-  }
-  const variationGroup = labels.has(clean)
-    ? clean
-    : clean === "ERROR"
-      ? "ERROR"
-      : null;
-
   await db.$transaction(async (transaction) => {
+    // Same lock order as plan reconciliation. Concurrent moves must not
+    // overwrite another substrate's assignment or its updated group count.
+    await transaction.organization.update({
+      where: { id: actor.org },
+      data: { nextShortNo: { increment: 0 } },
+    });
+    await transaction.$queryRaw`
+      SELECT "id" FROM "Experiment"
+      WHERE "id" = ${sample.experimentId} AND "organizationId" = ${actor.org}
+      FOR UPDATE
+    `;
+    const experiment = await transaction.experiment.findFirstOrThrow({
+      where: {
+        id: sample.experimentId,
+        organizationId: actor.org,
+        deletedAt: null,
+      },
+      select: { metadata: true },
+    });
+    const metadata = (experiment.metadata ?? {}) as Record<string, unknown>;
+    const plan = metadata.testPlan as
+      | {
+          groups?: { label: string; samples?: number }[];
+          assignments?: Record<string, string>;
+          substrates?: { count: number };
+        }
+      | undefined;
+    const labels = new Set((plan?.groups ?? []).map((g) => g.label));
+    if (!labels.has(clean) && clean !== "EXTRA" && clean !== "ERROR") {
+      throw new Error("Unknown group.");
+    }
+    const variationGroup = labels.has(clean)
+      ? clean
+      : clean === "ERROR"
+        ? "ERROR"
+        : null;
     const trashNote = clean === "ERROR" && note?.trim() ? note.trim() : "";
+    const current = trashNote
+      ? await transaction.sample.findUniqueOrThrow({
+          where: { id: sample.id },
+          select: { note: true },
+        })
+      : null;
     await transaction.sample.update({
       where: { id: sample.id },
       data: {
         variationGroup,
         ...(trashNote
           ? {
-              note: sample.note
-                ? `${sample.note}\n[trash] ${trashNote}`
+              note: current?.note
+                ? `${current.note}\n[trash] ${trashNote}`
                 : `[trash] ${trashNote}`,
             }
           : {}),
       },
     });
     if (plan) {
-      plan.assignments = { ...(plan.assignments ?? {}), [sample.code]: clean };
+      const samples = await transaction.sample.findMany({
+        where: { experimentId: sample.experimentId },
+        select: { code: true, variationGroup: true },
+      });
+      plan.assignments = Object.fromEntries(
+        samples.map((row) => [row.code, row.variationGroup ?? "EXTRA"]),
+      );
+      if (plan.substrates) {
+        plan.groups = plan.groups?.map((group) => ({
+          ...group,
+          samples: samples.filter((row) => row.variationGroup === group.label)
+            .length,
+        }));
+      }
       await transaction.experiment.update({
         where: { id: sample.experimentId },
         data: { metadata: metadata as Prisma.InputJsonValue },
