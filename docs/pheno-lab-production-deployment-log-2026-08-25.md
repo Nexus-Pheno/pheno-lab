@@ -1800,3 +1800,28 @@ Before/after fingerprints were identical for all 19,320 samples, 3,877 step exec
 Post-release checks confirmed the current release, loopback-only port 3457, PostgreSQL/COS readiness, HTTP 301 to HTTPS and public liveness version `20261005-001`. Authenticated production browser checks displayed 16 existing labels and followed an original QR into mobile capture in English and Chinese, with zero browser errors. They used a short-lived server-signed verification session; no real password was retrieved and no scientific records were written. Password login and destructive-edit guards were exercised in the isolated E2E suite. Physical instrument operator validation remains outstanding.
 
 The new read-only audit helper initially failed on CommonJS top-level await. Its correction uses an async entry point and a direct Prisma client, and was successfully exercised against the protected local test database. The release acceptance inventory above was independently collected with read-only Prisma queries. This helper is an operations command, not an application runtime dependency.
+
+### 17.7 release `20261008-001` (October 8, 2026)
+
+Michael explicitly approved implementing the October 8 technician feedback, then explicitly requested production deployment using the existing process and previous-agent context. Application PR #90 merged to main `3c8c4326bf815bf07c95c93f165153678ee26d2b`. PR and merged-main GitHub Actions passed (runs 37764466234 and 37764975805), including the bridge job. Local checks passed the full verification with 216 unit tests, 83 guarded PostgreSQL integration tests and 17 browser tests. Production repeated the existing full build-release verification.
+
+The update keeps empty planned groups available in the process inspector, starts new substrate batches in Extras, derives counts from actual allocations, preserves sample identities during regrouping and searches all eligible historical experiments before pagination. The editor now handles unselected optional equipment. No schema, dependency, deployment-script or configuration structure changed.
+
+The clean production source pulled main, then the existing build-release and deploy-release scripts deployed `20261008-001`. The service started at **18:49:37 China time** (`2026-10-08T10:49:37Z`). Artifact SHA256: `b4e602fae20fd2c5d0c560294716036e665755c5227fff2272bbf0474dbc2eaf`; checksum validation passed before deployment. The existing migration command found 40 migrations and no pending migrations. The existing credential-encryption step changed zero legacy credentials. Only APP_VERSION was incrementally updated after a protected temporary backup; all other environment bytes remained unchanged. No Nginx, systemd, database/COS permissions, secrets, network configuration or other services were changed. The existing retention policy kept five releases, including `20261005-001` for rollback.
+
+Read-only inventories at 10:37 and 11:36 UTC matched record IDs and counts:
+
+| Record | Before | After |
+| --- | --- | --- |
+| Experiment | 1,073 | 1,073 |
+| Sample | 19,583 | 19,583 |
+| StepExecution | 3,877 | 3,877 |
+| CharacterizationResult | 24,263 | 24,263 |
+| Attachment | 45,842 | 45,842 |
+| JvMeasurement | 37,719 | 37,719 |
+
+Sample identity fingerprints also matched. These checks establish identity/count preservation; they are not a full content checksum of every scientific field. No production scientific records were edited or backfilled for this release.
+
+Post-release checks confirmed current and public liveness version `20261008-001`, active application/Nginx, zero automatic service restarts, loopback-only port 3457, HTTP 301 to HTTPS and authenticated readiness for PostgreSQL/private COS. Four authenticated production browser cases passed (English and Chinese at 1440×900 and 390×844): older-history number search among 973 eligible records, no-match state, Escape, and all six planned groups visible in an existing experiment, including four empty groups. No browser errors or scientific writes occurred. The browser guard allowed GET/HEAD and only the source-verified read-only comment-list server action. Short-lived server-signed verification sessions expired after five minutes; no password or token is stored in the evidence.
+
+The standalone bilingual technician HTML records this release and includes synthetic test screenshots and five field acceptance checks. Aggregate release/UI evidence is saved beside it in `docs/technician-changelog-2026-10-08/`. Technician field acceptance remains pending; bulk assignment is outside this update.

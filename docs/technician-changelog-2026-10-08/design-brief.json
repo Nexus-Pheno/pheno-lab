@@ -1,0 +1,74 @@
+{
+  "brand": "pheno",
+  "productName": "Pheno Lab technician usability changes 2026-10-08",
+  "productArchetype": "live-lab-execution",
+  "primaryUser": "Laboratory technician reviewing their October 8 usability feedback",
+  "repeatedJob": "Understand the two implemented changes and verify them after release",
+  "dominantProductObject": "Feedback to change ledger with test-environment screenshots and field checklist",
+  "signatureComposition": "Compact report with two numbered changes, factual before and after comparisons, annotated test screenshots and acceptance checklist",
+  "primaryAction": "Read in Chinese or English and print the technician checklist",
+  "applicationArchitecture": {
+    "shellMode": "document",
+    "canonicalFrameId": "approved exception — standalone technician report",
+    "pattern": "Single offline document with language controls and a linear evidence ledger",
+    "visiblePanes": [
+      "Document"
+    ],
+    "primarySpaceTarget": "100 percent of the reading area",
+    "paneContracts": [
+      {
+        "id": "document",
+        "role": "Change ledger and checklist",
+        "min": "288px content at 320px viewport",
+        "default": "1120px maximum outer width",
+        "max": "1120px",
+        "scrollOwner": "Document",
+        "collapseMode": "Change rows stack below 768px",
+        "persistedState": [
+          "Language preference when local storage is available"
+        ]
+      }
+    ],
+    "responsiveTransformation": {
+      "wide": "Centered 1120px report; section numbers and text align in columns",
+      "expanded": "Centered 1120px report with comparative change columns",
+      "medium": "24px outer margins; compact section-number rail",
+      "compact": "16px margins; stacked change rows and full-width fields; wrapping utility controls"
+    }
+  },
+  "evidenceStates": [
+    "Released to production as 20261008-001 and health verified",
+    "Automated verification and read-only live-screen checks completed",
+    "Technician field acceptance pending"
+  ],
+  "permissionStates": [
+    "Read-only offline document",
+    "Checklist and feedback fields are local to the open page; no submission or production edits"
+  ],
+  "requiredViewports": [
+    "1440x900",
+    "1024x768",
+    "390x844",
+    "320x700"
+  ],
+  "languages": [
+    "zh-CN",
+    "en"
+  ],
+  "approvedAssetDirectory": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/public/brand",
+  "tokenFile": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/tokens/pheno.tokens.json",
+  "logoAssetId": "pheno.wordmark.primary",
+  "logoAsset": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/public/brand/pheno-logo.png",
+  "logoBackground": "white; original checksum verified",
+  "webIconSet": "Non-installable offline report: approved canonical 16/32/48 favicons and Apple touch icon embedded. No PWA manifest.",
+  "specialConstraints": [
+    "No Lavish",
+    "Single offline HTML file with embedded approved assets",
+    "Chinese default and complete English toggle",
+    "No production release claims",
+    "Screenshots use synthetic test data and are labelled accordingly",
+    "Do not modify existing October 5 change notes",
+    "Optional bulk assignment is outside this update",
+    "Checklist stays in the open document and is not submitted"
+  ]
+}

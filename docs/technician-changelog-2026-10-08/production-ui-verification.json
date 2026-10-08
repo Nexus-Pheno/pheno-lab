@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-10-08T11:40:18.198Z",
+  "release": "20261008-001",
+  "mode": "authenticated, existing records only; GET/HEAD plus allowlisted read-only listExperimentComments server action; no scientific writes",
+  "cases": [
+    {
+      "language": "en",
+      "viewport": "1440x900",
+      "olderHistoryMatched": true,
+      "historyTotal": 973,
+      "plannedGroupsVisible": 6,
+      "emptyGroupsVisible": 4,
+      "existingSampleCount": 8,
+      "consoleErrors": 0,
+      "readOnlyActionRequests": 1,
+      "blockedMutations": 0
+    },
+    {
+      "language": "en",
+      "viewport": "390x844",
+      "olderHistoryMatched": true,
+      "historyTotal": 973,
+      "plannedGroupsVisible": 6,
+      "emptyGroupsVisible": 4,
+      "existingSampleCount": 8,
+      "consoleErrors": 0,
+      "readOnlyActionRequests": 1,
+      "blockedMutations": 0
+    },
+    {
+      "language": "zh",
+      "viewport": "1440x900",
+      "olderHistoryMatched": true,
+      "historyTotal": 973,
+      "plannedGroupsVisible": 6,
+      "emptyGroupsVisible": 4,
+      "existingSampleCount": 8,
+      "consoleErrors": 0,
+      "readOnlyActionRequests": 1,
+      "blockedMutations": 0
+    },
+    {
+      "language": "zh",
+      "viewport": "390x844",
+      "olderHistoryMatched": true,
+      "historyTotal": 973,
+      "plannedGroupsVisible": 6,
+      "emptyGroupsVisible": 4,
+      "existingSampleCount": 8,
+      "consoleErrors": 0,
+      "readOnlyActionRequests": 1,
+      "blockedMutations": 0
+    }
+  ]
+}

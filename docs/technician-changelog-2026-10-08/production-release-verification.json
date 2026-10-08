@@ -1,0 +1,59 @@
+{
+  "checkedAt": "2026-10-08T11:39:12.155133Z",
+  "release": "20261008-001",
+  "liveVersion": "20261008-001",
+  "databaseReady": true,
+  "storageReady": true,
+  "storageDriver": "cos",
+  "serviceStartedAt": "2026-10-08T10:49:37Z",
+  "serviceActive": true,
+  "nginxActive": true,
+  "serviceRestarts": 0,
+  "runtimeDirectory": "/srv/pheno-lab/releases/20261008-001",
+  "sourceCommit": "3c8c4326bf815bf07c95c93f165153678ee26d2b",
+  "sourceClean": true,
+  "artifactSha256": "b4e602fae20fd2c5d0c560294716036e665755c5227fff2272bbf0474dbc2eaf",
+  "previousReleaseRetained": true,
+  "listeners": [
+    "127.0.0.1:3457"
+  ],
+  "httpRedirect": "301 https://lab.szkl.com/",
+  "newMigrationsApplied": 0,
+  "serviceTimestampSource": "systemctl ExecMainStartTimestamp rendered with TZ=UTC",
+  "inventoryUnchanged": true,
+  "inventoryBeforeAt": "2026-10-08T10:37:32.303Z",
+  "inventoryAfterAt": "2026-10-08T11:36:08.984Z",
+  "inventory": {
+    "Experiment": {
+      "before": 1073,
+      "after": 1073,
+      "identitiesUnchanged": true
+    },
+    "Sample": {
+      "before": 19583,
+      "after": 19583,
+      "identitiesUnchanged": true
+    },
+    "StepExecution": {
+      "before": 3877,
+      "after": 3877,
+      "identitiesUnchanged": true
+    },
+    "CharacterizationResult": {
+      "before": 24263,
+      "after": 24263,
+      "identitiesUnchanged": true
+    },
+    "Attachment": {
+      "before": 45842,
+      "after": 45842,
+      "identitiesUnchanged": true
+    },
+    "JvMeasurement": {
+      "before": 37719,
+      "after": 37719,
+      "identitiesUnchanged": true
+    }
+  },
+  "sampleIdentitiesUnchanged": true
+}
