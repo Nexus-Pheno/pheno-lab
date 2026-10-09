@@ -1,0 +1,222 @@
+{
+  "release": "20261009-002",
+  "sourceCommit": "c676c77070dc799c4fcac37eb94390d61501b8b6",
+  "deploymentVerifiedAt": "2026-10-09T04:11:46.734Z",
+  "artifactSha256": "52e1705c32590182903c8bd56b0925d9183569f8da0653f60705121214e042c1",
+  "pullRequest": "https://github.com/Nexus-Pheno/pheno-lab/pull/94",
+  "ciRuns": [
+    37881735475,
+    37882156584
+  ],
+  "automatedTests": {
+    "unit": 220,
+    "postgresqlIntegration": 95,
+    "browser": 21
+  },
+  "provisioning": {
+    "checkedAt": "2026-10-09T04:11:57.576Z",
+    "accountCreated": true,
+    "role": "TECHNICIAN",
+    "testingOnly": true,
+    "mustChangePassword": true,
+    "otherGrants": false,
+    "temporaryLoginMatchesEncryptedHandoff": true,
+    "expiresAt": "2026-10-16T04:11:57.468Z",
+    "privateNotificationCount": 2,
+    "recipientIdentitiesVerified": true,
+    "notificationsUnread": true,
+    "auditCount": 1
+  },
+  "postVerificationAccountState": {
+    "checkedAt": "2026-10-09T04:13:03.668Z",
+    "active": true,
+    "role": "TECHNICIAN",
+    "testingOnly": true,
+    "mustChangePassword": true,
+    "sessionVersion": 0,
+    "temporaryPasswordUnchanged": true,
+    "expiresAt": "2026-10-16T04:11:57.468Z",
+    "designatedPrivateNotifications": 2,
+    "unreadNotifications": 2,
+    "provisioningAuditCount": 1,
+    "handoffReadAuditCount": 1,
+    "migrationAppliedAt": "2026-10-09T04:11:40.023Z",
+    "userCount": 28,
+    "otherRestrictedAccounts": 0,
+    "testingRequestCount": 0
+  },
+  "existingAccessBefore": {
+    "checkedAt": "2026-10-09T03:58:28.936Z",
+    "count": 27,
+    "existingAccessDigest": "de06d826a91ca1a3346ed7b92fca1c01"
+  },
+  "existingAccessAfter": {
+    "checkedAt": "2026-10-09T04:12:14.910Z",
+    "count": 27,
+    "existingAccessDigest": "de06d826a91ca1a3346ed7b92fca1c01"
+  },
+  "scientificSnapshotBefore": {
+    "checkedAt": "2026-10-09T03:58:23.253Z",
+    "records": {
+      "Experiment": {
+        "count": 1079,
+        "idDigest": "7c20426401fdb0e65d66d8850631cbd7"
+      },
+      "Sample": {
+        "count": 19671,
+        "idDigest": "4b534d638ad7e5c6543203a665d5cd36"
+      },
+      "StepExecution": {
+        "count": 3877,
+        "idDigest": "ab2fe83962ba7d92676fd2c5cc48bbe2"
+      },
+      "CharacterizationResult": {
+        "count": 24263,
+        "idDigest": "47f6b3329bdf557e4179e9a0d6e73dde"
+      },
+      "Attachment": {
+        "count": 45842,
+        "idDigest": "d27ccbb59458b755d9e1dac55bbe73aa"
+      },
+      "JvMeasurement": {
+        "count": 37926,
+        "idDigest": "173388420f035f81e0aa708f71d5206e"
+      }
+    },
+    "sampleIdentityDigest": "01ecbdcb62afe72a2ad1e5f405e93640"
+  },
+  "scientificSnapshotAfter": {
+    "checkedAt": "2026-10-09T04:12:15.475Z",
+    "records": {
+      "Experiment": {
+        "count": 1079,
+        "idDigest": "7c20426401fdb0e65d66d8850631cbd7"
+      },
+      "Sample": {
+        "count": 19671,
+        "idDigest": "4b534d638ad7e5c6543203a665d5cd36"
+      },
+      "StepExecution": {
+        "count": 3877,
+        "idDigest": "ab2fe83962ba7d92676fd2c5cc48bbe2"
+      },
+      "CharacterizationResult": {
+        "count": 24263,
+        "idDigest": "47f6b3329bdf557e4179e9a0d6e73dde"
+      },
+      "Attachment": {
+        "count": 45842,
+        "idDigest": "d27ccbb59458b755d9e1dac55bbe73aa"
+      },
+      "JvMeasurement": {
+        "count": 37926,
+        "idDigest": "173388420f035f81e0aa708f71d5206e"
+      }
+    },
+    "sampleIdentityDigest": "01ecbdcb62afe72a2ad1e5f405e93640"
+  },
+  "liveBrowser": {
+    "checkedAt": "2026-10-09T04:12:03.782Z",
+    "release": "20261009-002",
+    "privateRecipients": [
+      {
+        "recipient": "michael",
+        "privatePageAccessible": true,
+        "secretAbsentBeforeExplicitReveal": true
+      },
+      {
+        "recipient": "joey",
+        "privatePageAccessible": true,
+        "secretAbsentBeforeExplicitReveal": true
+      }
+    ],
+    "setupCases": [
+      {
+        "lang": "en",
+        "width": 1440,
+        "mandatoryChange": true,
+        "noGeneralNavigation": true,
+        "noHorizontalOverflow": true
+      },
+      {
+        "lang": "en",
+        "width": 390,
+        "mandatoryChange": true,
+        "noGeneralNavigation": true,
+        "noHorizontalOverflow": true
+      },
+      {
+        "lang": "zh",
+        "width": 1440,
+        "mandatoryChange": true,
+        "noGeneralNavigation": true,
+        "noHorizontalOverflow": true
+      },
+      {
+        "lang": "zh",
+        "width": 390,
+        "mandatoryChange": true,
+        "noGeneralNavigation": true,
+        "noHorizontalOverflow": true
+      }
+    ],
+    "deniedRoutes": [
+      "/",
+      "/testing",
+      "/portal",
+      "/library",
+      "/data",
+      "/analysis",
+      "/profile",
+      "/instruments",
+      "/users"
+    ],
+    "pageErrorCount": 0,
+    "ordinaryManagerHandoffDenied": true,
+    "actualTemporaryLoginPassed": true,
+    "beforeSetupFileAndUploadDenied": true,
+    "existingColleagueTestingWorkspaceAccessible": true,
+    "passwordUnchanged": true,
+    "notificationPanelsNotOpened": true,
+    "passed": true,
+    "completedAt": "2026-10-09T04:12:36.253959+00:00"
+  },
+  "productionHealth": {
+    "checkedAt": "2026-10-09T04:12:14.399Z",
+    "runtime": "/srv/pheno-lab/releases/20261009-002",
+    "sourceCommit": "c676c77070dc799c4fcac37eb94390d61501b8b6",
+    "sourceClean": true,
+    "artifactSha256": "52e1705c32590182903c8bd56b0925d9183569f8da0653f60705121214e042c1",
+    "applicationActive": true,
+    "nginxActive": true,
+    "automaticRestarts": 0,
+    "applicationUser": "pheno",
+    "serviceStartedAt": "Fri 2026-10-09 12:11:40 CST",
+    "listener": [
+      "127.0.0.1:3457"
+    ],
+    "live": {
+      "status": "live",
+      "version": "20261009-002"
+    },
+    "ready": {
+      "httpStatus": 200,
+      "service": "pheno-lab",
+      "timestamp": "2026-10-09T04:12:14.393Z",
+      "version": "20261009-002",
+      "status": "ready",
+      "dependencies": {
+        "database": "ready",
+        "storage": "ready",
+        "storageDriver": "cos"
+      }
+    },
+    "httpRedirect": {
+      "status": 301,
+      "location": "https://lab.szkl.com/"
+    },
+    "previousReleaseRetained": true
+  },
+  "scope": "Only the explicitly approved specialist account, one encrypted handoff, two designated in-app notifications and corresponding audit records were created. Verification used the real temporary login without changing the password or opening notification panels. Presence heartbeats and an authorized handoff-view audit are expected verification effects. No production scientific writes or test requests, and no real DingTalk or email test messages were sent. Snapshots establish bounded row identity/count and sample-label preservation, not full scientific content checksums.",
+  "rollbackConstraint": "Before using older code that does not enforce testingOnly and mustChangePassword, deactivate affected restricted accounts with an audit event or obtain explicit approval for another isolation plan. Do not rely on additive schema compatibility."
+}
