@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { Actor } from "./actor";
+import { assertFullAccess } from "./policy";
 
 /**
  * Which experiments an actor may OPEN (contents: plan, results, data, files).
@@ -11,6 +12,7 @@ export function experimentVisibilityScope(
   actor: Actor,
   includeTest = false,
 ): Prisma.ExperimentWhereInput {
+  assertFullAccess(actor);
   // deletedAt: null everywhere — trashed experiments exist only in the
   // recycle bin, never in a scope.
   const base: Prisma.ExperimentWhereInput = includeTest
@@ -38,6 +40,7 @@ export function experimentListScope(
   actor: Actor,
   includeTest = false,
 ): Prisma.ExperimentWhereInput {
+  assertFullAccess(actor);
   return includeTest
     ? { organizationId: actor.org, deletedAt: null }
     : { organizationId: actor.org, isTest: false, deletedAt: null };
@@ -61,6 +64,7 @@ export function experimentListScope(
 export function measurementVisibilityScope(
   actor: Actor,
 ): Prisma.JvMeasurementWhereInput {
+  assertFullAccess(actor);
   // Scans of trashed experiments hide with their experiment; unattached
   // scans (experimentId null) are unaffected.
   const liveExperiment: Prisma.JvMeasurementWhereInput = {

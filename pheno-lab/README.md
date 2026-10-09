@@ -92,6 +92,23 @@ new organizations can be added later without schema changes.
   grants, password resets, OTPs and legacy research ownership remain admin-only.
   Delegates open **Profile → Members** from a personal device. Grants are
   default-deny, checked from the database on each operation and audited.
+- A **JV testing only** account has a separate read-only `/testing` workspace
+  across the organization's real experiments. Only substrate codes, JV testing
+  requirements, explicit testing handoffs/photos and JV scan metrics are exposed.
+  Preparation, recipes, full experiments, general files, analysis and scientific
+  writes remain inaccessible even through direct routes and actions. Colleagues
+  send a testing request from the JV capture stage, selecting ready substrates
+  and uploading a photo. In-app delivery is transactional and idempotent; the
+  existing optional DingTalk integration sends only a fixed alert after commit.
+- Approved operator provisioning uses `accounts/provisioning-service.ts`, with
+  explicit organization and authorized notification recipients; it never replaces
+  an existing account or claims historical research. Temporary credentials are
+  encrypted with the existing credential adapter and delivered through private
+  in-app notification links. Only the designated active member administrators on
+  personal devices may reveal them. Temporary login expires after seven days;
+  first sign-in requires a different password. Password change/reset revokes the
+  encrypted handoff and invalidates older sessions. No password is stored in
+  notification text, audit payloads, logs or release evidence.
 - Backups: local development can use `scripts/backup.sh` and `BACKUP_DIR`.
   Production sets `BACKUP_MODE=external`; backup and restore jobs run on the
   independent PostgreSQL server, while `/system` reports that external mode

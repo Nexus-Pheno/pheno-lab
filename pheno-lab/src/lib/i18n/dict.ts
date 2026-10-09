@@ -2,6 +2,57 @@
 // materials-science lab audience (工艺/表征 terminology), not machine-translated.
 
 export const en = {
+  "testing.title": "JV testing",
+  "testing.permission": "JV testing only · read-only",
+  "testing.readOnlyHint":
+    "Read-only testing workspace. View substrate codes, testing requests and JV data. Refreshes every minute.",
+  "testing.refresh": "Refresh",
+  "testing.searchPlaceholder": "Search experiment or substrate code",
+  "testing.search": "Search",
+  "testing.experiments": "experiments",
+  "testing.scans": "Scans",
+  "testing.requests": "Testing requests",
+  "testing.lastUpdate": "Latest data received",
+  "testing.waiting": "Waiting for JV data.",
+  "testing.empty": "No JV testing experiments found.",
+  "testing.previous": "Previous",
+  "testing.next": "Next",
+  "testing.substrates": "Substrate codes",
+  "testing.requirements": "JV testing requirements",
+  "testing.noRequests": "No testing handoff has been sent yet.",
+  "testing.run": "Run",
+  "testing.data": "JV test data",
+  "testing.latest100": "Showing the latest 100 scans, newest received first.",
+  "testing.photo": "Substrate photo",
+  "testing.instructions": "Testing instructions (optional)",
+  "testing.notify": "Notify testing specialist",
+  "testing.notifyHint":
+    "Send when these substrates are ready for JV testing. Select their codes and attach a photo. Only testing instructions will be shared.",
+  "testing.send": "Send testing request",
+  "testing.sent":
+    "Testing specialist notified in the app; DingTalk alert sent.",
+  "testing.savedNoGroup":
+    "Testing request saved and specialist notified in the app. DingTalk was unavailable; the in-app request remains available.",
+  "testing.sendError":
+    "Request could not be sent. Check that the experiment is in the lab, a testing specialist is active, and the photo is valid, then retry.",
+  "testing.setupTitle": "Set your own password",
+  "testing.setupHint":
+    "Before entering the app, replace the temporary password with your own password of at least 8 characters.",
+  "testing.savePassword": "Save password and continue",
+  "testing.passwordDifferent":
+    "Choose a password different from the temporary password.",
+  "testing.passwordError":
+    "Password could not be changed. Use at least 8 characters and check that your temporary login has not expired.",
+  "testing.handoffTitle": "Private account setup",
+  "testing.handoffHint":
+    "Share this login privately with the colleague. The password works for initial setup only; they must change it before entering the app. It disappears here after they change it.",
+  "testing.expires": "Temporary login expires",
+  "testing.reveal": "Show temporary password",
+  "testing.temporaryPassword": "Temporary password",
+  "testing.handoffUnavailable":
+    "Temporary credentials are no longer available. The account has been set up, the login has expired, or access was revoked.",
+  "notif.testing_requested": "sent a JV testing request",
+  "notif.account_setup_ready": "prepared a private account login",
   // App chrome
   "app.name": "Lab Data Platform",
   "nav.dashboard": "Dashboard",
@@ -1446,6 +1497,55 @@ export const en = {
 export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
+  "testing.title": "JV 测试",
+  "testing.permission": "仅 JV 测试 · 只读",
+  "testing.readOnlyHint":
+    "只读测试工作台：查看基底编码、测试需求及 JV 数据。每分钟自动刷新。",
+  "testing.refresh": "刷新",
+  "testing.searchPlaceholder": "搜索实验或基底编码",
+  "testing.search": "搜索",
+  "testing.experiments": "项实验",
+  "testing.scans": "扫描数据",
+  "testing.requests": "测试需求",
+  "testing.lastUpdate": "最新数据接收时间",
+  "testing.waiting": "等待 JV 数据更新。",
+  "testing.empty": "未找到 JV 测试实验。",
+  "testing.previous": "上一页",
+  "testing.next": "下一页",
+  "testing.substrates": "基底编码",
+  "testing.requirements": "JV 测试要求",
+  "testing.noRequests": "尚未发送测试交接需求。",
+  "testing.run": "轮次",
+  "testing.data": "JV 测试数据",
+  "testing.latest100": "显示最新接收的 100 条扫描数据。",
+  "testing.photo": "待测基底实物图片",
+  "testing.instructions": "测试备注（选填）",
+  "testing.notify": "通知测试专员",
+  "testing.notifyHint":
+    "基底完成制备、可进行 JV 测试后发送。请勾选基底编码并上传实物图片，仅共享测试相关备注。",
+  "testing.send": "发送测试需求",
+  "testing.sent": "已向测试专员发送站内通知，并发送钉钉提醒。",
+  "testing.savedNoGroup":
+    "测试需求已保存，已向测试专员发送站内通知。钉钉暂不可用，可在站内查看需求。",
+  "testing.sendError":
+    "发送失败。请确认实验已进入实验室、测试专员账号已启用且图片有效后重试。",
+  "testing.setupTitle": "设置个人密码",
+  "testing.setupHint":
+    "首次进入平台前，请将临时密码修改为至少 8 位的个人密码。",
+  "testing.savePassword": "保存密码并进入平台",
+  "testing.passwordDifferent": "新密码不能与临时密码相同。",
+  "testing.passwordError":
+    "密码修改失败。请使用至少 8 位密码，并确认临时登录未过期。",
+  "testing.handoffTitle": "私密账号交接",
+  "testing.handoffHint":
+    "请私下将登录信息交给该同事。临时密码仅用于首次设置，进入平台前必须修改。修改后此处不再显示临时密码。",
+  "testing.expires": "临时登录有效期至",
+  "testing.reveal": "查看临时密码",
+  "testing.temporaryPassword": "临时密码",
+  "testing.handoffUnavailable":
+    "临时登录信息已不可用：账号已完成设置、临时登录已过期或权限已撤销。",
+  "notif.testing_requested": "发送了 JV 测试需求",
+  "notif.account_setup_ready": "已准备好私密账号登录信息",
   "app.name": "实验数据平台",
   "nav.dashboard": "仪表盘",
   "nav.experiments": "实验",

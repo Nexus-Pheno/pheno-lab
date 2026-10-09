@@ -40,43 +40,45 @@ enum LibraryReviewStatus {
 // Every organization owns its own data: users, experiments, processes,
 // equipment, materials, environments, locations, presets, labels.
 model Organization {
-  id             String                   @id @default(cuid())
-  name           String
-  slug           String                   @unique
-  orgNumber      Int                      @default(1) // organization number in experiment codes (Pheno = 001)
-  nextShortNo    Int                      @default(1) // hands out Experiment.shortCode
-  emailDomains   String[]                 @default([]) // registration allowed only for these domains
-  status         String                   @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
-  createdAt      DateTime                 @default(now())
+  id              String                   @id @default(cuid())
+  name            String
+  slug            String                   @unique
+  orgNumber       Int                      @default(1) // organization number in experiment codes (Pheno = 001)
+  nextShortNo     Int                      @default(1) // hands out Experiment.shortCode
+  emailDomains    String[]                 @default([]) // registration allowed only for these domains
+  status          String                   @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
+  createdAt       DateTime                 @default(now())
   // Running total of measurement data points — every (x, y) point of every
   // stored curve. Incremented where scans are stored, recounted nightly.
-  dataPoints     Int                      @default(0)
-  users          User[]
-  experiments    Experiment[]
-  processes      Process[]
-  equipment      Equipment[]
-  materials      Material[]
-  environments   LabEnvironment[]
-  locations      Location[]
-  presets        Preset[]
-  labels         Label[]
-  counters       Counter[]
-  recipes        Recipe[]
-  ingestItems    IngestItem[]
-  aiProviders    AiProvider[]
-  exportRequests ExportRequest[]
-  matCategories  MaterialCategoryDef[]
-  deviceLayers   DeviceLayer[]
-  feedback       Feedback[]
-  otpCodes       OtpCode[]
-  instruments    Instrument[]
-  jvMeasurements JvMeasurement[]
-  sharedDevices  SharedDevice[]
-  notifications  Notification[]
-  materialEdits  MaterialEditSuggestion[]
-  projects       Project[]
-  analysisRuns   AnalysisRun[]
-  codeLedger     SampleCodeReservation[]
+  dataPoints      Int                      @default(0)
+  users           User[]
+  experiments     Experiment[]
+  processes       Process[]
+  equipment       Equipment[]
+  materials       Material[]
+  environments    LabEnvironment[]
+  locations       Location[]
+  presets         Preset[]
+  labels          Label[]
+  counters        Counter[]
+  recipes         Recipe[]
+  ingestItems     IngestItem[]
+  aiProviders     AiProvider[]
+  exportRequests  ExportRequest[]
+  matCategories   MaterialCategoryDef[]
+  deviceLayers    DeviceLayer[]
+  feedback        Feedback[]
+  otpCodes        OtpCode[]
+  instruments     Instrument[]
+  jvMeasurements  JvMeasurement[]
+  sharedDevices   SharedDevice[]
+  notifications   Notification[]
+  materialEdits   MaterialEditSuggestion[]
+  projects        Project[]
+  analysisRuns    AnalysisRun[]
+  codeLedger      SampleCodeReservation[]
+  testingRequests TestingRequest[]
+  accountHandoffs AccountHandoff[]
 }
 
 // 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
@@ -96,65 +98,71 @@ model Project {
 }
 
 model User {
-  id                    String                   @id @default(cuid())
-  organizationId        String
-  organization          Organization             @relation(fields: [organizationId], references: [id])
-  email                 String                   @unique
-  name                  String
-  handle                String                   @default("") // short display handle, e.g. @mike
-  language              String                   @default("en") // "en" | "zh"
-  passwordHash          String
-  active                Boolean                  @default(true) // deactivated users cannot sign in
+  id                         String                   @id @default(cuid())
+  organizationId             String
+  organization               Organization             @relation(fields: [organizationId], references: [id])
+  email                      String                   @unique
+  name                       String
+  handle                     String                   @default("") // short display handle, e.g. @mike
+  language                   String                   @default("en") // "en" | "zh"
+  passwordHash               String
+  active                     Boolean                  @default(true) // deactivated users cannot sign in
   // New self-registrations wait here (inactive) until an admin approves them —
   // fixing the name/email styling and optionally claiming a legacy dataset.
-  pendingApproval       Boolean                  @default(false)
-  userNumber            Int                      @default(0) // sequential per organization, assigned at registration
-  exportRequests        ExportRequest[]          @relation("ExportRequester")
-  exportDecisions       ExportRequest[]          @relation("ExportDecider")
-  nextExpSeq            Int                      @default(1) // this user's next experiment number — never reused, no ceiling
-  role                  Role                     @default(TECHNICIAN)
+  pendingApproval            Boolean                  @default(false)
+  userNumber                 Int                      @default(0) // sequential per organization, assigned at registration
+  exportRequests             ExportRequest[]          @relation("ExportRequester")
+  exportDecisions            ExportRequest[]          @relation("ExportDecider")
+  nextExpSeq                 Int                      @default(1) // this user's next experiment number — never reused, no ceiling
+  role                       Role                     @default(TECHNICIAN)
   // Presence: refreshed (throttled) whenever a signed-in request arrives, so
   // the admin activity monitor can show who is online.
-  lastSeenAt            DateTime?
+  lastSeenAt                 DateTime?
   // NFC badge (NTAG213 sticker on the work ID): tap-to-sign-in on shared
   // tablets. The UID is read from the chip; the secret is a random token the
   // bind flow writes onto the card, stored here only as a hash. Both must
   // match at login, and only on a registered shared device.
-  badgeUid              String?                  @unique // canonical lowercase hex, no separators
-  badgeSecretHash       String                   @default("") // sha256 of the on-card token; "" = UID-only badge
-  badgeBoundAt          DateTime?
+  badgeUid                   String?                  @unique // canonical lowercase hex, no separators
+  badgeSecretHash            String                   @default("") // sha256 of the on-card token; "" = UID-only badge
+  badgeBoundAt               DateTime?
   // Stewardships: who is responsible for each part of the lab's library.
-  materialAdmin         Boolean                  @default(false) // materials library (purchasing/stock owner)
-  equipmentAdmin        Boolean                  @default(false) // equipment & machine parameters
-  facilityAdmin         Boolean                  @default(false) // locations & lab environments
-  recipeAccess          Boolean                  @default(false) // may view/edit recipe contents
-  recipeSteward         Boolean                  @default(false)
-  deviceAdmin           Boolean                  @default(false) // shared tablets: register, hand out setup links, revoke
-  memberAdmin           Boolean                  @default(false) // approve registrations and add new technicians
+  materialAdmin              Boolean                  @default(false) // materials library (purchasing/stock owner)
+  equipmentAdmin             Boolean                  @default(false) // equipment & machine parameters
+  facilityAdmin              Boolean                  @default(false) // locations & lab environments
+  recipeAccess               Boolean                  @default(false) // may view/edit recipe contents
+  recipeSteward              Boolean                  @default(false)
+  deviceAdmin                Boolean                  @default(false) // shared tablets: register, hand out setup links, revoke
+  memberAdmin                Boolean                  @default(false) // approve registrations and add new technicians
+  testingOnly                Boolean                  @default(false) // read-only JV workspace, no preparation/research access
+  mustChangePassword         Boolean                  @default(false)
+  temporaryPasswordExpiresAt DateTime?
+  sessionVersion             Int                      @default(0)
+  testingRequests            TestingRequest[]         @relation("TestingRequester")
+  accountHandoffs            AccountHandoff[]
   // 项目组 (2026-09-13): the team this person works in. New experiments are
   // filed under it by default; unassigned people stay "ungrouped".
-  projectId             String?
-  project               Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  createdAt             DateTime                 @default(now())
-  experiments           Experiment[]
-  memberships           ExperimentMember[]
-  presets               Preset[]
-  runs                  Run[]
-  feedback              Feedback[]
-  reviewedFeedback      Feedback[]               @relation("FeedbackReviewer")
-  recipes               Recipe[]
-  assignedExperiments   Experiment[]             @relation("ExperimentAssignee")
-  approvedExperiments   Experiment[]             @relation("ExperimentApprover")
-  deletedExperiments    Experiment[]             @relation("ExperimentDeleter")
-  ingestReviews         IngestItem[]
-  ownedMeasurements     JvMeasurement[]          @relation("MeasurementOwner")
-  sharedDeviceLogins    SharedDevice[]           @relation("SharedDeviceUser")
-  accessRequests        AccessRequest[]          @relation("AccessRequester")
-  notifications         Notification[]           @relation("NotificationRecipient")
-  materialEdits         MaterialEditSuggestion[] @relation("MaterialEditAuthor")
-  reviewedMaterialEdits MaterialEditSuggestion[] @relation("MaterialEditReviewer")
-  experimentComments    ExperimentComment[]      @relation("CommentAuthor")
-  analysisRuns          AnalysisRun[]            @relation("AnalysisRequester")
+  projectId                  String?
+  project                    Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt                  DateTime                 @default(now())
+  experiments                Experiment[]
+  memberships                ExperimentMember[]
+  presets                    Preset[]
+  runs                       Run[]
+  feedback                   Feedback[]
+  reviewedFeedback           Feedback[]               @relation("FeedbackReviewer")
+  recipes                    Recipe[]
+  assignedExperiments        Experiment[]             @relation("ExperimentAssignee")
+  approvedExperiments        Experiment[]             @relation("ExperimentApprover")
+  deletedExperiments         Experiment[]             @relation("ExperimentDeleter")
+  ingestReviews              IngestItem[]
+  ownedMeasurements          JvMeasurement[]          @relation("MeasurementOwner")
+  sharedDeviceLogins         SharedDevice[]           @relation("SharedDeviceUser")
+  accessRequests             AccessRequest[]          @relation("AccessRequester")
+  notifications              Notification[]           @relation("NotificationRecipient")
+  materialEdits              MaterialEditSuggestion[] @relation("MaterialEditAuthor")
+  reviewedMaterialEdits      MaterialEditSuggestion[] @relation("MaterialEditReviewer")
+  experimentComments         ExperimentComment[]      @relation("CommentAuthor")
+  analysisRuns               AnalysisRun[]            @relation("AnalysisRequester")
 
   @@index([projectId])
 }
@@ -234,35 +242,35 @@ model OrgInvite {
 // Bug reports and feedback, collected org-wide and exportable by the admin so
 // issues can be handed to agents with full context.
 model Feedback {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  userId         String
-  user           User         @relation(fields: [userId], references: [id])
-  kind           String // "bug" | "feedback"
-  title          String       @default("") // one problem per item, named
-  message        String
-  screenshotPath String       @default("") // legacy single screenshot; new items use attachments
-  errorLog       String       @default("") // recent client-side errors at submit time
-  pageUrl        String       @default("")
-  userAgent      String       @default("")
+  id                 String       @id @default(cuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  userId             String
+  user               User         @relation(fields: [userId], references: [id])
+  kind               String // "bug" | "feedback"
+  title              String       @default("") // one problem per item, named
+  message            String
+  screenshotPath     String       @default("") // legacy single screenshot; new items use attachments
+  errorLog           String       @default("") // recent client-side errors at submit time
+  pageUrl            String       @default("")
+  userAgent          String       @default("")
   // Review pipeline: open → approved → implemented → (reporter verifies)
   // verified, or reopened back to the admin. "resolved" is legacy.
-  status         String       @default("open") // "open" | "approved" | "rejected" | "implemented" | "verified" | "reopened"
-  adminNote      String       @default("") // the admin's comments / scoping edits
-  reviewedById   String?
-  reviewedBy     User?        @relation("FeedbackReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  reviewedAt     DateTime?
+  status             String       @default("open") // "open" | "approved" | "rejected" | "implemented" | "verified" | "reopened"
+  adminNote          String       @default("") // the admin's comments / scoping edits
+  reviewedById       String?
+  reviewedBy         User?        @relation("FeedbackReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt         DateTime?
   // Closing the loop (Michael, 2026-09-08): implementation ships with patch
   // notes; the reporter tests and confirms (or disputes with a reason).
   // Untouched implemented items auto-verify after 7 days.
   implementedAt      DateTime?
-  implementationNote String    @default("") // patch notes shown to the reporter
+  implementationNote String       @default("") // patch notes shown to the reporter
   verifiedAt         DateTime?
-  verifiedAuto       Boolean   @default(false)
-  disputeNote        String    @default("") // reporter's reason when reopening
-  attachments    Attachment[]
-  createdAt      DateTime     @default(now())
+  verifiedAuto       Boolean      @default(false)
+  disputeNote        String       @default("") // reporter's reason when reopening
+  attachments        Attachment[]
+  createdAt          DateTime     @default(now())
 }
 
 model Counter {
@@ -370,6 +378,7 @@ model Experiment {
   deletedAt         DateTime?
   deletedById       String?
   deletedBy         User?               @relation("ExperimentDeleter", fields: [deletedById], references: [id])
+  testingRequests   TestingRequest[]
 
   @@unique([organizationId, shortCode])
   @@index([organizationId, deletedAt])
@@ -380,14 +389,14 @@ model Experiment {
 // @mentions are resolved client-side to user ids and only produce
 // notifications; being mentioned grants no access by itself.
 model ExperimentComment {
-  id           String     @id @default(cuid())
+  id           String       @id @default(cuid())
   experimentId String
-  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  experiment   Experiment   @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   authorId     String
-  author       User       @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  author       User         @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   body         String
   attachments  Attachment[]
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime     @default(now())
 
   @@index([experimentId, createdAt])
 }
@@ -430,6 +439,48 @@ model Notification {
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+}
+
+// Private credential handoff. Notification text never contains the password.
+// The encrypted secret is revoked atomically when the target changes password.
+model AccountHandoff {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  targetUserId      String
+  targetUser        User         @relation(fields: [targetUserId], references: [id], onDelete: Cascade)
+  recipientIds      String[]
+  encryptedPassword String
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  createdAt         DateTime     @default(now())
+
+  @@index([targetUserId])
+}
+
+// A preparation colleague explicitly hands selected substrates to JV testing.
+// Only the testing instructions and photo are shared with the testing account.
+model TestingRequest {
+  id                 String           @id @default(cuid())
+  organizationId     String
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  experimentId       String
+  experiment         Experiment       @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  characterizationId String
+  characterization   Characterization @relation(fields: [characterizationId], references: [id], onDelete: Cascade)
+  requestedById      String
+  requestedBy        User             @relation("TestingRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  runId              String
+  run                Run              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sampleIds          String[]
+  photoPath          String
+  note               String           @default("")
+  requestKey         String
+  createdAt          DateTime         @default(now())
+
+  @@unique([organizationId, requestKey])
+  @@index([organizationId, createdAt])
+  @@index([experimentId])
 }
 
 model ExperimentMember {
@@ -560,6 +611,7 @@ model Characterization {
   sampleScope           String                   @default("all") // "all" | "per-group"
   notes                 String                   @default("")
   results               CharacterizationResult[]
+  testingRequests       TestingRequest[]
 }
 
 // Equipment belongs to a process and owns its parameter definitions: when a
@@ -806,17 +858,18 @@ enum RunStatus {
 }
 
 model Run {
-  id             String                   @id @default(cuid())
-  experimentId   String
-  experiment     Experiment               @relation(fields: [experimentId], references: [id], onDelete: Cascade)
-  runNo          Int
-  status         RunStatus                @default(OPEN)
-  technicianId   String?
-  technician     User?                    @relation(fields: [technicianId], references: [id])
-  createdAt      DateTime                 @default(now())
-  executions     StepExecution[]
-  results        CharacterizationResult[]
-  jvMeasurements JvMeasurement[]
+  id              String                   @id @default(cuid())
+  experimentId    String
+  experiment      Experiment               @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  runNo           Int
+  status          RunStatus                @default(OPEN)
+  technicianId    String?
+  technician      User?                    @relation(fields: [technicianId], references: [id])
+  createdAt       DateTime                 @default(now())
+  executions      StepExecution[]
+  results         CharacterizationResult[]
+  jvMeasurements  JvMeasurement[]
+  testingRequests TestingRequest[]
 
   @@unique([experimentId, runNo])
 }

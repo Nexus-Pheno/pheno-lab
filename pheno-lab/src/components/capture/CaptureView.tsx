@@ -31,6 +31,8 @@ import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
 import { JvRescue } from "./JvRescue";
 import { ScanButton } from "./ScanButton";
+import { NotifyTesting } from "@/components/testing/NotifyTesting";
+import { isJvTesting } from "@/modules/testing/schema";
 
 type Execution = {
   stepId: string;
@@ -560,6 +562,7 @@ export function CaptureView({
                 <PerSampleCharCapture
                   charId={c.id}
                   name={c.name}
+                  processName={c.process.name}
                   icon={c.process.icon}
                   experimentId={exp.id}
                   expCode={exp.code}
@@ -1764,6 +1767,7 @@ function PhotoGallery({
 function PerSampleCharCapture({
   charId,
   name,
+  processName,
   icon,
   experimentId,
   expCode,
@@ -1775,6 +1779,7 @@ function PerSampleCharCapture({
 }: {
   charId: string;
   name: string;
+  processName: string;
   icon: string;
   experimentId: string;
   expCode: string;
@@ -1874,6 +1879,13 @@ function PerSampleCharCapture({
         </span>
       </div>
       <p className="text-[10px] text-muted mb-2">{t("cap.perSampleHint")}</p>
+      {isJvTesting(name, processName) && (
+        <NotifyTesting
+          characterizationId={charId}
+          runId={runId}
+          samples={samples}
+        />
+      )}
 
       {/* Unlinked instrument scans — the repair path for mistyped serials. */}
       {/j-?v|solar/i.test(name) && (

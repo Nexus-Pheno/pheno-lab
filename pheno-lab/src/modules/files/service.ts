@@ -5,6 +5,7 @@ import path from "node:path";
 import { objectStorage } from "@/infrastructure/storage";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
+import { assertFullAccess } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { canReadObject } from "./authorization";
 import {
@@ -34,6 +35,7 @@ async function storeUserFile(
   folder: "images" | "documents",
   extension: string,
 ) {
+  assertFullAccess(actor);
   const now = new Date();
   const key = [
     "organizations",

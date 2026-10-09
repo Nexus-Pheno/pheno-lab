@@ -11,9 +11,9 @@ export type { NotificationRow };
 
 /** Opening the panel: returns the latest items and marks them read. */
 export async function listNotifications(): Promise<NotificationRow[]> {
-  return listNotificationsService(await requireSession());
+  return listNotificationsService(await requireSession("account"));
 }
 
 export async function getUnreadCount(): Promise<number> {
-  return unreadNotificationCount(await requireSession());
+  return unreadNotificationCount(await requireSession("account"));
 }

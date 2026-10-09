@@ -534,10 +534,28 @@ export async function adminResetPassword(
   await db.$transaction(async (tx) => {
     const user = await tx.user.findFirst({
       where: { id, organizationId: actor.org },
-      select: { id: true },
+      select: { id: true, testingOnly: true, mustChangePassword: true },
     });
     if (!user) throw new Error("User not found.");
-    await tx.user.update({ where: { id }, data: { passwordHash } });
+    await tx.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        sessionVersion: { increment: 1 },
+        ...(user.testingOnly || user.mustChangePassword
+          ? {
+              mustChangePassword: true,
+              temporaryPasswordExpiresAt: new Date(
+                Date.now() + 7 * 24 * 3600_000,
+              ),
+            }
+          : {}),
+      },
+    });
+    await tx.accountHandoff.updateMany({
+      where: { targetUserId: id, organizationId: actor.org, revokedAt: null },
+      data: { encryptedPassword: "", revokedAt: new Date() },
+    });
     await recordUserAudit(tx, {
       actor,
       action: "user.password.reset.admin",

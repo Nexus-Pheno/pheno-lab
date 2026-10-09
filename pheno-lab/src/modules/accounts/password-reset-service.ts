@@ -149,7 +149,20 @@ export async function verifyPasswordReset(raw: {
     });
     await tx.user.update({
       where: { id: user.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        temporaryPasswordExpiresAt: null,
+        sessionVersion: { increment: 1 },
+      },
+    });
+    await tx.accountHandoff.updateMany({
+      where: {
+        targetUserId: user.id,
+        organizationId: otp.organizationId,
+        revokedAt: null,
+      },
+      data: { encryptedPassword: "", revokedAt: new Date() },
     });
     await recordSystemAudit(tx, {
       organizationId: otp.organizationId,

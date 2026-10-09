@@ -10,7 +10,16 @@ export class AuthorizationError extends Error {
 }
 
 export function isStaff(actor: Actor): boolean {
-  return actor.role === "ADMIN" || actor.role === "MANAGER";
+  return (
+    !actor.testingOnly &&
+    !actor.mustChangePassword &&
+    (actor.role === "ADMIN" || actor.role === "MANAGER")
+  );
+}
+
+export function assertFullAccess(actor: Actor): void {
+  if (actor.testingOnly || actor.mustChangePassword)
+    throw new AuthorizationError("This account is restricted to JV testing.");
 }
 
 export function assertStaff(actor: Actor): void {
@@ -20,6 +29,7 @@ export function assertStaff(actor: Actor): void {
 }
 
 export function assertAdmin(actor: Actor): void {
+  assertFullAccess(actor);
   if (actor.role !== "ADMIN") {
     throw new AuthorizationError("Only the organization admin can do this.");
   }
@@ -66,6 +76,7 @@ export function canReadExperiment(
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
+  if (actor.testingOnly || actor.mustChangePassword) return false;
   if (isStaff(actor)) return true;
   return isInvolved(actor, resource);
 }
@@ -79,6 +90,7 @@ export function canManageExperiment(
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
+  if (actor.testingOnly || actor.mustChangePassword) return false;
   if (isStaff(actor)) return true;
   return (
     resource.createdById === actor.uid || resource.assigneeId === actor.uid
@@ -90,6 +102,7 @@ export function canCaptureExperiment(
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
+  if (actor.testingOnly || actor.mustChangePassword) return false;
   return isStaff(actor) || isInvolved(actor, resource);
 }
 
@@ -98,6 +111,7 @@ export function canSubmitExperiment(
   resource: ExperimentAccessResource,
 ): boolean {
   if (!sameOrganization(actor, resource)) return false;
+  if (actor.testingOnly || actor.mustChangePassword) return false;
   return isStaff(actor) || isInvolved(actor, resource);
 }
 

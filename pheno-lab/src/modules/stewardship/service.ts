@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
+import { assertFullAccess } from "@/modules/authorization/policy";
 
 export const stewardshipKinds = [
   "materialAdmin",
@@ -19,6 +20,7 @@ export async function assertStewardship(
   actor: Actor,
   kind: Stewardship,
 ): Promise<void> {
+  assertFullAccess(actor);
   if (actor.role === "ADMIN") return;
   const user = await db.user.findFirst({
     where: { id: actor.uid, organizationId: actor.org, active: true },
@@ -46,6 +48,7 @@ export async function hasStewardship(
 export async function getStewardships(
   actor: Actor,
 ): Promise<Record<Stewardship, boolean>> {
+  assertFullAccess(actor);
   if (actor.role === "ADMIN") {
     return {
       materialAdmin: true,

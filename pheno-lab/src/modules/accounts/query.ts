@@ -13,6 +13,21 @@ const feedbackInclude = {
   attachments: { select: { id: true, fileName: true, storedPath: true } },
 } as const;
 
+export async function getOwnAccountData(actor: Actor) {
+  return db.user.findFirstOrThrow({
+    where: { id: actor.uid, organizationId: actor.org, active: true },
+    select: {
+      name: true,
+      handle: true,
+      email: true,
+      language: true,
+      role: true,
+      createdAt: true,
+      organization: { select: { name: true } },
+    },
+  });
+}
+
 export async function listFeedback(actor: Actor) {
   assertAdmin(actor);
   await autoVerifyFeedback(actor.org);

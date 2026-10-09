@@ -40,7 +40,13 @@ export async function login(
     maxAge: 60 * 60 * 24 * 365,
     sameSite: "lax",
   });
-  redirect("/");
+  redirect(
+    result.actor.mustChangePassword
+      ? "/account/setup"
+      : result.actor.testingOnly
+        ? "/testing"
+        : "/",
+  );
 }
 
 export async function logout() {

@@ -6,6 +6,8 @@ import { sendDingTalkText } from "@/infrastructure/push/dingtalk";
 import { log } from "@/infrastructure/logging/logger";
 
 const messages = {
+  testing_requested:
+    "有新的 JV 测试需求，请测试专员登录 Pheno Lab 测试工作台查看基底编码与图片。",
   access_requested: "有新的实验访问申请，请负责人登录 Pheno Lab 处理。",
   assigned: "有新的实验任务分配，请登录 Pheno Lab 查看。",
   registration_pending: "有新注册申请等待管理员审批，请登录 Pheno Lab 处理。",
