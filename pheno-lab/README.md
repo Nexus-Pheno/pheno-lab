@@ -86,6 +86,12 @@ new organizations can be added later without schema changes.
   deactivated accounts cannot sign in. OTP codes are never written to logs;
   until SMTP is configured, an admin can retrieve pending codes from the Users
   page.
+- An admin can delegate the **Members** responsibility independently of roles.
+  Delegates can share the registration link, approve their organization's new
+  technicians and create technician accounts. Role changes, other permission
+  grants, password resets, OTPs and legacy research ownership remain admin-only.
+  Delegates open **Profile → Members** from a personal device. Grants are
+  default-deny, checked from the database on each operation and audited.
 - Backups: local development can use `scripts/backup.sh` and `BACKUP_DIR`.
   Production sets `BACKUP_MODE=external`; backup and restore jobs run on the
   independent PostgreSQL server, while `/system` reports that external mode

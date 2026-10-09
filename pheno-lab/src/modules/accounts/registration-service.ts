@@ -26,7 +26,11 @@ import { recordUserAudit } from "@/modules/audit/writer";
 import { log } from "@/infrastructure/logging/logger";
 import { sendGroupNotice } from "@/modules/notifications/group-service";
 import type { Actor } from "@/modules/authorization/actor";
-import { assertAdmin } from "@/modules/authorization/policy";
+import {
+  assertAdmin,
+  assertMemberEnrollment,
+} from "@/modules/authorization/policy";
+import { assertStewardship } from "@/modules/stewardship/service";
 
 // Registration is OTP-based and restricted to an organization's email
 // domains. Codes are emailed via SMTP when configured; the admin's Users
@@ -205,7 +209,7 @@ export async function listRegistrationApprovals(actor: Actor): Promise<{
   approvals: RegistrationApproval[];
   legacyOptions: LegacyOption[];
 }> {
-  assertAdmin(actor);
+  await assertStewardship(actor, "memberAdmin");
   const [pendingUsers, placeholders] = await Promise.all([
     db.user.findMany({
       where: { organizationId: actor.org, pendingApproval: true },
@@ -218,21 +222,23 @@ export async function listRegistrationApprovals(actor: Actor): Promise<{
         createdAt: true,
       },
     }),
-    db.user.findMany({
-      where: {
-        organizationId: actor.org,
-        active: false,
-        pendingApproval: false,
-        passwordHash: "",
-        email: { contains: "@imported." },
-      },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        _count: { select: { experiments: true } },
-      },
-    }),
+    actor.role === "ADMIN"
+      ? db.user.findMany({
+          where: {
+            organizationId: actor.org,
+            active: false,
+            pendingApproval: false,
+            passwordHash: "",
+            email: { contains: "@imported." },
+          },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { experiments: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
   const legacyOptions = placeholders.map((p) => ({
     id: p.id,
@@ -265,15 +271,22 @@ export async function approveRegistration(
   actor: Actor,
   raw: unknown,
 ): Promise<void> {
-  assertAdmin(actor);
+  await assertStewardship(actor, "memberAdmin");
   const { userId, name, handle, email, legacyUserId } =
     registrationApprovalSchema.parse(raw);
   await db.$transaction(async (tx) => {
     const pending = await tx.user.findFirst({
       where: { id: userId, organizationId: actor.org, pendingApproval: true },
-      select: { id: true, email: true, passwordHash: true, language: true },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        language: true,
+        role: true,
+      },
     });
     if (!pending) throw new Error("No such pending registration.");
+    assertMemberEnrollment(actor, pending.role, Boolean(legacyUserId));
 
     if (legacyUserId) {
       const legacy = await tx.user.findFirst({
@@ -382,10 +395,11 @@ export async function createUserAccount(
   },
   actor: Actor,
 ): Promise<{ ok: boolean; error?: string }> {
-  assertAdmin(actor);
+  await assertStewardship(actor, "memberAdmin");
   const parsed = createUserSchema.safeParse(data);
   if (!parsed.success) return { ok: false, error: "bad-input" };
   const clean = parsed.data;
+  assertMemberEnrollment(actor, clean.role);
   const email = clean.email;
   if (await db.user.findUnique({ where: { email } }))
     return { ok: false, error: "exists" };
@@ -397,7 +411,10 @@ export async function createUserAccount(
       _max: { userNumber: true },
     });
     const createdName = clean.name || email.split("@")[0];
-    const legacy = await claimableLegacyUser(tx, actor.org, createdName);
+    const legacy =
+      actor.role === "ADMIN"
+        ? await claimableLegacyUser(tx, actor.org, createdName)
+        : null;
     const user = legacy
       ? await tx.user.update({
           where: { id: legacy.id },

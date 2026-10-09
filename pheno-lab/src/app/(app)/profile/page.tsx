@@ -14,6 +14,7 @@ import { fmtBeijing } from "@/lib/datetime";
 export default async function ProfilePage() {
   const session = await requireSession();
   const deviceSteward = await hasStewardship(session, "deviceAdmin");
+  const memberSteward = await hasStewardship(session, "memberAdmin");
   const t = await getT();
   const [{ user, organization: org, aiProviders, statistics }, myFeedback] =
     await Promise.all([getProfileData(session), listMyFeedback(session)]);
@@ -189,6 +190,14 @@ export default async function ProfilePage() {
           </div>
         )}
 
+        {session.role !== "ADMIN" && memberSteward && !session.device && (
+          <Link
+            href="/organization"
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-deep hover:underline"
+          >
+            <Icon name="Users" size={13} /> {t("org.members")}
+          </Link>
+        )}
         {session.role !== "ADMIN" && deviceSteward && !session.device && (
           <div className="flex flex-wrap gap-4">
             <Link
