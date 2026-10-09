@@ -4,6 +4,8 @@ export type Actor = {
   uid: string;
   org: string;
   role: ActorRole;
+  testingOnly?: boolean;
+  mustChangePassword?: boolean;
 };
 
 export type ExperimentAccessResource = {

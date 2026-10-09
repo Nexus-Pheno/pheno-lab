@@ -10,6 +10,7 @@ export async function canReadObject(
   actor: Actor,
   key: string,
 ): Promise<boolean> {
+  if (actor.testingOnly || actor.mustChangePassword) return false;
   if (!key || key.includes("..") || !SAFE_KEY.test(key)) return false;
 
   const parts = key.split("/");

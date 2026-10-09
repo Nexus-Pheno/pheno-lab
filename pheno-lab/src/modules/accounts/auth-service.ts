@@ -36,6 +36,9 @@ export async function authenticateById(raw: unknown) {
       active: true,
       passwordHash: true,
       language: true,
+      testingOnly: true,
+      mustChangePassword: true,
+      temporaryPasswordExpiresAt: true,
     },
   });
   const matches = await bcrypt.compare(
@@ -43,12 +46,20 @@ export async function authenticateById(raw: unknown) {
     user?.passwordHash ?? DUMMY_HASH,
   );
   if (!user?.active || !matches) return null;
+  if (
+    user.mustChangePassword &&
+    user.temporaryPasswordExpiresAt &&
+    user.temporaryPasswordExpiresAt.getTime() <= Date.now()
+  )
+    return null;
   return {
     actor: {
       uid: user.id,
       name: user.name,
       role: user.role,
       org: user.organizationId,
+      testingOnly: user.testingOnly,
+      mustChangePassword: user.mustChangePassword,
     },
     language: user.language === "zh" ? ("zh" as const) : ("en" as const),
   };
@@ -68,6 +79,9 @@ export async function authenticate(raw: unknown) {
       pendingApproval: true,
       passwordHash: true,
       language: true,
+      testingOnly: true,
+      mustChangePassword: true,
+      temporaryPasswordExpiresAt: true,
     },
   });
   const matches = await bcrypt.compare(
@@ -79,12 +93,20 @@ export async function authenticate(raw: unknown) {
   if (user && matches && user.pendingApproval)
     return { pending: true as const };
   if (!user?.active || !matches) return null;
+  if (
+    user.mustChangePassword &&
+    user.temporaryPasswordExpiresAt &&
+    user.temporaryPasswordExpiresAt.getTime() <= Date.now()
+  )
+    return null;
   return {
     actor: {
       uid: user.id,
       name: user.name,
       role: user.role,
       org: user.organizationId,
+      testingOnly: user.testingOnly,
+      mustChangePassword: user.mustChangePassword,
     },
     language: user.language === "zh" ? ("zh" as const) : ("en" as const),
   };

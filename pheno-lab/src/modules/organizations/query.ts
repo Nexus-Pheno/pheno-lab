@@ -39,6 +39,7 @@ export async function getOrganizationManagementData(actor: Actor) {
             recipeSteward: true,
             deviceAdmin: true,
             memberAdmin: true,
+            testingOnly: true,
             projectId: true,
           },
         })

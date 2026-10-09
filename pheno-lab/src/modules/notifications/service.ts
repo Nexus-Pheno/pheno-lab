@@ -30,7 +30,9 @@ export type NotificationKind =
   | "recipe_approved"
   | "recipe_rejected"
   | "draft_idle_warning"
-  | "draft_idle_archived";
+  | "draft_idle_archived"
+  | "testing_requested"
+  | "account_setup_ready";
 
 type DbClient = Prisma.TransactionClient | typeof db;
 
@@ -79,7 +81,11 @@ export async function listNotifications(
   actor: Actor,
 ): Promise<NotificationRow[]> {
   const rows = await db.notification.findMany({
-    where: { userId: actor.uid, organizationId: actor.org },
+    where: {
+      userId: actor.uid,
+      organizationId: actor.org,
+      ...(actor.testingOnly ? { kind: "testing_requested" } : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: 30,
     select: {
@@ -112,6 +118,11 @@ export async function listNotifications(
 
 export async function unreadNotificationCount(actor: Actor): Promise<number> {
   return db.notification.count({
-    where: { userId: actor.uid, organizationId: actor.org, readAt: null },
+    where: {
+      userId: actor.uid,
+      organizationId: actor.org,
+      readAt: null,
+      ...(actor.testingOnly ? { kind: "testing_requested" } : {}),
+    },
   });
 }

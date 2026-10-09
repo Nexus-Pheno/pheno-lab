@@ -35,9 +35,33 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireSession();
+  const session = await requireSession("setup");
   const lang = await getLang();
   const t = await getT();
+  if (session.mustChangePassword)
+    return (
+      <LanguageProvider lang={lang}>
+        <ErrorCollector />
+        <div className="h-dvh flex flex-col">
+          <header className="h-12 shrink-0 flex items-center gap-3 px-3 border-b border-line bg-surface">
+            <Image
+              src="/brand/pheno-logo.png"
+              alt="Pheno"
+              width={90}
+              height={26}
+              priority
+            />
+            <span className="flex-1 text-sm font-semibold">{session.name}</span>
+            <form action={logout}>
+              <button className="text-xs border border-line rounded px-3 py-1.5">
+                {t("nav.signout")}
+              </button>
+            </form>
+          </header>
+          <div className="flex-1 min-h-0">{children}</div>
+        </div>
+      </LanguageProvider>
+    );
   const [organizationName, unread] = await Promise.all([
     getOrganizationName(session),
     unreadNotificationCount(session),
@@ -52,8 +76,11 @@ export default async function AppLayout({
           id="app-header"
           className="h-12 shrink-0 flex items-center gap-2 sm:gap-3 px-3 border-b border-line bg-surface print:hidden"
         >
-          <BackButton />
-          <Link href="/" className="flex items-center">
+          {!session.testingOnly && <BackButton />}
+          <Link
+            href={session.testingOnly ? "/testing" : "/"}
+            className="flex items-center"
+          >
             <Image
               src="/brand/pheno-logo.png"
               alt="Pheno"
@@ -64,50 +91,65 @@ export default async function AppLayout({
           </Link>
           <div className="w-px h-5 bg-line" />
           <nav className="hidden md:flex items-center gap-1 text-[13px] font-medium text-charcoal">
-            <Link href="/" className="px-2 py-1 rounded-[4px] hover:bg-subtle">
-              {t("nav.experiments")}
-            </Link>
             <Link
-              href="/library"
+              href="/testing"
               className="px-2 py-1 rounded-[4px] hover:bg-subtle"
             >
-              {t("nav.library")}
+              {t("testing.title")}
             </Link>
-            <Link
-              href="/data"
-              className="px-2 py-1 rounded-[4px] hover:bg-subtle"
-            >
-              {t("nav.data")}
-            </Link>
-            <Link
-              href="/analysis"
-              className="px-2 py-1 rounded-[4px] hover:bg-subtle"
-            >
-              {t("nav.analysis")}
-            </Link>
-            {/* Triage board is the admin's; teammates submit from /profile. */}
-            {session.role === "ADMIN" && !session.device && (
-              <Link
-                href="/feedback"
-                className="px-2 py-1 rounded-[4px] hover:bg-subtle"
-              >
-                {t("nav.feedback")}
-              </Link>
+            {!session.testingOnly && (
+              <>
+                <Link
+                  href="/"
+                  className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+                >
+                  {t("nav.experiments")}
+                </Link>
+                <Link
+                  href="/library"
+                  className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+                >
+                  {t("nav.library")}
+                </Link>
+                <Link
+                  href="/data"
+                  className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+                >
+                  {t("nav.data")}
+                </Link>
+                <Link
+                  href="/analysis"
+                  className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+                >
+                  {t("nav.analysis")}
+                </Link>
+                {/* Triage board is the admin's; teammates submit from /profile. */}
+                {session.role === "ADMIN" && !session.device && (
+                  <Link
+                    href="/feedback"
+                    className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+                  >
+                    {t("nav.feedback")}
+                  </Link>
+                )}
+                <Link
+                  href="/portal"
+                  className="px-2 py-1 rounded-[4px] hover:bg-subtle text-brand-deep"
+                >
+                  {t("portal.toPortal")}
+                </Link>
+              </>
             )}
+          </nav>
+          {!session.testingOnly && (
             <Link
               href="/portal"
-              className="px-2 py-1 rounded-[4px] hover:bg-subtle text-brand-deep"
+              title={t("portal.toPortal")}
+              className="md:hidden h-8 w-8 flex items-center justify-center border border-brand/50 text-brand-deep rounded-[4px]"
             >
-              {t("portal.toPortal")}
+              <ClipboardPenIcon />
             </Link>
-          </nav>
-          <Link
-            href="/portal"
-            title={t("portal.toPortal")}
-            className="md:hidden h-8 w-8 flex items-center justify-center border border-brand/50 text-brand-deep rounded-[4px]"
-          >
-            <ClipboardPenIcon />
-          </Link>
+          )}
           <div className="flex-1" />
           {/* Shared-tablet badge: who's borrowed the tablet is never a mystery. */}
           {session.device && (
@@ -123,7 +165,7 @@ export default async function AppLayout({
           </span>
           <NotificationBell initialUnread={unread} />
           <Link
-            href="/profile"
+            href={session.testingOnly ? "/account" : "/profile"}
             title={t("nav.profile")}
             className="h-8 flex items-center gap-2 border border-line rounded-[4px] pl-1.5 pr-2.5 hover:bg-subtle"
           >

@@ -47,16 +47,48 @@ export async function changePassword(
   if (!input.success) return { ok: false, error: "too-short" };
   const user = await db.user.findFirstOrThrow({
     where: { id: actor.uid, organizationId: actor.org, active: true },
-    select: { passwordHash: true },
+    select: {
+      passwordHash: true,
+      mustChangePassword: true,
+      temporaryPasswordExpiresAt: true,
+    },
   });
+  if (
+    user.mustChangePassword &&
+    user.temporaryPasswordExpiresAt &&
+    user.temporaryPasswordExpiresAt.getTime() <= Date.now()
+  )
+    return { ok: false, error: "expired" };
   if (!(await bcrypt.compare(input.data.current, user.passwordHash))) {
     return { ok: false, error: "wrong-current" };
   }
+  if (input.data.current === input.data.next)
+    return { ok: false, error: "same-password" };
   const passwordHash = await bcrypt.hash(input.data.next, 10);
   await db.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: actor.uid },
-      data: { passwordHash },
+    const updated = await tx.user.updateMany({
+      where: {
+        id: actor.uid,
+        organizationId: actor.org,
+        active: true,
+        passwordHash: user.passwordHash,
+      },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        temporaryPasswordExpiresAt: null,
+        sessionVersion: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1)
+      throw new Error("Password changed in another session. Sign in again.");
+    await tx.accountHandoff.updateMany({
+      where: {
+        targetUserId: actor.uid,
+        organizationId: actor.org,
+        revokedAt: null,
+      },
+      data: { encryptedPassword: "", revokedAt: new Date() },
     });
     await recordUserAudit(tx, {
       actor,

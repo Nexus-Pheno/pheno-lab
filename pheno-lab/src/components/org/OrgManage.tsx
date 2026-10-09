@@ -33,6 +33,7 @@ export type OrgUserRow = {
   recipeSteward: boolean;
   deviceAdmin: boolean;
   memberAdmin: boolean;
+  testingOnly?: boolean;
   projectId: string | null;
 };
 
@@ -468,6 +469,11 @@ export function OrgManage({
                         <div className="mono text-[10.5px] text-muted">
                           {u.email}
                         </div>
+                        {u.testingOnly && (
+                          <div className="text-[10.5px] text-brand-deep mt-1">
+                            {t("testing.permission")}
+                          </div>
+                        )}
                         {pwReset?.id === u.id && (
                           <div className="mt-1.5 flex flex-wrap items-center gap-2 border border-warn-line bg-warn-soft/40 rounded-[4px] px-2 py-1.5">
                             <span className="mono text-[12px] font-bold">
@@ -520,7 +526,7 @@ export function OrgManage({
                     <select
                       className="border border-line rounded-[3px] px-2 py-1 text-[12px] bg-surface disabled:bg-subtle disabled:text-muted"
                       value={u.role}
-                      disabled={u.id === sessionUid || busy}
+                      disabled={u.id === sessionUid || busy || u.testingOnly}
                       onChange={async (e) => {
                         setBusy(true);
                         await setUserRole(
@@ -569,7 +575,7 @@ export function OrgManage({
                         type="checkbox"
                         className="accent-[#95CA00] w-4 h-4"
                         checked={u.role === "ADMIN" ? true : u[s.key]}
-                        disabled={busy || u.role === "ADMIN"}
+                        disabled={busy || u.role === "ADMIN" || u.testingOnly}
                         title={
                           u.role === "ADMIN"
                             ? t("org.adminImplicit")

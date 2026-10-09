@@ -13,18 +13,24 @@ import {
 } from "@/modules/accounts/profile-service";
 
 export async function updateProfile(data: { name: string; handle: string }) {
-  const session = await requireSession();
+  const session = await requireSession("account");
   const profile = await updateProfileService(session, data);
   await createSession({ ...session, name: profile.name });
   revalidatePath("/profile");
 }
 
 export async function changePassword(current: string, next: string) {
-  return changePasswordService(await requireSession(), { current, next });
+  const session = await requireSession("setup");
+  const result = await changePasswordService(session, { current, next });
+  if (result.ok) await createSession(session);
+  return result;
 }
 
 export async function setLanguage(lang: "en" | "zh") {
-  const language = await setLanguageService(await requireSession(), lang);
+  const language = await setLanguageService(
+    await requireSession("account"),
+    lang,
+  );
   (await cookies()).set("pheno_lang", language, {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,

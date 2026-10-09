@@ -28,6 +28,8 @@ export type Session = {
   name: string;
   role: "ADMIN" | "MANAGER" | "TECHNICIAN";
   org: string; // organizationId — every query is scoped to this
+  testingOnly?: boolean;
+  mustChangePassword?: boolean;
   /** Present when this session runs on a registered shared tablet. */
   device?: { id: string; label: string };
 };
@@ -72,6 +74,10 @@ export async function getDevice(): Promise<{
 }
 
 export async function createSession(session: Session) {
+  const user = await db.user.findFirstOrThrow({
+    where: { id: session.uid, organizationId: session.org, active: true },
+    select: { sessionVersion: true },
+  });
   // A login on a registered tablet becomes a kiosk session: the session
   // token names the device, and the device row records who holds it — which
   // instantly signs out whoever forgot to log out before.
@@ -89,6 +95,7 @@ export async function createSession(session: Session) {
     name: session.name,
     role: session.role,
     org: session.org,
+    ver: user.sessionVersion,
     ...(onDevice ? { dev: device.id } : {}),
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -104,7 +111,11 @@ export async function createSession(session: Session) {
   });
 }
 
-export async function getSession(): Promise<Session | null> {
+export type SessionAccess = "full" | "testing" | "account" | "setup";
+
+export async function getSession(
+  access: SessionAccess = "full",
+): Promise<Session | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   try {
@@ -119,9 +130,26 @@ export async function getSession(): Promise<Session | null> {
         organizationId: true,
         active: true,
         lastSeenAt: true,
+        testingOnly: true,
+        mustChangePassword: true,
+        temporaryPasswordExpiresAt: true,
+        sessionVersion: true,
       },
     });
     if (!user?.active) return null;
+    if (
+      user.organizationId !== payload.org ||
+      user.sessionVersion !== (payload.ver ?? 0)
+    )
+      return null;
+    if (
+      user.mustChangePassword &&
+      user.temporaryPasswordExpiresAt &&
+      user.temporaryPasswordExpiresAt.getTime() <= Date.now()
+    )
+      return null;
+    if (access !== "setup" && user.mustChangePassword) return null;
+    if (access === "full" && user.testingOnly) return null;
 
     // Kiosk enforcement, server-side: the shared-tablet session dies when it
     // idles out, ages out, or someone else signs in on the same tablet.
@@ -168,6 +196,8 @@ export async function getSession(): Promise<Session | null> {
       name: user.name,
       role: user.role,
       org: user.organizationId,
+      testingOnly: user.testingOnly,
+      mustChangePassword: user.mustChangePassword,
       ...(device ? { device } : {}),
     };
   } catch {
@@ -197,9 +227,13 @@ export async function destroySession() {
   store.delete(COOKIE);
 }
 
-export async function requireSession(): Promise<Session> {
-  const s = await getSession();
+export async function requireSession(
+  access: SessionAccess = "full",
+): Promise<Session> {
+  const s = await getSession("setup");
   if (!s) redirect("/login");
+  if (access !== "setup" && s.mustChangePassword) redirect("/account/setup");
+  if (access === "full" && s.testingOnly) redirect("/testing");
   return s;
 }
 

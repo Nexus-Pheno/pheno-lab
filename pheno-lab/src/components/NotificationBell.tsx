@@ -12,6 +12,8 @@ import {
 import type { TKey } from "@/lib/i18n/dict";
 
 const KIND_ICON: Record<string, string> = {
+  testing_requested: "FlaskConical",
+  account_setup_ready: "KeyRound",
   access_requested: "UserPlus",
   access_approved: "CheckCircle2",
   access_declined: "XCircle",
@@ -86,6 +88,7 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
       <button
         onClick={toggle}
         title={t("notif.title")}
+        aria-label={t("notif.title")}
         className="relative h-8 w-8 flex items-center justify-center border border-line rounded-[4px] hover:bg-subtle"
       >
         <Icon name="Bell" size={15} className="text-charcoal" />
@@ -132,8 +135,7 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block text-[12.5px] leading-snug">
-                    <b>{n.actorName}</b>{" "}
-                    {t(`notif.${n.kind}` as TKey)}
+                    <b>{n.actorName}</b> {t(`notif.${n.kind}` as TKey)}
                     {n.entityLabel && (
                       <span className="text-muted"> · {n.entityLabel}</span>
                     )}
