@@ -4,7 +4,8 @@ import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { OrgManage, type OrgUserRow } from "@/components/org/OrgManage";
 import { Icon } from "@/components/ui";
-import { getOrganizationAdminData } from "@/modules/organizations/query";
+import { getOrganizationManagementData } from "@/modules/organizations/query";
+import { hasStewardship } from "@/modules/stewardship/service";
 import { listRegistrationApprovals } from "@/modules/accounts/registration-service";
 import { listProjects } from "@/modules/experiments/project-service";
 import { fmtBeijing } from "@/lib/datetime";
@@ -15,7 +16,8 @@ import { fmtBeijing } from "@/lib/datetime";
 export default async function OrganizationPage() {
   const session = await requireSession();
   assertPersonalDevice(session);
-  if (session.role !== "ADMIN") notFound();
+  if (!(await hasStewardship(session, "memberAdmin"))) notFound();
+  const canAdmin = session.role === "ADMIN";
   const t = await getT();
 
   const [
@@ -23,9 +25,11 @@ export default async function OrganizationPage() {
     { approvals, legacyOptions },
     projects,
   ] = await Promise.all([
-    getOrganizationAdminData(session),
+    getOrganizationManagementData(session),
     listRegistrationApprovals(session),
-    listProjects(session, { includeInactive: true }),
+    canAdmin
+      ? listProjects(session, { includeInactive: true })
+      : Promise.resolve([]),
   ]);
 
   const rows: OrgUserRow[] = users.map((u) => ({
@@ -38,10 +42,14 @@ export default async function OrganizationPage() {
       <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-5">
         <div className="flex items-start gap-3 flex-wrap">
           <div className="flex-1 min-w-48">
-            <h1 className="text-lg font-bold">{t("org.title")}</h1>
-            <p className="text-xs text-muted">{t("org.subtitle")}</p>
+            <h1 className="text-lg font-bold">
+              {t(canAdmin ? "org.title" : "org.members")}
+            </h1>
+            <p className="text-xs text-muted">
+              {t(canAdmin ? "org.subtitle" : "org.membersHint")}
+            </p>
           </div>
-          {org.orgNumber === 1 && (
+          {canAdmin && org.orgNumber === 1 && (
             <Link
               href="/organizations"
               className="h-8 flex items-center gap-1.5 px-3 border border-line rounded-[4px] text-[12px] font-semibold text-charcoal hover:bg-subtle"
@@ -52,6 +60,7 @@ export default async function OrganizationPage() {
         </div>
 
         <OrgManage
+          canAdmin={canAdmin}
           approvals={approvals}
           legacyOptions={legacyOptions}
           sessionUid={session.uid}

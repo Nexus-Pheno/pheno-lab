@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { requireSession } from "@/lib/auth";
+import { requireSession, assertPersonalDevice } from "@/lib/auth";
 import {
   adminResetPassword as adminResetPasswordService,
   createUserAccount as createUserAccountService,
@@ -59,7 +59,9 @@ export async function createUserAccount(data: {
   password: string;
   role: "ADMIN" | "MANAGER" | "TECHNICIAN";
 }) {
-  return createUserAccountService(data, await requireSession());
+  const session = await requireSession();
+  assertPersonalDevice(session);
+  return createUserAccountService(data, session);
 }
 
 export async function setUserRole(
@@ -77,7 +79,9 @@ export async function approveRegistration(data: {
   legacyUserId: string;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
-    await approveRegistrationService(await requireSession(), data);
+    const session = await requireSession();
+    assertPersonalDevice(session);
+    await approveRegistrationService(session, data);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: (err as Error).message };

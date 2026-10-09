@@ -171,7 +171,8 @@ export const en = {
   "plan.dropHere": "drag substrates here",
   "plan.substrates": "Substrate batch",
   "plan.substrateCount": "Substrates to prepare",
-  "plan.keepIssuedSamples": "Keep the existing batch size to preserve sample labels and recorded work. Move unused samples to Extras or Trash / problem.",
+  "plan.keepIssuedSamples":
+    "Keep the existing batch size to preserve sample labels and recorded work. Move unused samples to Extras or Trash / problem.",
   "plan.substrateMaterial": "Substrate material",
   "plan.substrateHint":
     "Groups can be configured while empty. New substrates wait in Extras; assign them when ready. Move problem substrates to Trash / problem without renumbering.",
@@ -773,7 +774,8 @@ export const en = {
   "dash.tplPrevious": "Previous page",
   "dash.tplNext": "Next page",
   "dash.tplPage": "Page {page} of {pages} · {total} previous experiments",
-  "dash.tplCopyError": "Could not create the draft. Your source plan is unchanged. Please retry.",
+  "dash.tplCopyError":
+    "Could not create the draft. Your source plan is unchanged. Please retry.",
   "dash.tplClose": "Close",
   "dash.tplEmpty": "No templates or recent experiments to start from yet.",
   "dash.tplChip": "Template",
@@ -983,6 +985,18 @@ export const en = {
   "team.remove": "Remove",
   "team.noMatch": "No matching person.",
   "org.title": "Organization",
+  "org.members": "Members",
+  "org.membersHint":
+    "Approve registrations and invite new members as technicians.",
+  "org.approvalHint":
+    "Check the name and email, then approve the new member's registration.",
+  "org.noApprovals": "No registrations are waiting for approval.",
+  "org.invite": "Invite new members",
+  "org.inviteHint":
+    "Share the registration link with colleagues using an allowed organization email domain. Approve their registration here afterwards, or create their account below and hand over the sign-in details.",
+  "org.registrationLink": "Open registration page",
+  "org.copyLink": "Copy invitation link",
+  "org.linkCopied": "Invitation link copied.",
   "org.subtitle":
     "settings, people, roles and who is responsible for each part of the lab",
   "org.settings": "Organization settings",
@@ -1585,7 +1599,8 @@ export const zh: Record<TKey, string> = {
   "plan.dropHere": "拖拽基片到此",
   "plan.substrates": "基片批次",
   "plan.substrateCount": "准备基片数量",
-  "plan.keepIssuedSamples": "请保留现有批次数量，避免影响样品标签和已记录的数据。未使用的样品可移入“备用”或“报废 / 问题”。",
+  "plan.keepIssuedSamples":
+    "请保留现有批次数量，避免影响样品标签和已记录的数据。未使用的样品可移入“备用”或“报废 / 问题”。",
   "plan.substrateMaterial": "基片材料",
   "plan.substrateHint":
     "空组也可设置工艺参数。新增基片先放在“备用”，需要时再归组；有问题的移入“报废 / 问题”，编号不变。",
@@ -2347,6 +2362,16 @@ export const zh: Record<TKey, string> = {
   "team.remove": "移除",
   "team.noMatch": "未找到匹配人员。",
   "org.title": "机构管理",
+  "org.members": "成员管理",
+  "org.membersHint": "审批注册申请，并邀请新成员以实验员身份加入。",
+  "org.approvalHint": "核对姓名和邮箱后，批准新成员的注册申请。",
+  "org.noApprovals": "暂无待审批的注册申请。",
+  "org.invite": "邀请新成员",
+  "org.inviteHint":
+    "将注册链接分享给使用机构允许邮箱域名的同事，之后在此审批其注册申请；也可在下方直接创建账号，并交付登录信息。",
+  "org.registrationLink": "打开注册页面",
+  "org.copyLink": "复制邀请链接",
+  "org.linkCopied": "邀请链接已复制。",
   "org.subtitle": "机构设置、成员、角色与各领域负责人",
   "org.settings": "机构设置",
   "org.name": "机构名称",

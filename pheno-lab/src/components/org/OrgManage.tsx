@@ -32,6 +32,7 @@ export type OrgUserRow = {
   recipeAccess: boolean;
   recipeSteward: boolean;
   deviceAdmin: boolean;
+  memberAdmin: boolean;
   projectId: string | null;
 };
 
@@ -99,11 +100,18 @@ const STEWARDSHIPS = [
     hint: "org.stewDevicesHint",
     icon: "Tablet",
   },
+  {
+    key: "memberAdmin",
+    label: "org.members",
+    hint: "org.membersHint",
+    icon: "UserCheck",
+  },
 ] as const;
 
 type StewardKey = (typeof STEWARDSHIPS)[number]["key"];
 
 export function OrgManage({
+  canAdmin,
   approvals,
   legacyOptions,
   sessionUid,
@@ -114,6 +122,7 @@ export function OrgManage({
   domains: initialDomains,
   pending,
 }: {
+  canAdmin: boolean;
   approvals: ApprovalRow[];
   legacyOptions: LegacyOptionRow[];
   sessionUid: string;
@@ -164,126 +173,134 @@ export function OrgManage({
   return (
     <div className="space-y-6">
       {/* Organization settings */}
-      <section className="bg-surface border border-line rounded-[6px] p-4 space-y-3">
-        <h2 className="text-[13px] font-bold flex items-center gap-1.5">
-          <Icon name="Building2" size={14} className="text-charcoal" />{" "}
-          {t("org.settings")}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
-          <div>
-            <FieldLabel>{t("org.name")}</FieldLabel>
-            <input
-              className={inputCls}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <button
-            disabled={busy || !name.trim() || name === orgName}
-            onClick={async () => {
-              setBusy(true);
-              await renameOwnOrganization(name);
-              setBusy(false);
-              flash(t("profile.saved"));
-              router.refresh();
-            }}
-            className="h-9 bg-ink text-white rounded-[4px] px-4 text-[12.5px] font-semibold disabled:opacity-50"
-          >
-            {t("insp.save")}
-          </button>
-        </div>
-        <div>
-          <FieldLabel>{t("users.domains")}</FieldLabel>
-          <p className="text-[11px] text-muted mb-1.5">
-            {t("users.domainsHint")}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <input
-              className={inputCls + " flex-1 min-w-48 mono"}
-              value={domains}
-              onChange={(e) => setDomains(e.target.value)}
-            />
-            <button
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                await setEmailDomains(domains);
-                setBusy(false);
-                flash(t("profile.saved"));
-                router.refresh();
-              }}
-              className="h-9 bg-ink text-white rounded-[4px] px-4 text-[12.5px] font-semibold disabled:opacity-50"
-            >
-              {t("users.saveDomains")}
-            </button>
-          </div>
-        </div>
-        <p className="text-[10.5px] text-muted">
-          {t("org.number")}:{" "}
-          <span className="mono">{String(orgNumber).padStart(3, "0")}</span> ·{" "}
-          {t("org.numberHint")}
-        </p>
-        {savedFlash && (
-          <p className="text-[12px] text-brand-deep">{savedFlash}</p>
-        )}
-      </section>
-
-      {/* Responsible people */}
-      <section className="bg-surface border border-line rounded-[6px] p-4">
-        <h2 className="text-[13px] font-bold flex items-center gap-1.5 mb-1">
-          <Icon name="ShieldCheck" size={14} className="text-charcoal" />{" "}
-          {t("org.responsible")}
-        </h2>
-        <p className="text-[11px] text-muted mb-3">
-          {t("org.responsibleHint")}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {STEWARDSHIPS.map((s) => {
-            const list = holders(s.key);
-            return (
-              <div
-                key={s.key}
-                className="border border-line rounded-[5px] p-2.5"
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <Icon name={s.icon} size={13} className="text-brand-deep" />
-                  <span className="text-[12.5px] font-semibold">
-                    {t(s.label as TKey)}
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-muted mb-1.5">
-                  {t(s.hint as TKey)}
-                </p>
-                {list.length === 0 ? (
-                  <p className="text-[11px] text-warn font-semibold">
-                    {t("org.noneAssigned")}
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {list.map((u) => (
-                      <span
-                        key={u.id}
-                        className="text-[10.5px] px-1.5 py-0.5 rounded-[3px] bg-brand-soft border border-brand/40 text-brand-deep"
-                      >
-                        {u.name}
-                        {u.role === "ADMIN" && (
-                          <span className="opacity-60">
-                            {" "}
-                            ({t("role.ADMIN")})
-                          </span>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                )}
+      {canAdmin && (
+        <>
+          <section className="bg-surface border border-line rounded-[6px] p-4 space-y-3">
+            <h2 className="text-[13px] font-bold flex items-center gap-1.5">
+              <Icon name="Building2" size={14} className="text-charcoal" />{" "}
+              {t("org.settings")}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+              <div>
+                <FieldLabel>{t("org.name")}</FieldLabel>
+                <input
+                  className={inputCls}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
-            );
-          })}
-        </div>
-      </section>
+              <button
+                disabled={busy || !name.trim() || name === orgName}
+                onClick={async () => {
+                  setBusy(true);
+                  await renameOwnOrganization(name);
+                  setBusy(false);
+                  flash(t("profile.saved"));
+                  router.refresh();
+                }}
+                className="h-9 bg-ink text-white rounded-[4px] px-4 text-[12.5px] font-semibold disabled:opacity-50"
+              >
+                {t("insp.save")}
+              </button>
+            </div>
+            <div>
+              <FieldLabel>{t("users.domains")}</FieldLabel>
+              <p className="text-[11px] text-muted mb-1.5">
+                {t("users.domainsHint")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  className={inputCls + " flex-1 min-w-48 mono"}
+                  value={domains}
+                  onChange={(e) => setDomains(e.target.value)}
+                />
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    await setEmailDomains(domains);
+                    setBusy(false);
+                    flash(t("profile.saved"));
+                    router.refresh();
+                  }}
+                  className="h-9 bg-ink text-white rounded-[4px] px-4 text-[12.5px] font-semibold disabled:opacity-50"
+                >
+                  {t("users.saveDomains")}
+                </button>
+              </div>
+            </div>
+            <p className="text-[10.5px] text-muted">
+              {t("org.number")}:{" "}
+              <span className="mono">{String(orgNumber).padStart(3, "0")}</span>{" "}
+              · {t("org.numberHint")}
+            </p>
+            {savedFlash && (
+              <p className="text-[12px] text-brand-deep">{savedFlash}</p>
+            )}
+          </section>
 
-      {/* Registrations waiting for the admin's go-ahead */}
-      {approvals.length > 0 && (
+          {/* Responsible people */}
+          <section className="bg-surface border border-line rounded-[6px] p-4">
+            <h2 className="text-[13px] font-bold flex items-center gap-1.5 mb-1">
+              <Icon name="ShieldCheck" size={14} className="text-charcoal" />{" "}
+              {t("org.responsible")}
+            </h2>
+            <p className="text-[11px] text-muted mb-3">
+              {t("org.responsibleHint")}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {STEWARDSHIPS.map((s) => {
+                const list = holders(s.key);
+                return (
+                  <div
+                    key={s.key}
+                    className="border border-line rounded-[5px] p-2.5"
+                  >
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Icon
+                        name={s.icon}
+                        size={13}
+                        className="text-brand-deep"
+                      />
+                      <span className="text-[12.5px] font-semibold">
+                        {t(s.label as TKey)}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-muted mb-1.5">
+                      {t(s.hint as TKey)}
+                    </p>
+                    {list.length === 0 ? (
+                      <p className="text-[11px] text-warn font-semibold">
+                        {t("org.noneAssigned")}
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {list.map((u) => (
+                          <span
+                            key={u.id}
+                            className="text-[10.5px] px-1.5 py-0.5 rounded-[3px] bg-brand-soft border border-brand/40 text-brand-deep"
+                          >
+                            {u.name}
+                            {u.role === "ADMIN" && (
+                              <span className="opacity-60">
+                                {" "}
+                                ({t("role.ADMIN")})
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Registrations waiting for the admin's go-ahead */}
+        </>
+      )}
+      {(approvals.length > 0 || !canAdmin) && (
         <section className="bg-surface border-2 border-warn/40 rounded-[6px] p-4">
           <h2 className="text-[13px] font-bold flex items-center gap-1.5 mb-1">
             <Icon name="UserCheck" size={14} className="text-warn" />{" "}
@@ -292,10 +309,16 @@ export function OrgManage({
               ({approvals.length})
             </span>
           </h2>
-          <p className="text-[11px] text-muted mb-3">{t("appr.hint")}</p>
+          <p className="text-[11px] text-muted mb-3">
+            {t(canAdmin ? "appr.hint" : "org.approvalHint")}
+          </p>
+          {approvals.length === 0 && (
+            <p className="text-[12px] text-muted">{t("org.noApprovals")}</p>
+          )}
           <div className="space-y-3">
             {approvals.map((a) => (
               <ApprovalCard
+                canAdmin={canAdmin}
                 key={a.id}
                 approval={a}
                 legacyOptions={legacyOptions}
@@ -307,318 +330,358 @@ export function OrgManage({
       )}
 
       {/* People & permissions matrix */}
-      <section className="bg-surface border border-line rounded-[6px] overflow-x-auto">
-        <table className="w-full min-w-[720px] text-[12.5px]">
-          <thead>
-            <tr className="text-left text-[10px] uppercase text-muted border-b border-line">
-              <th className="px-3.5 py-2 font-bold">{t("users.name")}</th>
-              <th className="px-3.5 py-2 font-bold">{t("users.role")}</th>
-              <th className="px-3.5 py-2 font-bold">{t("users.team")}</th>
-              {STEWARDSHIPS.map((s) => (
-                <th key={s.key} className="px-2 py-2 font-bold text-center">
-                  {t(s.label as TKey)}
-                </th>
-              ))}
-              <th className="px-3.5 py-2 font-bold text-right">
-                {t("users.active")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr
-                key={u.id}
-                className={
-                  "border-b border-line last:border-0 " +
-                  (u.active ? "" : "opacity-45")
-                }
-              >
-                <td className="px-3.5 py-2.5">
-                  {editing?.id === u.id ? (
-                    <div className="space-y-1">
-                      <input
-                        className="w-full h-7 border border-line rounded-[3px] px-1.5 text-[12px]"
-                        value={editing.name}
-                        placeholder={t("users.name")}
-                        onChange={(e) =>
-                          setEditing({ ...editing, name: e.target.value })
-                        }
-                      />
-                      <input
-                        className="w-full h-7 border border-line rounded-[3px] px-1.5 text-[11px] mono"
-                        value={editing.email}
-                        placeholder={t("users.email")}
-                        onChange={(e) =>
-                          setEditing({ ...editing, email: e.target.value })
-                        }
-                      />
-                      {editError && (
-                        <p className="text-[10.5px] text-danger">{editError}</p>
-                      )}
-                      <div className="flex gap-1">
-                        <button
-                          disabled={
-                            busy ||
-                            !editing.name.trim() ||
-                            !editing.email.includes("@")
-                          }
-                          onClick={async () => {
-                            setBusy(true);
-                            setEditError("");
-                            const res = await updateUserIdentity(
-                              u.id,
-                              editing.name,
-                              editing.email,
-                            );
-                            setBusy(false);
-                            if (!res.ok) {
-                              setEditError(
-                                t(
-                                  res.error === "exists"
-                                    ? "users.emailTaken"
-                                    : "users.badInput",
-                                ),
-                              );
-                              return;
-                            }
-                            setEditing(null);
-                            router.refresh();
-                          }}
-                          className="h-6 px-2 text-[11px] font-bold text-brand-deep border border-brand/40 bg-brand-soft rounded-[3px] disabled:opacity-50"
-                        >
-                          {t("insp.save")}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditing(null);
-                            setEditError("");
-                          }}
-                          className="h-6 px-2 text-[11px] text-muted border border-line rounded-[3px]"
-                        >
-                          {t("users.cancel")}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="font-medium flex items-center gap-1">
-                        {u.name}
-                        {u.id === sessionUid && (
-                          <span className="text-muted"> ({t("org.you")})</span>
-                        )}
-                        <button
-                          disabled={busy}
-                          title={t("users.editIdentity")}
-                          onClick={() => {
-                            setEditError("");
-                            setEditing({
-                              id: u.id,
-                              name: u.name,
-                              email: u.email,
-                            });
-                          }}
-                          className="text-muted hover:text-brand-deep"
-                        >
-                          <Icon name="Pencil" size={11} />
-                        </button>
-                        <button
-                          disabled={busy}
-                          title={t("users.resetPw")}
-                          onClick={() =>
-                            setPwReset({
-                              id: u.id,
-                              password: generatePassword(),
-                              done: false,
-                            })
-                          }
-                          className="text-muted hover:text-warn"
-                        >
-                          <Icon name="KeyRound" size={11} />
-                        </button>
-                      </div>
-                      <div className="mono text-[10.5px] text-muted">
-                        {u.email}
-                      </div>
-                      {pwReset?.id === u.id && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-2 border border-warn-line bg-warn-soft/40 rounded-[4px] px-2 py-1.5">
-                          <span className="mono text-[12px] font-bold">
-                            {pwReset.password}
-                          </span>
-                          {pwReset.done ? (
-                            <>
-                              <span className="text-[10.5px] font-semibold text-brand-deep">
-                                {t("users.resetDone")}
-                              </span>
-                              <button
-                                onClick={() => setPwReset(null)}
-                                className="text-[10.5px] font-semibold text-muted hover:underline"
-                              >
-                                {t("users.cancel")}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                disabled={busy}
-                                onClick={async () => {
-                                  setBusy(true);
-                                  const res = await adminResetPassword(
-                                    u.id,
-                                    pwReset.password,
-                                  );
-                                  setBusy(false);
-                                  if (res.ok)
-                                    setPwReset({ ...pwReset, done: true });
-                                }}
-                                className="text-[10.5px] font-bold text-warn hover:underline"
-                              >
-                                {t("users.resetConfirm")}
-                              </button>
-                              <button
-                                onClick={() => setPwReset(null)}
-                                className="text-[10.5px] font-semibold text-muted hover:underline"
-                              >
-                                {t("users.cancel")}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </td>
-                <td className="px-3.5 py-2.5">
-                  <select
-                    className="border border-line rounded-[3px] px-2 py-1 text-[12px] bg-surface disabled:bg-subtle disabled:text-muted"
-                    value={u.role}
-                    disabled={u.id === sessionUid || busy}
-                    onChange={async (e) => {
-                      setBusy(true);
-                      await setUserRole(
-                        u.id,
-                        e.target.value as "ADMIN" | "MANAGER" | "TECHNICIAN",
-                      );
-                      setBusy(false);
-                      router.refresh();
-                    }}
-                  >
-                    {(["ADMIN", "MANAGER", "TECHNICIAN"] as const).map((r) => (
-                      <option key={r} value={r}>
-                        {t(`role.${r}` as "role.ADMIN")}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3.5 py-2.5">
-                  {/* 项目组: the org chart. Their new experiments file here. */}
-                  <select
-                    className="border border-line rounded-[3px] px-2 py-1 text-[12px] bg-surface disabled:bg-subtle disabled:text-muted max-w-44"
-                    value={u.projectId ?? ""}
-                    disabled={busy}
-                    onChange={async (e) => {
-                      setBusy(true);
-                      await setUserProject(u.id, e.target.value || null);
-                      setBusy(false);
-                      router.refresh();
-                    }}
-                  >
-                    <option value="">{t("users.ungrouped")}</option>
-                    {projects
-                      .filter((p) => p.active || p.id === u.projectId)
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                  </select>
-                </td>
+      {canAdmin && (
+        <section className="bg-surface border border-line rounded-[6px] overflow-x-auto">
+          <table className="w-full min-w-[720px] text-[12.5px]">
+            <thead>
+              <tr className="text-left text-[10px] uppercase text-muted border-b border-line">
+                <th className="px-3.5 py-2 font-bold">{t("users.name")}</th>
+                <th className="px-3.5 py-2 font-bold">{t("users.role")}</th>
+                <th className="px-3.5 py-2 font-bold">{t("users.team")}</th>
                 {STEWARDSHIPS.map((s) => (
-                  <td key={s.key} className="px-2 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      className="accent-[#95CA00] w-4 h-4"
-                      checked={u.role === "ADMIN" ? true : u[s.key]}
-                      disabled={busy || u.role === "ADMIN"}
-                      title={
-                        u.role === "ADMIN"
-                          ? t("org.adminImplicit")
-                          : t(s.label as TKey)
-                      }
-                      onChange={(e) => toggle(u.id, s.key, e.target.checked)}
-                    />
-                  </td>
+                  <th key={s.key} className="px-2 py-2 font-bold text-center">
+                    {t(s.label as TKey)}
+                  </th>
                 ))}
-                <td className="px-3.5 py-2.5 text-right">
-                  {u.id !== sessionUid && (
-                    <button
-                      disabled={busy}
-                      onClick={async () => {
+                <th className="px-3.5 py-2 font-bold text-right">
+                  {t("users.active")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr
+                  key={u.id}
+                  className={
+                    "border-b border-line last:border-0 " +
+                    (u.active ? "" : "opacity-45")
+                  }
+                >
+                  <td className="px-3.5 py-2.5">
+                    {editing?.id === u.id ? (
+                      <div className="space-y-1">
+                        <input
+                          className="w-full h-7 border border-line rounded-[3px] px-1.5 text-[12px]"
+                          value={editing.name}
+                          placeholder={t("users.name")}
+                          onChange={(e) =>
+                            setEditing({ ...editing, name: e.target.value })
+                          }
+                        />
+                        <input
+                          className="w-full h-7 border border-line rounded-[3px] px-1.5 text-[11px] mono"
+                          value={editing.email}
+                          placeholder={t("users.email")}
+                          onChange={(e) =>
+                            setEditing({ ...editing, email: e.target.value })
+                          }
+                        />
+                        {editError && (
+                          <p className="text-[10.5px] text-danger">
+                            {editError}
+                          </p>
+                        )}
+                        <div className="flex gap-1">
+                          <button
+                            disabled={
+                              busy ||
+                              !editing.name.trim() ||
+                              !editing.email.includes("@")
+                            }
+                            onClick={async () => {
+                              setBusy(true);
+                              setEditError("");
+                              const res = await updateUserIdentity(
+                                u.id,
+                                editing.name,
+                                editing.email,
+                              );
+                              setBusy(false);
+                              if (!res.ok) {
+                                setEditError(
+                                  t(
+                                    res.error === "exists"
+                                      ? "users.emailTaken"
+                                      : "users.badInput",
+                                  ),
+                                );
+                                return;
+                              }
+                              setEditing(null);
+                              router.refresh();
+                            }}
+                            className="h-6 px-2 text-[11px] font-bold text-brand-deep border border-brand/40 bg-brand-soft rounded-[3px] disabled:opacity-50"
+                          >
+                            {t("insp.save")}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditing(null);
+                              setEditError("");
+                            }}
+                            className="h-6 px-2 text-[11px] text-muted border border-line rounded-[3px]"
+                          >
+                            {t("users.cancel")}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="font-medium flex items-center gap-1">
+                          {u.name}
+                          {u.id === sessionUid && (
+                            <span className="text-muted">
+                              {" "}
+                              ({t("org.you")})
+                            </span>
+                          )}
+                          <button
+                            disabled={busy}
+                            title={t("users.editIdentity")}
+                            onClick={() => {
+                              setEditError("");
+                              setEditing({
+                                id: u.id,
+                                name: u.name,
+                                email: u.email,
+                              });
+                            }}
+                            className="text-muted hover:text-brand-deep"
+                          >
+                            <Icon name="Pencil" size={11} />
+                          </button>
+                          <button
+                            disabled={busy}
+                            title={t("users.resetPw")}
+                            onClick={() =>
+                              setPwReset({
+                                id: u.id,
+                                password: generatePassword(),
+                                done: false,
+                              })
+                            }
+                            className="text-muted hover:text-warn"
+                          >
+                            <Icon name="KeyRound" size={11} />
+                          </button>
+                        </div>
+                        <div className="mono text-[10.5px] text-muted">
+                          {u.email}
+                        </div>
+                        {pwReset?.id === u.id && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2 border border-warn-line bg-warn-soft/40 rounded-[4px] px-2 py-1.5">
+                            <span className="mono text-[12px] font-bold">
+                              {pwReset.password}
+                            </span>
+                            {pwReset.done ? (
+                              <>
+                                <span className="text-[10.5px] font-semibold text-brand-deep">
+                                  {t("users.resetDone")}
+                                </span>
+                                <button
+                                  onClick={() => setPwReset(null)}
+                                  className="text-[10.5px] font-semibold text-muted hover:underline"
+                                >
+                                  {t("users.cancel")}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  disabled={busy}
+                                  onClick={async () => {
+                                    setBusy(true);
+                                    const res = await adminResetPassword(
+                                      u.id,
+                                      pwReset.password,
+                                    );
+                                    setBusy(false);
+                                    if (res.ok)
+                                      setPwReset({ ...pwReset, done: true });
+                                  }}
+                                  className="text-[10.5px] font-bold text-warn hover:underline"
+                                >
+                                  {t("users.resetConfirm")}
+                                </button>
+                                <button
+                                  onClick={() => setPwReset(null)}
+                                  className="text-[10.5px] font-semibold text-muted hover:underline"
+                                >
+                                  {t("users.cancel")}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td className="px-3.5 py-2.5">
+                    <select
+                      className="border border-line rounded-[3px] px-2 py-1 text-[12px] bg-surface disabled:bg-subtle disabled:text-muted"
+                      value={u.role}
+                      disabled={u.id === sessionUid || busy}
+                      onChange={async (e) => {
                         setBusy(true);
-                        await setUserActive(u.id, !u.active);
+                        await setUserRole(
+                          u.id,
+                          e.target.value as "ADMIN" | "MANAGER" | "TECHNICIAN",
+                        );
                         setBusy(false);
                         router.refresh();
                       }}
-                      className={
-                        "text-[11px] font-semibold " +
-                        (u.active
-                          ? "text-muted hover:text-danger"
-                          : "text-brand-deep hover:underline")
-                      }
                     >
-                      {t(u.active ? "users.deactivate" : "users.activate")}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="text-[10.5px] text-muted px-3.5 py-2 border-t border-line">
-          {t("org.adminImplicit")}
-        </p>
-      </section>
+                      {(["ADMIN", "MANAGER", "TECHNICIAN"] as const).map(
+                        (r) => (
+                          <option key={r} value={r}>
+                            {t(`role.${r}` as "role.ADMIN")}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </td>
+                  <td className="px-3.5 py-2.5">
+                    {/* 项目组: the org chart. Their new experiments file here. */}
+                    <select
+                      className="border border-line rounded-[3px] px-2 py-1 text-[12px] bg-surface disabled:bg-subtle disabled:text-muted max-w-44"
+                      value={u.projectId ?? ""}
+                      disabled={busy}
+                      onChange={async (e) => {
+                        setBusy(true);
+                        await setUserProject(u.id, e.target.value || null);
+                        setBusy(false);
+                        router.refresh();
+                      }}
+                    >
+                      <option value="">{t("users.ungrouped")}</option>
+                      {projects
+                        .filter((p) => p.active || p.id === u.projectId)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
+                  {STEWARDSHIPS.map((s) => (
+                    <td key={s.key} className="px-2 py-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        className="accent-[#95CA00] w-4 h-4"
+                        checked={u.role === "ADMIN" ? true : u[s.key]}
+                        disabled={busy || u.role === "ADMIN"}
+                        title={
+                          u.role === "ADMIN"
+                            ? t("org.adminImplicit")
+                            : t(s.label as TKey)
+                        }
+                        onChange={(e) => toggle(u.id, s.key, e.target.checked)}
+                      />
+                    </td>
+                  ))}
+                  <td className="px-3.5 py-2.5 text-right">
+                    {u.id !== sessionUid && (
+                      <button
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          await setUserActive(u.id, !u.active);
+                          setBusy(false);
+                          router.refresh();
+                        }}
+                        className={
+                          "text-[11px] font-semibold " +
+                          (u.active
+                            ? "text-muted hover:text-danger"
+                            : "text-brand-deep hover:underline")
+                        }
+                      >
+                        {t(u.active ? "users.deactivate" : "users.activate")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[10.5px] text-muted px-3.5 py-2 border-t border-line">
+            {t("org.adminImplicit")}
+          </p>
+        </section>
+      )}
 
-      <AddMember onCreated={() => router.refresh()} />
-
-      {/* Pending registrations */}
-      <section className="bg-surface border border-line rounded-[6px] p-4">
-        <h2 className="text-[13px] font-bold flex items-center gap-1.5 mb-1">
-          <Icon name="KeyRound" size={14} className="text-charcoal" />{" "}
-          {t("users.pending")}
-        </h2>
-        <p className="text-[11px] text-muted mb-2.5">
-          {t("users.pendingHint")}
-        </p>
-        {pending.length === 0 ? (
-          <p className="text-[12px] text-muted">{t("users.noPending")}</p>
-        ) : (
-          <div className="space-y-1.5">
-            {pending.map((p) => (
-              <div
-                key={p.email + p.purpose}
-                className="flex flex-wrap items-center gap-3 border border-line rounded-[4px] px-3 py-2"
-              >
-                <span className="mono text-[12px] flex-1 min-w-40">
-                  {p.email}
-                </span>
-                <span className="text-[9.5px] font-bold uppercase px-1.5 py-0.5 rounded-[3px] border border-line bg-subtle text-muted">
-                  {t(
-                    p.purpose === "reset"
-                      ? "users.codeReset"
-                      : "users.codeRegister",
-                  )}
-                </span>
-                <span className="mono text-[15px] font-bold tracking-[0.25em] text-brand-deep">
-                  {p.code}
-                </span>
-                <span className="text-[10.5px] text-muted">
-                  {t("users.expires")} {p.expiresAt}
-                </span>
-              </div>
-            ))}
-          </div>
+      <section className="bg-surface border border-line rounded-[6px] p-4 space-y-2">
+        <h2 className="text-[13px] font-bold">{t("org.invite")}</h2>
+        <p className="text-[12px] text-muted">{t("org.inviteHint")}</p>
+        <a
+          href="/register"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12px] text-brand-deep underline"
+        >
+          {t("org.registrationLink")}
+        </a>
+        <button
+          type="button"
+          onClick={async () => {
+            await navigator.clipboard.writeText(
+              new URL("/register", window.location.origin).href,
+            );
+            flash(t("org.linkCopied"));
+          }}
+          className="ml-3 text-[12px] font-semibold text-brand-deep hover:underline"
+        >
+          {t("org.copyLink")}
+        </button>
+        {savedFlash && (
+          <p role="status" className="text-[12px] text-brand-deep">
+            {savedFlash}
+          </p>
         )}
       </section>
+      <AddMember canAdmin={canAdmin} onCreated={() => router.refresh()} />
+
+      {/* Pending registrations */}
+      {canAdmin && (
+        <section className="bg-surface border border-line rounded-[6px] p-4">
+          <h2 className="text-[13px] font-bold flex items-center gap-1.5 mb-1">
+            <Icon name="KeyRound" size={14} className="text-charcoal" />{" "}
+            {t("users.pending")}
+          </h2>
+          <p className="text-[11px] text-muted mb-2.5">
+            {t("users.pendingHint")}
+          </p>
+          {pending.length === 0 ? (
+            <p className="text-[12px] text-muted">{t("users.noPending")}</p>
+          ) : (
+            <div className="space-y-1.5">
+              {pending.map((p) => (
+                <div
+                  key={p.email + p.purpose}
+                  className="flex flex-wrap items-center gap-3 border border-line rounded-[4px] px-3 py-2"
+                >
+                  <span className="mono text-[12px] flex-1 min-w-40">
+                    {p.email}
+                  </span>
+                  <span className="text-[9.5px] font-bold uppercase px-1.5 py-0.5 rounded-[3px] border border-line bg-subtle text-muted">
+                    {t(
+                      p.purpose === "reset"
+                        ? "users.codeReset"
+                        : "users.codeRegister",
+                    )}
+                  </span>
+                  <span className="mono text-[15px] font-bold tracking-[0.25em] text-brand-deep">
+                    {p.code}
+                  </span>
+                  <span className="text-[10.5px] text-muted">
+                    {t("users.expires")} {p.expiresAt}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -627,10 +690,12 @@ export function OrgManage({
 // styling here (English names, the szpheno.com domain) and may claim a
 // legacy imported dataset in the same approval.
 function ApprovalCard({
+  canAdmin,
   approval,
   legacyOptions,
   onDone,
 }: {
+  canAdmin: boolean;
   approval: ApprovalRow;
   legacyOptions: LegacyOptionRow[];
   onDone: () => void;
@@ -679,25 +744,29 @@ function ApprovalCard({
           />
         </div>
       </div>
-      <div className="mb-2.5">
-        <FieldLabel>{t("appr.legacy")}</FieldLabel>
-        <p className="text-[10.5px] text-muted mb-1">{t("appr.legacyHint")}</p>
-        <select
-          className="h-9 w-full sm:w-auto border border-line rounded-[4px] px-2 text-[12.5px] bg-surface"
-          value={legacyUserId}
-          onChange={(e) => setLegacyUserId(e.target.value)}
-        >
-          <option value="">{t("appr.noLegacy")}</option>
-          {legacyOptions.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name} · {t("appr.expCount", { n: String(l.experiments) })}
-              {l.id === approval.suggestedLegacyId
-                ? ` (${t("appr.suggested")})`
-                : ""}
-            </option>
-          ))}
-        </select>
-      </div>
+      {canAdmin && (
+        <div className="mb-2.5">
+          <FieldLabel>{t("appr.legacy")}</FieldLabel>
+          <p className="text-[10.5px] text-muted mb-1">
+            {t("appr.legacyHint")}
+          </p>
+          <select
+            className="h-9 w-full sm:w-auto border border-line rounded-[4px] px-2 text-[12.5px] bg-surface"
+            value={legacyUserId}
+            onChange={(e) => setLegacyUserId(e.target.value)}
+          >
+            <option value="">{t("appr.noLegacy")}</option>
+            {legacyOptions.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name} · {t("appr.expCount", { n: String(l.experiments) })}
+                {l.id === approval.suggestedLegacyId
+                  ? ` (${t("appr.suggested")})`
+                  : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {error && <p className="text-[12px] text-danger mb-2">{error}</p>}
       <div className="flex gap-2">
         <button
@@ -729,18 +798,20 @@ function ApprovalCard({
         >
           {t("appr.approve")}
         </button>
-        <button
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            await rejectRegistration(approval.id);
-            setBusy(false);
-            onDone();
-          }}
-          className="h-9 px-3 text-[12px] font-semibold text-danger border border-danger/40 rounded-[4px] disabled:opacity-50"
-        >
-          {t("appr.reject")}
-        </button>
+        {canAdmin && (
+          <button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await rejectRegistration(approval.id);
+              setBusy(false);
+              onDone();
+            }}
+            className="h-9 px-3 text-[12px] font-semibold text-danger border border-danger/40 rounded-[4px] disabled:opacity-50"
+          >
+            {t("appr.reject")}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -749,7 +820,13 @@ function ApprovalCard({
 // Admin creates a login directly — for colleagues who cannot receive the
 // passcode email. Credentials stay visible after creation so they can be
 // copied and handed over.
-function AddMember({ onCreated }: { onCreated: () => void }) {
+function AddMember({
+  canAdmin,
+  onCreated,
+}: {
+  canAdmin: boolean;
+  onCreated: () => void;
+}) {
   const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -821,7 +898,10 @@ function AddMember({ onCreated }: { onCreated: () => void }) {
             value={role}
             onChange={(e) => setRole(e.target.value as typeof role)}
           >
-            {(["TECHNICIAN", "MANAGER", "ADMIN"] as const).map((r) => (
+            {(canAdmin
+              ? (["TECHNICIAN", "MANAGER", "ADMIN"] as const)
+              : (["TECHNICIAN"] as const)
+            ).map((r) => (
               <option key={r} value={r}>
                 {t(`role.${r}` as "role.ADMIN")}
               </option>

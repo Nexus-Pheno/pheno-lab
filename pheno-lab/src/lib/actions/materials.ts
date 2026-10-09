@@ -67,7 +67,8 @@ export async function setUserPermission(
     | "facilityAdmin"
     | "recipeAccess"
     | "recipeSteward"
-    | "deviceAdmin",
+    | "deviceAdmin"
+    | "memberAdmin",
   value: boolean,
 ) {
   await setUserStewardship(await requireSession(), userId, permission, value);

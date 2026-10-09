@@ -25,6 +25,15 @@ export function assertAdmin(actor: Actor): void {
   }
 }
 
+/** Delegated member enrollment cannot grant staff roles or claim research. */
+export function assertMemberEnrollment(
+  actor: Actor,
+  role: Actor["role"],
+  claimLegacy = false,
+): void {
+  if (role !== "TECHNICIAN" || claimLegacy) assertAdmin(actor);
+}
+
 function sameOrganization(
   actor: Actor,
   resource: ExperimentAccessResource,

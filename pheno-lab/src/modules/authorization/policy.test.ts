@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Actor, ExperimentAccessResource } from "./actor";
 import {
   assertAdmin,
+  assertMemberEnrollment,
   assertExperimentPermission,
   assertStaff,
   canCaptureExperiment,
@@ -24,6 +25,31 @@ const actor = (uid: string, role: Actor["role"], org = "org-a"): Actor => ({
 });
 
 describe("authorization policy", () => {
+  it("restricts delegated enrollment to technicians without legacy claims", () => {
+    for (const role of ["ADMIN", "MANAGER", "TECHNICIAN"] as const) {
+      expect(() =>
+        assertMemberEnrollment(actor("member", role), "TECHNICIAN"),
+      ).not.toThrow();
+      for (const elevated of ["ADMIN", "MANAGER"] as const) {
+        if (role === "ADMIN")
+          expect(() =>
+            assertMemberEnrollment(actor("member", role), elevated),
+          ).not.toThrow();
+        else
+          expect(() =>
+            assertMemberEnrollment(actor("member", role), elevated),
+          ).toThrow();
+      }
+      if (role === "ADMIN")
+        expect(() =>
+          assertMemberEnrollment(actor("member", role), "TECHNICIAN", true),
+        ).not.toThrow();
+      else
+        expect(() =>
+          assertMemberEnrollment(actor("member", role), "TECHNICIAN", true),
+        ).toThrow();
+    }
+  });
   it("keeps admin and staff role checks centralized", () => {
     expect(() => assertAdmin(actor("admin", "ADMIN"))).not.toThrow();
     expect(() => assertAdmin(actor("manager", "MANAGER"))).toThrow();
