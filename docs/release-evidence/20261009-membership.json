@@ -1,0 +1,138 @@
+{
+  "release": "20261009-001",
+  "sourceCommit": "5a3714bc7ee02caa69df49998ece03ed6521914a",
+  "deployedAt": "2026-10-09T03:29:24Z",
+  "artifactSha256": "27eeab72572f88904428688b8a120f255dd37b2a7603f18240d0fa16fb678c00",
+  "pullRequest": "https://github.com/Nexus-Pheno/pheno-lab/pull/92",
+  "ciRuns": [37878540258, 37878946989],
+  "automatedTests": {
+    "unit": 217,
+    "postgresqlIntegration": 88,
+    "browser": 19
+  },
+  "grant": {
+    "checkedAt": "2026-10-09T03:29:58.080Z",
+    "changed": true,
+    "memberAdmin": true,
+    "role": "MANAGER"
+  },
+  "existingAccessBefore": {
+    "checkedAt": "2026-10-09T03:17:08.829Z",
+    "count": 27,
+    "existingAccessDigest": "afe0683d8db76b58cf63b248ca3bca4e"
+  },
+  "existingAccessAfter": {
+    "checkedAt": "2026-10-09T03:30:10.316Z",
+    "count": 27,
+    "existingAccessDigest": "afe0683d8db76b58cf63b248ca3bca4e"
+  },
+  "scientificSnapshotBefore": {
+    "checkedAt": "2026-10-09T03:17:03.476Z",
+    "records": {
+      "Experiment": {
+        "count": 1077,
+        "idDigest": "fee73d727d725edef192b82cf2ba71ca"
+      },
+      "Sample": {
+        "count": 19643,
+        "idDigest": "c60bee2ca7c28a35652b7cb13b4129a1"
+      },
+      "StepExecution": {
+        "count": 3877,
+        "idDigest": "0692317b18c929f406666400cca600ca"
+      },
+      "CharacterizationResult": {
+        "count": 24263,
+        "idDigest": "47f6b3329bdf557e4179e9a0d6e73dde"
+      },
+      "Attachment": {
+        "count": 45842,
+        "idDigest": "d27ccbb59458b755d9e1dac55bbe73aa"
+      },
+      "JvMeasurement": {
+        "count": 37892,
+        "idDigest": "76a9661d5c9298a35c268da30e18df1a"
+      }
+    },
+    "sampleIdentityDigest": "2b74bd475b577f46fb324116d597b4d7"
+  },
+  "scientificSnapshotAfter": {
+    "checkedAt": "2026-10-09T03:30:15.914Z",
+    "records": {
+      "Experiment": {
+        "count": 1077,
+        "idDigest": "fee73d727d725edef192b82cf2ba71ca"
+      },
+      "Sample": {
+        "count": 19643,
+        "idDigest": "c60bee2ca7c28a35652b7cb13b4129a1"
+      },
+      "StepExecution": {
+        "count": 3877,
+        "idDigest": "0692317b18c929f406666400cca600ca"
+      },
+      "CharacterizationResult": {
+        "count": 24263,
+        "idDigest": "47f6b3329bdf557e4179e9a0d6e73dde"
+      },
+      "Attachment": {
+        "count": 45842,
+        "idDigest": "d27ccbb59458b755d9e1dac55bbe73aa"
+      },
+      "JvMeasurement": {
+        "count": 37921,
+        "idDigest": "d513cb967e8d1e0ee04e03578dd8adb5"
+      }
+    },
+    "sampleIdentityDigest": "2b74bd475b577f46fb324116d597b4d7"
+  },
+  "jvArrivalsDuringSnapshotWindow": 29,
+  "liveBrowser": {
+    "checkedAt": "2026-10-09T03:33:24.942Z",
+    "release": "20261009-001",
+    "cases": [
+      {
+        "lang": "en",
+        "width": 1440,
+        "joeyMemberAccess": true,
+        "invitationLink": true,
+        "technicianOnly": true,
+        "adminControlsAbsent": true,
+        "profileLink": true
+      },
+      {
+        "lang": "en",
+        "width": 390,
+        "joeyMemberAccess": true,
+        "invitationLink": true,
+        "technicianOnly": true,
+        "adminControlsAbsent": true,
+        "profileLink": true
+      },
+      {
+        "lang": "zh",
+        "width": 1440,
+        "joeyMemberAccess": true,
+        "invitationLink": true,
+        "technicianOnly": true,
+        "adminControlsAbsent": true,
+        "profileLink": true
+      },
+      {
+        "lang": "zh",
+        "width": 390,
+        "joeyMemberAccess": true,
+        "invitationLink": true,
+        "technicianOnly": true,
+        "adminControlsAbsent": true,
+        "profileLink": true
+      }
+    ],
+    "errors": [],
+    "blockedWrites": 0,
+    "ordinaryManagerDenied": true,
+    "passed": true
+  },
+  "verificationNotes": "Initial standalone browser attempts encountered page-load and hydration timing; the final check waits for the invitation control to become interactive and verifies the success message and clipboard value. No product changes were needed. Background link-prefetch requests are aborted when their test contexts close.",
+  "scope": "One additive default-deny User column and an audited system grant to Joey. No production registrations were approved or created by the smoke check. Scientific snapshots establish row identity/count and sample-label preservation, not full content checksums."
+}
