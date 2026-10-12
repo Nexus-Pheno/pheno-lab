@@ -32,7 +32,9 @@ if [[ "$(node -p 'process.versions.node.split(`.`)[0]')" != "24" ]]; then
 fi
 
 cd "$APP_DIR"
-pnpm install --frozen-lockfile
+# A release needs development tools for verify and must not prompt when the
+# deployment account replaces a modules layout created by another account.
+CI=true pnpm install --frozen-lockfile --prod=false
 # A frozen install is a no-op when the lockfile has not changed, and pnpm then
 # skips Prisma's postinstall hook. On a long-lived build host that leaves a
 # client generated from an older schema, so the first release carrying a
