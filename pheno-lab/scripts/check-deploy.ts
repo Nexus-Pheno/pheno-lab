@@ -32,6 +32,16 @@ const releaseScript = readFileSync(
   path.join(process.cwd(), "deploy/scripts/deploy-release.sh"),
   "utf8",
 );
+const buildScript = readFileSync(
+  path.join(process.cwd(), "deploy/scripts/build-release.sh"),
+  "utf8",
+);
+if (
+  !buildScript.includes("CI=true pnpm install --frozen-lockfile --prod=false")
+)
+  throw new Error(
+    "release install must be noninteractive and retain verification tools",
+  );
 for (const script of [
   "deploy/scripts/build-release.sh",
   "deploy/scripts/deploy-release.sh",

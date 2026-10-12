@@ -56,6 +56,9 @@ Browser / mobile responsive routes / Go Bridge
 | Production       | Ubuntu CVM；Nginx；systemd；受限 deploy_pheno_lab 构建/发布；不可变 release 目录    |
 | CI               | GitHub Actions；Node 24、PostgreSQL 18、Go tests、Vitest、Playwright、release build |
 
+Release 构建的 frozen install 使用一次性 `CI=true` 与 `--prod=false`，非交互保留完整验证工具；
+生产 `NODE_ENV` 不应导致构建步骤移除开发依赖。不新增持久环境配置，发布链路仍以 deploy/README.md 为准。
+
 升级 Node、Next.js、React、Prisma、PostgreSQL 或 pnpm 属于显式升级任务，不能混入普通功能 PR。
 Next.js 16 的 API 和约定可能不同于模型训练记忆；修改 Next 代码前必须阅读安装版本
 `node_modules/next/dist/docs/` 中对应文档，并处理 deprecation notice。

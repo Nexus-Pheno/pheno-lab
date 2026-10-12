@@ -732,6 +732,10 @@ cd /srv/pheno-lab/source/pheno-lab
 脚本会重新执行 frozen install 和完整 `pnpm run verify`。任一检查失败都停止发布；不得修改
 production source、跳过测试或手工打包。
 
+安装步骤以一次性 `CI=true` 非交互执行，并明确 `--prod=false` 保留构建与验证所需的开发依赖。
+这避免从旧账号切换部署账号时 modules/store 布局确认阻塞，以及 `NODE_ENV=production`
+误删 TypeScript、Prisma CLI、Vitest 等发布工具；不新增持久环境配置或运行服务。
+
 若 `/tmp` 的 tmpfs 空间不足，先检查 `/var/tmp` 的容量，可仅对本次构建设置
 `TMPDIR=/var/tmp` 并将 artifact/checksum 放在 `/var/tmp/pheno-lab-<release-id>.tar.gz`。
 这是标准临时目录中的构建产物，不是新运行配置；4.4 使用同一已校验路径。不得删除他人的
