@@ -123,6 +123,12 @@ export default async function AppLayout({
                 >
                   {t("nav.analysis")}
                 </Link>
+                <Link
+                  href="/reports"
+                  className="px-2 py-1 rounded-[4px] hover:bg-subtle"
+                >
+                  {t("reports.title")}
+                </Link>
                 {/* Triage board is the admin's; teammates submit from /profile. */}
                 {session.role === "ADMIN" && !session.device && (
                   <Link

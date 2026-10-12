@@ -32,7 +32,8 @@ export type NotificationKind =
   | "draft_idle_warning"
   | "draft_idle_archived"
   | "testing_requested"
-  | "account_setup_ready";
+  | "account_setup_ready"
+  | "report_published";
 
 type DbClient = Prisma.TransactionClient | typeof db;
 

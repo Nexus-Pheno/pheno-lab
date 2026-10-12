@@ -111,6 +111,14 @@ export default async function ProfilePage() {
           </div>
         </section>
 
+        <Link
+          href="/reports"
+          className="flex items-center gap-2 bg-surface border border-line rounded-[6px] p-4 text-sm font-semibold text-brand-deep hover:bg-brand-soft"
+        >
+          <Icon name="FileText" size={18} />
+          {t("reports.title")}
+        </Link>
+
         <ProfileForms
           user={{
             name: user.name,
