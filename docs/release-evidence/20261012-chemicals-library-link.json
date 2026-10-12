@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-10-12T14:22:22.211492+00:00",
+  "release": "20261012-008",
+  "codeCommit": "3708fa42456c2f49dcc22996e6703eb201058dc5",
+  "artifactSha256": "ff1a4eaf73c03189767905734d900c73ccc2a1000966055ed413b9bc172f4b62",
+  "readiness": true,
+  "publicLiveness": true,
+  "nonroot": true,
+  "loopback": true,
+  "restarts": 0,
+  "httpRedirect": 301,
+  "nginxActive": true,
+  "sourceClean": true,
+  "applicationPR": 109,
+  "ciRuns": [38260451874, 38261432835],
+  "schemaMigrations": 0,
+  "automatedTests": {
+    "unit": 232,
+    "guardedPostgresqlIntegration": 118,
+    "browser": 30
+  },
+  "registration": {
+    "reference": "4PACz",
+    "existingSourceMatchesSuppliedGraph": true,
+    "graphAtoms": 21,
+    "reusedExistingMaterialId": true,
+    "allMaterialSourceFieldsUnchanged": true,
+    "savedImageBytes": 12954,
+    "savedVersion": 1,
+    "registeredMaterialAudits": 1,
+    "productionBulkImports": 0
+  },
+  "categories": {
+    "defaultCodes": ["SAM", "ADDITIVE", "SOLVENT"],
+    "defaultLabels": ["SAM", "Additives", "Solvents"],
+    "customDefinitionsSharedWithLibrary": true,
+    "noProductionTestCategoryCreated": true,
+    "excelCategoryChosenPerFile": true,
+    "existingTwoColumnTemplatesCompatible": true
+  },
+  "ui": {
+    "atomSelectorRemoved": true,
+    "rowFocusSelectsStructure": true,
+    "approvedBilingualViewportCases": 10,
+    "restrictedAccountCases": 4,
+    "additionalInspectorCases": 2,
+    "anonymousDenied": true,
+    "templateSha256": "5b136d35837d26da08f49a1427b311ab49d79bdb7bb276135ea0813d09b2b9ac",
+    "noPageErrorsOrOuterOverflow": true
+  },
+  "science": {
+    "materials": 449,
+    "smiles": 217,
+    "allMaterialDigestMatches": true,
+    "experiments": 1086,
+    "samples": 19739,
+    "testingRequests": 3,
+    "notifications": 143,
+    "notificationsUnchanged": true,
+    "allExistingRoleGrantRestrictionAndSessionFieldsUnchanged": true,
+    "materialRowsDeletedArchivedOrDuplicated": 0
+  },
+  "environment": {
+    "onlyExistingAppVersionChanged": true,
+    "otherSettingsAndAclPreserved": true,
+    "temporaryBackupAndSessionsRemoved": true,
+    "newRuntimeResourcesOrPrivileges": false
+  },
+  "limits": [
+    "Molecular validity does not establish actual batch identity/purity.",
+    "Custom-category writes and mixed Excel imports verified on real guarded test PostgreSQL; no fake production category or bulk data imported.",
+    "Human acceptance not asserted."
+  ]
+}
