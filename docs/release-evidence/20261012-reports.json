@@ -1,0 +1,49 @@
+{
+  "release": "20261012-003",
+  "codeCommit": "e81055411a23450e82b2c54bc6a43f614f681fb9",
+  "applicationPRs": [
+    96,
+    97
+  ],
+  "mainCI": 38202501646,
+  "migration": "20261012000000_lab_reports",
+  "checkedAt": "2026-10-12T04:27:26.844Z",
+  "publication": {
+    "reports": 1,
+    "approvedRecipients": 4,
+    "unreadNotifications": 4,
+    "idempotentRetryCreated": false,
+    "retryNotifications": 0,
+    "integrityVerifiedForManagers": 4
+  },
+  "browser": {
+    "liveBilingualViewerCases": 8,
+    "restrictedAccountCases": 3,
+    "anonymousDenied": true,
+    "temporarySessionsRemoved": true
+  },
+  "access": {
+    "explicitGrantRequired": true,
+    "implicitAdminBypass": false,
+    "existingAccessDigestMatched": true,
+    "testingOnlyBoundaryRetained": true,
+    "generalAttachmentReportNamespaceDenied": true
+  },
+  "scientificPreservation": {
+    "experimentCountBefore": 1085,
+    "experimentCountAfter": 1085,
+    "sampleCountBefore": 19735,
+    "sampleCountAfter": 19735,
+    "scope": "Counts and unchanged existing access fields; not full scientific content checksums. No scientific table writes by this feature."
+  },
+  "validation": {
+    "unit": 222,
+    "realPostgresIntegration": 99,
+    "browser": 23,
+    "postgres18CI": true,
+    "linuxProductionVerify": true,
+    "artifactChecksumPassed": true,
+    "liveAuthenticatedReadiness": true
+  },
+  "buildRecovery": "First artifact unused; second packaging failed in /tmp tmpfs. Removed only own unused/partial artifacts; final existing build script used build-only TMPDIR=/var/tmp. Existing deployment chain retained."
+}

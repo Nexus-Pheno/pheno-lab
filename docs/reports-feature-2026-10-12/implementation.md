@@ -6,6 +6,6 @@ The feature uses the current Next.js modular monolith, existing private COS adap
 
 报告列表显示标题和生成日期；普通成员看到锁定提示，完整内容仅限明确获授权的管理人员。现有测试专用账号仍仅限测试流程。报告使用现有私有对象存储、组织隔离及事务审计，完整 HTML 通过隔离查看器呈现。
 
-Local verification: full `pnpm run verify`, guarded database prepare/drift and 99 integration tests, 23 browser tests. Local PostgreSQL is 17.10; CI uses the repository's PostgreSQL 18 test service. Production release/publication status must be recorded only after live verification.
+Local verification: full `pnpm run verify`, guarded database prepare/drift and 99 integration tests, 23 browser tests. Local PostgreSQL is 17.10; CI uses the repository's PostgreSQL 18 test service. Production release `20261012-003` is live. One private report and four unread notifications were reconciled; all four managers and eight bilingual viewer cases passed live checks. See the canonical deployment log section 17.10 and aggregate release evidence.
 
 The scientific report is a confidential derived artifact stored outside Git. Its calculations distinguish sample and batch replication, primary reverse scans, current ERROR/EXTRA exclusions and descriptive associations. The report does not claim a validated causal/predictive model, stability findings or certified efficiency.
