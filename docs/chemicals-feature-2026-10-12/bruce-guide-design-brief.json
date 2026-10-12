@@ -5,15 +5,13 @@
   "primaryUser": "Bruce",
   "repeatedJob": "Understand the private entry workflow before maintaining a material definition",
   "dominantProductObject": "The material row workflow and access boundary",
-  "signatureComposition": "Six bilingual document sections, input-format example and access comparison",
+  "signatureComposition": "Seven bilingual sections covering SAM row entry, bulk workbook review, public 2PACz reference and access",
   "primaryAction": "Open the authenticated Pheno Chemicals portal",
   "applicationArchitecture": {
     "shellMode": "document",
     "canonicalFrameId": "pheno.p2-data-grid",
     "pattern": "Document scrolling for a printable feature guide; approved exception to the workbench frame",
-    "visiblePanes": [
-      "guide-document"
-    ],
+    "visiblePanes": ["guide-document"],
     "primarySpaceTarget": "Full document width with a compact public example",
     "paneContracts": [
       {
@@ -24,9 +22,7 @@
         "max": "1160px",
         "scrollOwner": "document",
         "collapseMode": "Sections and demonstration stack on compact screens",
-        "persistedState": [
-          "language in URL hash"
-        ]
+        "persistedState": ["language in URL hash"]
       }
     ],
     "responsiveTransformation": {
@@ -37,26 +33,18 @@
     }
   },
   "evidenceStates": [
-    "Feature live",
-    "Public ethanol demonstration",
-    "Legacy definitions unvalidated",
-    "Saved status required"
+    "SAM-only feature",
+    "Public 2PACz reference",
+    "Preview before save",
+    "All rows validated before explicit bulk import"
   ],
   "permissionStates": [
     "Bruce and Michael only for private chemistry",
     "Public name/category in existing employee workflows",
     "Four-manager reports omit private structures"
   ],
-  "requiredViewports": [
-    "1440x900",
-    "1024x768",
-    "390x844",
-    "320x700"
-  ],
-  "languages": [
-    "en",
-    "zh"
-  ],
+  "requiredViewports": ["1440x900", "1024x768", "390x844", "320x700"],
+  "languages": ["en", "zh"],
   "approvedAssetDirectory": "pheno-lab/public/brand",
   "tokenFile": "pheno-lab/src/app/globals.css",
   "logoAssetId": "pheno.wordmark",

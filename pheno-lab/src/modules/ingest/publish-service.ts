@@ -1,4 +1,5 @@
 import "server-only";
+import { lockMaterialCatalogue } from "@/infrastructure/db/material-lock";
 import { assertPublicSmiles } from "@/modules/library/material-visibility";
 
 import { Prisma } from "@prisma/client";
@@ -119,6 +120,7 @@ export async function publishIngestItem(
 
   await db.$transaction(
     async (tx) => {
+      if (kind === "MATERIAL") await lockMaterialCatalogue(tx, actor.org);
       // Publications of the same kind in one organization are serialized.
       // This closes the race where two reviewers approve equivalent pending
       // items before either library row is visible to the other.

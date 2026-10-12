@@ -1,4 +1,5 @@
 import "server-only";
+import { lockMaterialCatalogue } from "@/infrastructure/db/material-lock";
 import { assertPublicSmiles, redactSmilesJson } from "./material-visibility";
 
 import { isDeepStrictEqual } from "node:util";
@@ -111,6 +112,7 @@ export async function reviewMaterialEdit(actor: Actor, raw: unknown) {
   await assertStewardship(actor, "materialAdmin");
   const { id, decision } = libraryReviewSchema.parse(raw);
   await db.$transaction(async (client) => {
+    await lockMaterialCatalogue(client, actor.org);
     const claim = await client.materialEditSuggestion.updateMany({
       where: { id, organizationId: actor.org, status: "PENDING" },
       data: {

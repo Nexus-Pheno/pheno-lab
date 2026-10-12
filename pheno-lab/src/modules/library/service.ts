@@ -1,4 +1,5 @@
 import "server-only";
+import { lockMaterialCatalogue } from "@/infrastructure/db/material-lock";
 import {
   assertPublicSmiles,
   publicMaterialSelect,
@@ -266,6 +267,7 @@ export async function createLibraryMaterial(actor: Actor, raw: unknown) {
   });
   const input = libraryMaterialCreateSchema.parse(raw);
   return db.$transaction(async (tx) => {
+    await lockMaterialCatalogue(tx, actor.org);
     await requireOrgProcess(tx, actor, input.processId);
     const row = await tx.material.create({
       data: { ...input, organizationId: actor.org },
@@ -286,6 +288,7 @@ export async function updateLibraryMaterial(actor: Actor, raw: unknown) {
   await assertStewardship(actor, "materialAdmin");
   const { id, data } = libraryMaterialUpdateSchema.parse(raw);
   await db.$transaction(async (tx) => {
+    await lockMaterialCatalogue(tx, actor.org);
     await requireOrgProcess(tx, actor, data.processId);
     const result = await tx.material.updateMany({
       where: { id, organizationId: actor.org },
@@ -315,6 +318,7 @@ export async function saveMaterialCard(
   const card = materialCardSchema.parse(raw);
   assertPublicSmiles(card.smiles);
   return db.$transaction(async (tx) => {
+    await lockMaterialCatalogue(tx, actor.org);
     await requireOrgProcess(tx, actor, card.processId);
     const data = {
       ...card,

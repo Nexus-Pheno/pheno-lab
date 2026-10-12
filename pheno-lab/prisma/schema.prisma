@@ -80,6 +80,7 @@ model Organization {
   testingRequests TestingRequest[]
   accountHandoffs AccountHandoff[]
   labReports      LabReport[]
+  chemicalImports ChemicalImportBatch[]
 }
 
 // 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
@@ -166,6 +167,7 @@ model User {
   reviewedMaterialEdits      MaterialEditSuggestion[] @relation("MaterialEditReviewer")
   experimentComments         ExperimentComment[]      @relation("CommentAuthor")
   analysisRuns               AnalysisRun[]            @relation("AnalysisRequester")
+  chemicalImports            ChemicalImportBatch[]
 
   @@index([projectId])
 }
@@ -703,19 +705,39 @@ model Material {
 
 // SMILES remains authoritative on Material; derived structure evidence is private.
 model MaterialChemistry {
-  materialId       String   @id
-  material         Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  inSamRegistry    Boolean  @default(false)
-  requestId        String   @unique
-  canonicalSmiles  String
-  inputSha256      String
-  structurePath    String   @unique
-  structureSha256  String
-  structureBytes   Int
-  engineVersion    String
-  atomCount        Int
-  version          Int      @default(1)
-  generatedAt      DateTime @default(now())
+  materialId      String               @id
+  material        Material             @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  inSamRegistry   Boolean              @default(false)
+  importBatchId   String?
+  importBatch     ChemicalImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+  requestId       String               @unique
+  canonicalSmiles String
+  inputSha256     String
+  structurePath   String               @unique
+  structureSha256 String
+  structureBytes  Int
+  engineVersion   String
+  atomCount       Int
+  version         Int                  @default(1)
+  generatedAt     DateTime             @default(now())
+}
+
+// Immutable original workbook and source-row mapping for an authorized SAM batch.
+model ChemicalImportBatch {
+  id             String              @id
+  organizationId String
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdById    String
+  createdBy      User                @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  sourcePath     String              @unique
+  sourceSha256   String
+  sourceBytes    Int
+  rowCount       Int
+  manifest       Json
+  createdAt      DateTime            @default(now())
+  materials      MaterialChemistry[]
+
+  @@index([organizationId, createdAt])
 }
 
 model MaterialEditSuggestion {

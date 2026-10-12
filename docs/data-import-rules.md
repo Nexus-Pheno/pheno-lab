@@ -62,6 +62,27 @@ importer、migration 或 seed 自动补齐。普通用户新建配方走应用�
 
 ## 3. 生产导入的绝对前置门槛
 
+### Pheno Chemicals 日常 SAM Excel 录入（2026-10-12）
+
+Michael 明确授权的日常入口为 `/chemicals/bulk`。它延伸第 2 节的业务 UI 创建流程：仅当前
+获授权的化学维护人员可下载模板、验证并确认自己的新 SAM 材料；最多 100 行、2 MB `.xlsx`。
+两列映射为 `Material.name` 与私有 `Material.smiles`，类别固定 SAM。Excel 原行号保留；未知列、
+公式、非法结构、文件内重复名称和当前共享库名称冲突均拒绝，不覆盖、不替换、不静默跳过。
+
+验证阶段不写数据。确认阶段绑定 workbook SHA-256 和 UUID batchId；原件及全部本地 RDKit
+结构先写全新私有 COS key 并逐一读取校验，再在有界事务中提交新材料、结构证据、不可变
+`ChemicalImportBatch` 原件引用/行号映射和审计。名称写入与公共材料创建/编辑共用组织锁，
+提交前再次检查权限与冲突。同 batchId/原件重试不新增；不同原件不能复用 batchId。失败仅清理
+本次新建且确定无引用的对象，提交结果不明时保留对象以供核对。
+
+维护人员确认上传自己填写的工作簿即为该日常新增批次的明确操作；agent 发布此入口不授权
+替用户上传真实批量数据。权限和完整生命周期在受保护 `_test` 库及 local test storage 演练。
+上线验证不导入生产 canary 材料。原件下载仍检查同一私有化学权限、组织与 hash；通用附件入口
+拒绝 chemical namespace。只读 reconciliation 以 batchId、manifest 中的源行号/材料 ID、
+`MaterialChemistry.importBatchId` 和 COS hash 为依据。需要撤销时先核对新增材料的实验引用，
+由负责人批准针对该 batchId 的 portal detach 或归档；保留原件、结构及审计，不盲目删除材料。
+历史数据库/测量/关系型资料迁移继续适用下列独立前置门槛。
+
 以下任一项未完成时，只能盘点、开发 importer 和在隔离环境演练，不能 `--apply` 到生产：
 
 - [ ] Louis 明确批准数据集、目标组织、范围、导入负责人和执行窗口；
