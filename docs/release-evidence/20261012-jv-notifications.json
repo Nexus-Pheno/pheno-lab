@@ -1,0 +1,83 @@
+{
+  "release": "20261012-006",
+  "codeCommit": "09900c08d42533986b4816f4e1374fab20eb0717",
+  "applicationPR": 102,
+  "ciRuns": [
+    38231762925,
+    38232395538
+  ],
+  "artifactSha256": "aa2f9c33b225fa504d14f5cf7d20b8542f45dab1f51e116a0ed0a0940c939f7f",
+  "checkedAt": "2026-10-12T10:04:55.100Z",
+  "tests": {
+    "unit": 228,
+    "guardedPostgresqlIntegration": 108,
+    "browser": 27
+  },
+  "notification": {
+    "readyNotices": 1,
+    "announcementAudits": 1,
+    "recipientCount": 1,
+    "href": "/chemicals",
+    "unreadAtReconciliation": true,
+    "realRecipientPanelOpened": false
+  },
+  "routing": {
+    "jvDestinations": [
+      "Data 平台",
+      "产品验证部"
+    ],
+    "newRobot": "Pheno Lab JV 测试",
+    "signed": true,
+    "outgoingChatEnabled": false,
+    "newRobotBusinessKinds": [
+      "testing_requested"
+    ],
+    "generalAndDigestStayGeneralOnly": true,
+    "failureIsolationVerified": true,
+    "automaticRetry": false
+  },
+  "connectionVerification": {
+    "generalAccepted": true,
+    "jvAccepted": true,
+    "bothMessagesVisiblyVerified": true,
+    "labelledVerificationOnly": true,
+    "testingRequestsCreated": 0
+  },
+  "preservation": {
+    "materialDigestMatches": true,
+    "materials": 449,
+    "storedSmiles": 217,
+    "accessDigestMatches": true,
+    "chemistryMaintainers": 2,
+    "experiments": 1085,
+    "samples": 19735,
+    "testingRequests": 3
+  },
+  "configuration": {
+    "newFields": [
+      "DINGTALK_JV_WEBHOOK_URL",
+      "DINGTALK_JV_WEBHOOK_SECRET"
+    ],
+    "existingConfigPathReused": true,
+    "unrelatedFieldsPreserved": true,
+    "protectedBackup": true,
+    "finalOwnerGroupMode": "root pheno 640",
+    "modeDriftObservedAndRestored": true,
+    "newServicesOrPorts": false,
+    "temporaryCredentialsRemoved": true
+  },
+  "guide": {
+    "canonical": "docs/chemicals-feature-2026-10-12/bruce-quick-start.html",
+    "sha256": "3eafa7157996a958ca50d1018fa77eb70e606ca09773ba5bb488c05bb4850ec4",
+    "downloadsCopyMatches": true,
+    "offlineBilingualViewportCases": 8,
+    "printPagesPerLanguage": 3,
+    "laboratoryStructuresIncluded": false,
+    "credentialsIncluded": false
+  },
+  "limits": [
+    "Human notification reading and feature acceptance not reported.",
+    "Connection checks used labelled verification notices, not production scientific fixtures.",
+    "Group alerts retain existing best-effort delivery semantics."
+  ]
+}
