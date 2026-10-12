@@ -1,0 +1,61 @@
+{
+  "checkedAt": "2026-10-12T15:09:36.513431+00:00",
+  "release": "20261012-009",
+  "codeCommit": "6a8edac5e2a556404467ea46b9d0d66a7ef65070",
+  "artifactSha256": "74873ae51c9767abfeaf9165da084e5ac3db3fa1b635e07be5f26f6816cd568f",
+  "readiness": true,
+  "publicLiveness": true,
+  "nonroot": true,
+  "loopback": true,
+  "restarts": 0,
+  "httpRedirect": 301,
+  "nginxActive": true,
+  "sourceClean": true,
+  "applicationPR": 111,
+  "ciRuns": [38266414548, 38267175021],
+  "schemaMigrations": 0,
+  "materialRowQuotaRemoved": true,
+  "fileLimitBytes": 2097152,
+  "workbookSafetyChecksRetained": true,
+  "transactionalChunks": 200,
+  "automatedTests": {
+    "unit": 235,
+    "guardedPostgresqlIntegration": 119,
+    "affectedBrowser": 8,
+    "fullBrowserSuitePassedInCI": true,
+    "parserAcceptedRowCounts": [101, 1001, 5001],
+    "realDatabaseImportRows": 1001,
+    "browserImportRows": 125
+  },
+  "liveChecks": {
+    "cases": 14,
+    "anonymousDenied": true,
+    "legacyTemplatePreviewRows": 1001,
+    "bilingualUiPreviewRows": 125,
+    "productionBulkImports": 0,
+    "templateSha256": "23fabb02a9cb2db150885f994c731123b6e40df5cecd03acf4db01ce205072b9"
+  },
+  "reconciliation": {
+    "materials": 449,
+    "allMaterialSourceRowsUnchanged": true,
+    "privateChemistryEvidenceUnchanged": true,
+    "categoriesUnchanged": true,
+    "permissionsUnchanged": true,
+    "experiments": 1086,
+    "samples": 19739,
+    "testingRequests": 3,
+    "notifications": 143,
+    "productionImportBatches": 0
+  },
+  "environment": {
+    "onlyVersionIncremented": true,
+    "otherSettingsAndAclUnchanged": true,
+    "temporaryBackupRemoved": true
+  },
+  "verificationSessions": {
+    "temporarySessionFilesRemoved": true,
+    "allTemporarySessionsExpireAt": "2026-10-12T15:14:35+00:00",
+    "networkFailureLogRedacted": true,
+    "passwordsAndAccountSessionVersionsUnchanged": true
+  }
+}
