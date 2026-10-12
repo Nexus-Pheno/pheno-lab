@@ -75,6 +75,46 @@ async function login(page: Page, email: string) {
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/$/);
 }
+test("portal-ready notice is bilingual and opens the authorized chemistry page", async ({
+  page,
+}) => {
+  await db.notification.create({
+    data: {
+      organizationId: orgId,
+      userId: ownerId,
+      kind: "chemicals_ready",
+      actorName: "Synthetic Sender",
+      entityLabel: "Pheno Chemicals",
+      href: "/chemicals",
+    },
+  });
+  await login(page, ownerEmail);
+  for (const language of ["en", "zh"] as const) {
+    await page
+      .context()
+      .addCookies([
+        { name: "pheno_lang", value: language, url: "http://127.0.0.1:3467" },
+      ]);
+    await page.goto("/profile");
+    await page
+      .getByRole("button", {
+        name: language === "en" ? /Notifications/ : /通知/,
+      })
+      .click();
+    const notice = page.getByRole("link").filter({
+      hasText:
+        language === "en"
+          ? "enabled your private material-entry portal"
+          : "已为你开通私有材料录入入口",
+    });
+    await expect(notice).toContainText("Pheno Chemicals");
+    await notice.click();
+    await expect(page).toHaveURL(/\/chemicals$/);
+    await expect(
+      page.getByRole("heading", { name: "Pheno Chemicals", exact: true }),
+    ).toBeVisible();
+  }
+});
 test("authorized row entry validates, saves locally rendered structure and creates a public picker entry", async ({
   page,
 }) => {

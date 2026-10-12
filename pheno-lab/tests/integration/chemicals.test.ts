@@ -28,7 +28,11 @@ import {
 } from "@/modules/ingest/service";
 import { canReadObject } from "@/modules/files/authorization";
 import { getExperimentDesignerData } from "@/modules/experiments/query";
-import { grantChemicalAccess } from "@/modules/chemicals/operator-service";
+import {
+  announceChemicalPortal,
+  grantChemicalAccess,
+} from "@/modules/chemicals/operator-service";
+import * as auditWriter from "@/modules/audit/writer";
 
 afterAll(() => db.$disconnect());
 async function fixture() {
@@ -128,6 +132,69 @@ const card = {
 };
 
 describe("private chemical portal on real PostgreSQL", () => {
+  it("announces the portal once to a current scoped maintainer without changing grants", async () => {
+    const f = await fixture();
+    try {
+      const input = {
+        organizationId: f.org.id,
+        senderUserId: f.owners[0].id,
+        recipientUserId: f.owners[1].id,
+        authorizationReference: "Synthetic authorized welcome",
+      };
+      const audit = vi
+        .spyOn(auditWriter, "recordSystemAudit")
+        .mockRejectedValueOnce(new Error("Synthetic audit failure"));
+      await expect(announceChemicalPortal(input)).rejects.toThrow(
+        "Synthetic audit failure",
+      );
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      audit.mockRestore();
+      const attempts = await Promise.all([
+        announceChemicalPortal(input),
+        announceChemicalPortal(input),
+      ]);
+      expect(attempts.map((result) => result.created).sort()).toEqual([
+        false,
+        true,
+      ]);
+      const notice = await db.notification.findFirstOrThrow({
+        where: { organizationId: f.org.id },
+      });
+      expect(notice).toMatchObject({
+        userId: f.owners[1].id,
+        kind: "chemicals_ready",
+        entityLabel: "Pheno Chemicals",
+        href: "/chemicals",
+        readAt: null,
+      });
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "chemistry.portal.announced",
+          },
+        }),
+      ).toBe(1);
+      await expect(
+        announceChemicalPortal({ ...input, organizationId: f.foreign.id }),
+      ).rejects.toThrow();
+      await expect(
+        announceChemicalPortal({ ...input, recipientUserId: f.admin.id }),
+      ).rejects.toThrow();
+      await db.user.update({
+        where: { id: f.owners[1].id },
+        data: { chemicalAccess: false },
+      });
+      await expect(announceChemicalPortal(input)).rejects.toThrow();
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
   it("provisions exactly two approved grants transactionally without an application admin bypass", async () => {
     const f = await fixture();
     try {

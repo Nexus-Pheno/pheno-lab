@@ -39,6 +39,31 @@ afterEach(() => {
 });
 
 describe("DingTalk adapter", () => {
+  it("uses only the dedicated JV credentials and signs that destination", async () => {
+    configure({
+      DINGTALK_WEBHOOK_SECRET: "SECgeneral-test",
+      DINGTALK_JV_WEBHOOK_URL:
+        "https://oapi.dingtalk.com/robot/send?access_token=jv-test-token",
+      DINGTALK_JV_WEBHOOK_SECRET: "SECjv-test",
+    });
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    expect(isDingTalkConfigured("jv-testing")).toBe(true);
+    expect(await sendDingTalkText("JV connection", "jv-testing")).toBe(true);
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.searchParams.get("access_token")).toBe("jv-test-token");
+    expect(url.searchParams.get("sign")).toBe(
+      createHmac("sha256", "SECjv-test")
+        .update("1700000000000\nSECjv-test")
+        .digest("base64"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fall back to the general robot when the JV destination is missing", async () => {
+    expect(isDingTalkConfigured("jv-testing")).toBe(false);
+    expect(await sendDingTalkText("JV connection", "jv-testing")).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("does nothing when the webhook is not configured", async () => {
     configure({ DINGTALK_WEBHOOK_URL: undefined });
     expect(isDingTalkConfigured()).toBe(false);

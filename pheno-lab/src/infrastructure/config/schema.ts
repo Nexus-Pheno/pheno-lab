@@ -30,7 +30,7 @@ const dingTalkWebhookUrl = z.string().refine((value) => {
   } catch {
     return false;
   }
-}, "DINGTALK_WEBHOOK_URL must be an HTTPS DingTalk robot URL with one access_token and no other parameters");
+}, "DingTalk webhook must be an HTTPS DingTalk robot URL with one access_token and no other parameters");
 
 const rawServerConfigSchema = z.object({
   NODE_ENV: z
@@ -73,6 +73,8 @@ const rawServerConfigSchema = z.object({
   SMTP_FROM: optionalString,
   DINGTALK_WEBHOOK_URL: optionalString.pipe(dingTalkWebhookUrl.optional()),
   DINGTALK_WEBHOOK_SECRET: optionalString,
+  DINGTALK_JV_WEBHOOK_URL: optionalString.pipe(dingTalkWebhookUrl.optional()),
+  DINGTALK_JV_WEBHOOK_SECRET: optionalString,
   DINGTALK_ORGANIZATION_SLUG: optionalString,
 });
 
@@ -152,11 +154,41 @@ export function parseServerConfig(
       "DINGTALK_WEBHOOK_URL is required when DINGTALK_WEBHOOK_SECRET is set",
     );
   }
+  if (
+    Boolean(config.DINGTALK_JV_WEBHOOK_URL) !==
+    Boolean(config.DINGTALK_JV_WEBHOOK_SECRET)
+  ) {
+    throw new Error(
+      "DINGTALK_JV_WEBHOOK_URL and DINGTALK_JV_WEBHOOK_SECRET must be configured together",
+    );
+  }
+  if (
+    config.DINGTALK_WEBHOOK_URL &&
+    config.DINGTALK_JV_WEBHOOK_URL &&
+    new URL(config.DINGTALK_WEBHOOK_URL).searchParams.get("access_token") ===
+      new URL(config.DINGTALK_JV_WEBHOOK_URL).searchParams.get("access_token")
+  ) {
+    throw new Error(
+      "The JV robot must have a different webhook from the general robot",
+    );
+  }
   if (config.NODE_ENV === "production") {
     assertProductionSecret(
       "DINGTALK_WEBHOOK_SECRET",
       config.DINGTALK_WEBHOOK_SECRET,
     );
+    assertProductionSecret(
+      "DINGTALK_JV_WEBHOOK_SECRET",
+      config.DINGTALK_JV_WEBHOOK_SECRET,
+    );
+    if (config.DINGTALK_JV_WEBHOOK_URL) {
+      assertProductionSecret(
+        "DINGTALK_JV_WEBHOOK_URL access_token",
+        new URL(config.DINGTALK_JV_WEBHOOK_URL).searchParams.get(
+          "access_token",
+        ) ?? undefined,
+      );
+    }
     if (config.DINGTALK_WEBHOOK_URL) {
       const token = new URL(config.DINGTALK_WEBHOOK_URL).searchParams.get(
         "access_token",

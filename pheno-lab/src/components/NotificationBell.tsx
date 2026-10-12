@@ -12,6 +12,7 @@ import {
 import type { TKey } from "@/lib/i18n/dict";
 
 const KIND_ICON: Record<string, string> = {
+  chemicals_ready: "Atom",
   report_published: "FileText",
   testing_requested: "FlaskConical",
   account_setup_ready: "KeyRound",

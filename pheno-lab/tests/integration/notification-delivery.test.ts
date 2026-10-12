@@ -49,7 +49,7 @@ const recipePayload = {
   procedure: "",
 };
 
-function configure(slug?: string) {
+function configure(slug?: string, jv = false) {
   vi.mocked(serverConfig).mockReturnValue(
     parseServerConfig({
       ...process.env,
@@ -57,6 +57,10 @@ function configure(slug?: string) {
         "https://oapi.dingtalk.com/robot/send?access_token=synthetic-test-token",
       DINGTALK_WEBHOOK_SECRET: undefined,
       DINGTALK_ORGANIZATION_SLUG: slug,
+      DINGTALK_JV_WEBHOOK_URL: jv
+        ? "https://oapi.dingtalk.com/robot/send?access_token=synthetic-jv-test-token"
+        : undefined,
+      DINGTALK_JV_WEBHOOK_SECRET: jv ? "SECsynthetic-jv-test" : undefined,
     }),
   );
 }
@@ -134,6 +138,65 @@ async function fixture() {
 }
 
 describe("organization-scoped notification delivery", () => {
+  it("duplicates only JV testing alerts to the second robot, scoped to the approved active organization", async () => {
+    const context = await fixture();
+    try {
+      configure(context.organization.slug, true);
+      expect(
+        await sendGroupNotice(context.organization.id, "testing_requested"),
+      ).toBe(true);
+      expect(sendDingTalkText).toHaveBeenCalledTimes(2);
+      expect(
+        vi
+          .mocked(sendDingTalkText)
+          .mock.calls.map((call) => call[1] ?? "general"),
+      ).toEqual(["general", "jv-testing"]);
+      expect(vi.mocked(sendDingTalkText).mock.calls[0][0]).toBe(
+        vi.mocked(sendDingTalkText).mock.calls[1][0],
+      );
+      for (const kind of [
+        "access_requested",
+        "assigned",
+        "registration_pending",
+        "material_edit_requested",
+        "recipe_approval_requested",
+      ] as const) {
+        vi.mocked(sendDingTalkText).mockClear();
+        expect(await sendGroupNotice(context.organization.id, kind)).toBe(true);
+        expect(sendDingTalkText).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(sendDingTalkText).mock.calls[0][1]).toBeUndefined();
+      }
+      vi.mocked(sendDingTalkText).mockClear();
+      configure(`foreign-${crypto.randomUUID()}`, true);
+      expect(
+        await sendGroupNotice(context.organization.id, "testing_requested"),
+      ).toBe(false);
+      expect(sendDingTalkText).not.toHaveBeenCalled();
+    } finally {
+      await context.cleanup();
+    }
+  });
+
+  it("attempts both JV destinations independently when one delivery fails", async () => {
+    const context = await fixture();
+    try {
+      configure(context.organization.slug, true);
+      vi.mocked(sendDingTalkText)
+        .mockRejectedValueOnce(new Error("Synthetic general failure"))
+        .mockResolvedValueOnce(true);
+      expect(
+        await sendGroupNotice(context.organization.id, "testing_requested"),
+      ).toBe(true);
+      expect(sendDingTalkText).toHaveBeenCalledTimes(2);
+      vi.mocked(sendDingTalkText).mockReset().mockResolvedValue(false);
+      expect(
+        await sendGroupNotice(context.organization.id, "testing_requested"),
+      ).toBe(false);
+      expect(sendDingTalkText).toHaveBeenCalledTimes(2);
+    } finally {
+      await context.cleanup();
+    }
+  });
   it("does not route unconfigured, foreign or inactive organizations", async () => {
     const context = await fixture();
     try {
@@ -499,12 +562,14 @@ describe("morning digest on PostgreSQL", () => {
         });
       }
       vi.mocked(sendDingTalkText).mockClear();
+      configure(context.organization.slug, true);
       const results = await Promise.all([
         runMorningDigest(morning),
         runMorningDigest(morning),
       ]);
       expect(results.sort()).toEqual(["sent", "skipped"]);
       expect(sendDingTalkText).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(sendDingTalkText).mock.calls[0][1]).toBeUndefined();
       const text = vi.mocked(sendDingTalkText).mock.calls[0][0];
       expect(text).toContain("早间摘要 2026-09-08（北京时间）");
       for (const line of [

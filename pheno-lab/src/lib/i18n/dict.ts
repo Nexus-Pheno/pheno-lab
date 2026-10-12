@@ -98,6 +98,7 @@ export const en = {
   "testing.handoffUnavailable":
     "Temporary credentials are no longer available. The account has been set up, the login has expired, or access was revoked.",
   "notif.testing_requested": "sent a JV testing request",
+  "notif.chemicals_ready": "enabled your private material-entry portal",
   "notif.account_setup_ready": "prepared a private account login",
   // App chrome
   "app.name": "Lab Data Platform",
@@ -1652,6 +1653,7 @@ export const zh: Record<TKey, string> = {
   "testing.handoffUnavailable":
     "临时登录信息已不可用：账号已完成设置、临时登录已过期或权限已撤销。",
   "notif.testing_requested": "发送了 JV 测试需求",
+  "notif.chemicals_ready": "已为你开通私有材料录入入口",
   "notif.account_setup_ready": "已准备好私密账号登录信息",
   "app.name": "实验数据平台",
   "nav.dashboard": "仪表盘",

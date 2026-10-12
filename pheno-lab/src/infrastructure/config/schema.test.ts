@@ -162,6 +162,56 @@ describe("parseServerConfig", () => {
     }
   });
 
+  it("requires the dedicated signed JV pair and keeps its credentials distinct", () => {
+    const url =
+      "https://oapi.dingtalk.com/robot/send?access_token=jv-test-token";
+    expect(() =>
+      parseServerConfig({ ...base, DINGTALK_JV_WEBHOOK_URL: url }),
+    ).toThrow(/configured together/);
+    expect(() =>
+      parseServerConfig({ ...base, DINGTALK_JV_WEBHOOK_SECRET: "SECjv-test" }),
+    ).toThrow(/configured together/);
+    expect(
+      parseServerConfig({
+        ...base,
+        DINGTALK_JV_WEBHOOK_URL: url,
+        DINGTALK_JV_WEBHOOK_SECRET: "SECjv-test",
+      }).DINGTALK_JV_WEBHOOK_URL,
+    ).toBe(url);
+    expect(() =>
+      parseServerConfig({
+        ...base,
+        DINGTALK_WEBHOOK_URL: url,
+        DINGTALK_JV_WEBHOOK_URL: url,
+        DINGTALK_JV_WEBHOOK_SECRET: "SECjv-test",
+      }),
+    ).toThrow(/different webhook/);
+  });
+
+  it("validates the dedicated JV URL without disclosing invalid credentials", () => {
+    const token = "private-jv-test-token";
+    try {
+      parseServerConfig({
+        ...base,
+        DINGTALK_JV_WEBHOOK_URL: `https://example.test/?access_token=${token}`,
+        DINGTALK_JV_WEBHOOK_SECRET: "SECjv-test",
+      });
+      expect.fail("Expected invalid JV webhook to be rejected");
+    } catch (error) {
+      expect(String(error)).toContain("DINGTALK_JV_WEBHOOK_URL");
+      expect(String(error)).not.toContain(token);
+    }
+    expect(() =>
+      parseServerConfig({
+        ...base,
+        NODE_ENV: "production",
+        DINGTALK_JV_WEBHOOK_URL:
+          "https://oapi.dingtalk.com/robot/send?access_token=replace-with-jv-token",
+        DINGTALK_JV_WEBHOOK_SECRET: "SECjv-test",
+      }),
+    ).toThrow(/example value/);
+  });
+
   it.each([
     "not-a-url",
     "http://oapi.dingtalk.com/robot/send?access_token=unit-test-token",

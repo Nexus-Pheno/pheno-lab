@@ -1,0 +1,9 @@
+# Bruce feature guide QA
+
+Pheno owner brand; scientific-workbench workflow explained through a document-scrolling guide. The document exception is recorded in `bruce-guide-design-brief.json`, which passed the canonical design validator. Approved embedded Pheno logo/favicon and existing report tokens provide offline rendering. A public ethanol example was generated using local RDKit; no actual laboratory structure, credentials, user identifiers or private object links are present.
+
+The guide covers the existing-login/Profile entry, five-step row workflow, categories/custom categories, actual preview versus saved state, legacy notation review, invalid/duplicate/stale/network cases, desktop/phone inspector controls, private export and report access boundaries. English and Chinese content were reviewed together against actual interface labels and permission behavior.
+
+Eight offline browser cases passed at 1440, 1024, 390 and 320 widths in both languages. Language switching, print control, embedded images, correct-language visibility, minimum 44px buttons, zero page errors, no outer horizontal overflow and zero external requests were checked. Desktop/phone screenshots and all pages of both three-page A4 print versions were inspected. A list-item page split found during print review was corrected with bounded print break rules and the eight cases rerun.
+
+Canonical `bruce-quick-start.html` and the Downloads copy have identical bytes. The guide is printable and offline; its live portal link still requires the user's existing authenticated account. It does not claim that Bruce has read the notice or accepted the feature. Full application checks for the associated bilingual notification/routing change passed: 228 unit tests, 108 guarded PostgreSQL integration tests and 27 browser tests; known lint warnings remain, with zero errors.
