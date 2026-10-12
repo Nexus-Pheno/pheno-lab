@@ -13,6 +13,7 @@ import {
 
 const controlSchema = z.object({
   mode: z.enum(["preview", "import"]),
+  category: z.string().trim().min(1).max(100).default("SAM"),
   batchId: z.uuid().optional(),
   expectedDigest: z
     .string()
@@ -73,11 +74,13 @@ export async function POST(request: Request) {
       throw new ChemicalWorkbookError("file");
     const control = controlSchema.parse({
       mode: form.get("mode"),
+      category: form.get("category") ?? undefined,
       batchId: form.get("batchId") ?? undefined,
       expectedDigest: form.get("expectedDigest") ?? undefined,
     });
     const input = {
       filename: file.name,
+      category: control.category,
       bytes: new Uint8Array(await file.arrayBuffer()),
     };
     if (control.mode === "preview")

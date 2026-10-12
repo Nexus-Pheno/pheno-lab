@@ -4,11 +4,11 @@
   "productArchetype": "scientific-workbench",
   "primaryUser": "Two approved private chemistry maintainers",
   "repeatedJob": "Enter material identity and SMILES by row, validate and save a traceable structure",
-  "dominantProductObject": "SAM material row with an automatically visible molecular structure",
+  "dominantProductObject": "Registered material identity, shared category and automatically rendered structure",
   "signatureComposition": "Dominant editable registry with a 360px molecular evidence inspector",
   "primaryAction": "Save material row",
   "additionalScreens": ["/chemicals/bulk"],
-  "bulkWorkflow": "Download a two-column Excel template, select a workbook, review validation and molecular graphs, then explicitly import an atomic SAM batch",
+  "bulkWorkflow": "Download the two-column template, choose a shared category, review new versus existing-library rows, then confirm one atomic registration batch",
   "applicationArchitecture": {
     "shellMode": "workbench",
     "canonicalFrameId": "pheno.p2-data-grid",
@@ -18,7 +18,7 @@
     "paneContracts": [
       {
         "id": "registry",
-        "role": "Search, paginate and edit SAM rows with inline molecular previews",
+        "role": "Search and edit registered chemistry; row focus selects structure without an extra icon button",
         "min": "480px",
         "default": "remaining width",
         "max": "available width",
@@ -51,7 +51,9 @@
     "valid preview",
     "saved validated structure",
     "stale conflict",
-    "failed save with draft preserved"
+    "failed save with draft preserved",
+    "existing library identity linked without duplication",
+    "shared or custom category"
   ],
   "permissionStates": [
     "fresh explicit grant",
