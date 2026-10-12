@@ -252,6 +252,7 @@ export function ChemicalsBulkUpload({
                         <td className="block sm:table-cell py-2 sm:p-3">
                           {row.preview && (
                             <img
+                              loading="lazy"
                               className="w-40 h-auto border border-line rounded-[4px] bg-white"
                               src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(row.preview.svg)}`}
                               alt={`${row.name} · ${t("chemicals.preview")}`}

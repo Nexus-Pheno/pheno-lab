@@ -6,7 +6,9 @@ import { unzipSync, strFromU8 } from "fflate";
 import { readSheet } from "read-excel-file/node";
 
 export const MAX_CHEMICAL_FILE_BYTES = 2 * 1024 * 1024;
-export const MAX_CHEMICAL_IMPORT_ROWS = 100;
+const MAX_EXPANDED_BYTES = 8 * 1024 * 1024;
+// Bound sparse-sheet allocation, independently of the number of material rows.
+const MAX_SHEET_CELLS = 2 * 1024 * 1024;
 export class ChemicalWorkbookError extends Error {
   constructor(
     public readonly code: "file" | "limits" | "columns" | "formulas" | "empty",
@@ -44,7 +46,7 @@ export async function readSamWorkbook(bytes: Uint8Array, filename: string) {
           file.name.startsWith("/") ||
           names.size >= 200 ||
           file.originalSize > 2 * 1024 * 1024 ||
-          expanded > 8 * 1024 * 1024
+          expanded > MAX_EXPANDED_BYTES
         )
           throw new ChemicalWorkbookError("limits");
         names.add(file.name);
@@ -63,18 +65,31 @@ export async function readSamWorkbook(bytes: Uint8Array, filename: string) {
       if (name.startsWith("xl/worksheets/")) {
         if (/<(?:[a-z0-9_]+:)?f[\s/>]/i.test(text))
           throw new ChemicalWorkbookError("formulas");
-        let cells = 0;
+        let maxRow = 0;
+        let maxColumn = 0;
         for (const match of text.matchAll(
           /<(?:[a-z0-9_]+:)?c\b[^>]*\br=["']([A-Z]+)(\d+)["']/gi,
         )) {
-          if (++cells > 5000 || match[1].length > 2 || Number(match[2]) > 1001)
+          const row = Number(match[2]);
+          if (match[1].length > 2 || row < 1 || row > 1048576)
             throw new ChemicalWorkbookError("limits");
+          const column = [...match[1].toUpperCase()].reduce(
+            (value, letter) => value * 26 + letter.charCodeAt(0) - 64,
+            0,
+          );
+          maxRow = Math.max(maxRow, row);
+          maxColumn = Math.max(maxColumn, column);
         }
         for (const match of text.matchAll(
           /<(?:[a-z0-9_]+:)?row\b[^>]*\br=["'](\d+)["']/gi,
-        ))
-          if (Number(match[1]) > 1001)
+        )) {
+          const row = Number(match[1]);
+          if (row < 1 || row > 1048576)
             throw new ChemicalWorkbookError("limits");
+          maxRow = Math.max(maxRow, row);
+        }
+        if (maxRow * Math.max(maxColumn, 1) > MAX_SHEET_CELLS)
+          throw new ChemicalWorkbookError("limits");
       }
     }
     const rows = await readSheet(Buffer.from(bytes), "SAM Materials", {
@@ -108,8 +123,6 @@ export async function readSamWorkbook(bytes: Uint8Array, filename: string) {
         ),
       );
     if (!entries.length) throw new ChemicalWorkbookError("empty");
-    if (entries.length > MAX_CHEMICAL_IMPORT_ROWS)
-      throw new ChemicalWorkbookError("limits");
     return entries;
   } catch (error) {
     if (error instanceof ChemicalWorkbookError) throw error;
