@@ -1,0 +1,66 @@
+{
+  "release": "20261012-005",
+  "codeCommit": "a626d48ce87bfe0921858d96d0d33d27033338bd",
+  "initialRelease": "20261012-004",
+  "initialCodeCommit": "9af9094917911f2405643fa29ddf89941f978427",
+  "applicationPRs": [99, 100],
+  "ciRuns": [38222482381, 38223421165, 38226208828, 38226757878],
+  "migration": "20261012010000_pheno_chemicals",
+  "checkedAt": "2026-10-12T09:08:36.375Z",
+  "artifactSha256": "5193a787011e9ffb33176ebe8014009515a1a013aaabb8838b1359e8319dbe45",
+  "initialArtifactSha256": "0e48b4d5cf0f1aeaa3686e191a8259f3d0e7793e9bb632d1b38b48b9fb78adf9",
+  "automatedTests": {
+    "unit": 224,
+    "guardedPostgresqlIntegration": 105,
+    "browser": 26
+  },
+  "access": {
+    "approvedChemistryMaintainers": 2,
+    "grantAuditEvents": 2,
+    "administratorBypass": false,
+    "existingRoleAndGrantDigestMatches": true
+  },
+  "scientificData": {
+    "materials": 449,
+    "materialsWithSmiles": 217,
+    "fullMaterialDigestMatches": true,
+    "experiments": 1085,
+    "samples": 19735,
+    "chemistryEvidenceRows": 0,
+    "productionSavesPerformed": 0,
+    "scientificWritesPerformed": false
+  },
+  "browser": {
+    "ownerBilingualViewportCases": 10,
+    "restrictedPortalAndExportCases": 4,
+    "restrictedKnownMaterialImageCases": 2,
+    "anonymousDenied": true,
+    "noOuterOverflow": true,
+    "noPageErrors": true,
+    "molecularPreviewsLoaded": true,
+    "temporarySessionsRemoved": true
+  },
+  "analysisWorkflow": {
+    "privateCollectorVerified": true,
+    "activeDefinitions": 437,
+    "activeNonemptySmiles": 216,
+    "classification": "PRIVATE_CHEMISTRY_DO_NOT_PUBLISH",
+    "fourManagerReportsOmitPrivateChemistry": true,
+    "saturdayScheduleUnchanged": true
+  },
+  "runtime": {
+    "authenticatedDatabaseAndStorageReadiness": true,
+    "nonroot": true,
+    "loopbackOnlyApplicationPort": true,
+    "serviceRestarts": 0,
+    "newRuntimeVariablesOrServices": false,
+    "onlyExistingAppVersionChanged": true
+  },
+  "limits": [
+    "Legacy SMILES retained unvalidated until maintainer review/save.",
+    "Notation validation does not verify physical identity, purity or batch provenance.",
+    "Saved SVG persistence and audit rollback tested in protected PostgreSQL/local storage; no production material save was performed.",
+    "Human acceptance is not reported.",
+    "Earlier-code rollback requires privacy isolation."
+  ]
+}
