@@ -1,0 +1,110 @@
+{
+  "checkedAt": "2026-10-12T13:11:41.894Z",
+  "release": "20261012-007",
+  "codeCommit": "419687ec25d76e8aef6eceadb68dddf95942c2e7",
+  "artifactSha256": "10b5ce14a35454adcdf56ea95e219b194b0de9bf11fa8483e62ad1a34fe60b08",
+  "readiness": true,
+  "publicLiveness": true,
+  "nonroot": true,
+  "loopback": true,
+  "restarts": 0,
+  "httpRedirect": 301,
+  "nginxActive": true,
+  "sourceClean": true,
+  "applicationPRs": [104, 105, 106, 107],
+  "ciRuns": [
+    38238172741, 38245610013, 38250922894, 38251530061, 38251863168, 38252503236
+  ],
+  "migrations": [
+    {
+      "name": "20261012020000_sam_registry",
+      "finishedAt": "2026-10-12T13:05:54.353Z"
+    },
+    {
+      "name": "20261012030000_chemical_import_batches",
+      "finishedAt": "2026-10-12T13:05:54.359Z"
+    }
+  ],
+  "automatedTests": {
+    "unit": 232,
+    "guardedPostgresqlIntegration": 114,
+    "browser": 28,
+    "schemaDriftClear": true
+  },
+  "portal": {
+    "focus": "new SAM materials",
+    "visibleMaterials": 1,
+    "reference": "2PACz",
+    "publicReferenceSource": "PubChem CID154704302 / TCI C3663",
+    "savedReferenceAtomCount": 19,
+    "savedReferenceImageBytes": 12159,
+    "savedReferenceVersion": 1,
+    "savedEvidenceUnchanged": true,
+    "initializationAuditEvents": 1
+  },
+  "bulk": {
+    "templateSheet": "SAM Materials",
+    "columns": ["Molecule name", "SMILES"],
+    "maxRows": 100,
+    "maxFileBytes": 2097152,
+    "templateSha256": "f366789d7e4c9d61b5b6bd28eb1bd665ea75c21028d36482a6aad12092c61380",
+    "explicitValidatedConfirmation": true,
+    "transactionalProvenance": true,
+    "productionBulkImports": 0,
+    "productionReadOnlyPreviewVerified": true
+  },
+  "permissions": {
+    "approvedChemistryMaintainers": 2,
+    "ordinaryAdministratorBypass": false,
+    "existingRoleGrantRestrictionAndSessionDigestMatches": true,
+    "privateSourceAccessTested": true
+  },
+  "scientificData": {
+    "materials": 449,
+    "materialsWithSmiles": 217,
+    "fullMaterialDigestMatches": true,
+    "experiments": 1086,
+    "samples": 19739,
+    "privateChemistryEvidenceRows": 3,
+    "existingReferenceExperimentLinks": 1,
+    "existingReferenceLinksUnchanged": true,
+    "sourceMaterialsDeletedOrArchived": 0,
+    "sourceFieldsChangedByRelease": 0,
+    "experimentHistoryChangedByRelease": false,
+    "notifications": 143,
+    "notificationsUnchanged": true,
+    "testingRequests": 3
+  },
+  "browser": {
+    "approvedBilingualViewportCases": 10,
+    "restrictedAccountCases": 4,
+    "anonymousDenied": true,
+    "savedRowImagesVisibleAfterInternalScrolling": true,
+    "desktopAndFocusedPhoneInspectorVerified": true,
+    "templateBytesMatch": true,
+    "invalidDuplicateImportDisabled": true,
+    "noOuterOverflow": true,
+    "noPageErrors": true,
+    "temporarySessionsRemoved": true
+  },
+  "environment": {
+    "onlyExistingAppVersionChanged": true,
+    "existingOtherSettingsAndAclUnchanged": true,
+    "temporaryBackupRemoved": true,
+    "newPersistentSettingsServicesAccountsOrPrivileges": false,
+    "releaseBuildUsesLimitedAccount": true,
+    "runtimeUser": "pheno"
+  },
+  "guide": {
+    "languages": ["en", "zh"],
+    "offlineViewportCases": 8,
+    "publicMoleculeOnly": true,
+    "templateInstructionsBilingual": true
+  },
+  "limits": [
+    "No production bulk data import was performed; transaction/source persistence verified on the guarded real PostgreSQL test database with local storage.",
+    "Production verifies template bytes, read-only previews, permissions, saved COS reference image and existing database/private-COS readiness.",
+    "Molecular notation does not verify physical material identity, purity or batch composition.",
+    "Bruce field acceptance is not reported."
+  ]
+}
