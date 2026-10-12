@@ -32,6 +32,15 @@ import {
   grantChemicalAccess,
   initializeSamRegistry,
 } from "@/modules/chemicals/operator-service";
+import { chemicalWorkbook } from "../helpers/chemical-workbook";
+import {
+  importChemicalWorkbook,
+  previewChemicalImport,
+  chemicalImportTemplate,
+  readImportedWorkbook,
+} from "@/modules/chemicals/bulk-service";
+import { createLibraryMaterial } from "@/modules/library/service";
+import { createHash } from "node:crypto";
 import * as auditWriter from "@/modules/audit/writer";
 
 afterAll(() => db.$disconnect());
@@ -94,6 +103,8 @@ async function fixture() {
           where: { material: { organizationId } },
         }))
           await objectStorage().delete(row.structurePath);
+        for (const batch of await db.chemicalImportBatch.findMany({ where }))
+          await objectStorage().delete(batch.sourcePath);
         await db.experiment.deleteMany({ where });
         await db.materialEditSuggestion.deleteMany({ where });
         await db.ingestItem.deleteMany({ where });
@@ -101,6 +112,7 @@ async function fixture() {
         await db.notification.deleteMany({ where });
         await db.auditEvent.deleteMany({ where });
         await db.material.deleteMany({ where });
+        await db.chemicalImportBatch.deleteMany({ where });
         await db.materialCategoryDef.deleteMany({ where });
         await db.user.deleteMany({ where });
         await db.organization.delete({ where: { id: organizationId } });
@@ -132,6 +144,280 @@ const card = {
 };
 
 describe("private chemical portal on real PostgreSQL", () => {
+  it("previews without writes and imports an audited, private atomic workbook exactly once", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[1]);
+      const bytes = chemicalWorkbook([
+        ["Synthetic bulk A", "CCO"],
+        ["Synthetic bulk B", "c1ccccc1"],
+      ]);
+      const file = { filename: "fixture.xlsx", bytes };
+      const preview = await previewChemicalImport(actor, file);
+      expect(preview.valid).toBe(true);
+      expect(
+        preview.rows.every((row) => row.preview?.svg.includes("<svg")),
+      ).toBe(true);
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      const input = {
+        ...file,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+      };
+      const outcomes = await Promise.all([
+        importChemicalWorkbook(actor, input),
+        importChemicalWorkbook(actor, input),
+      ]);
+      expect(outcomes.map((outcome) => outcome.created).sort()).toEqual([0, 2]);
+      const batch = await db.chemicalImportBatch.findUniqueOrThrow({
+        where: { id: input.batchId },
+      });
+      expect(batch.rowCount).toBe(2);
+      expect(batch.manifest).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ row: 2 }),
+          expect.objectContaining({ row: 3 }),
+        ]),
+      );
+      expect(
+        Buffer.from((await readImportedWorkbook(actor, batch.id))!),
+      ).toEqual(Buffer.from(bytes));
+      expect((await listChemicals(actor, {})).total).toBe(2);
+      const publicData = await getLibraryPageData(f.actor(f.technician));
+      expect(publicData.materials).toHaveLength(2);
+      expect(JSON.stringify(publicData.materials)).not.toContain('"smiles"');
+      expect(
+        await db.auditEvent.count({
+          where: { organizationId: f.org.id, action: "chemistry.bulk.created" },
+        }),
+      ).toBe(1);
+      expect(
+        JSON.stringify(
+          await db.auditEvent.findMany({ where: { organizationId: f.org.id } }),
+        ),
+      ).not.toContain("CCO");
+      for (const user of [f.admin, f.ordinary, f.technician, f.restricted]) {
+        await expect(chemicalImportTemplate(f.actor(user))).rejects.toThrow();
+        await expect(
+          previewChemicalImport(f.actor(user), file),
+        ).rejects.toThrow();
+        await expect(
+          importChemicalWorkbook(f.actor(user), input),
+        ).rejects.toThrow();
+        await expect(
+          readImportedWorkbook(f.actor(user), batch.id),
+        ).rejects.toThrow();
+      }
+      await expect(
+        readImportedWorkbook({ ...actor, org: f.foreign.id }, batch.id),
+      ).rejects.toThrow();
+      expect(await canReadObject(actor, batch.sourcePath)).toBe(false);
+      expect(await canReadObject(f.actor(f.ordinary), batch.sourcePath)).toBe(
+        false,
+      );
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...input,
+          bytes: chemicalWorkbook([["Changed", "CCO"]]),
+        }),
+      ).rejects.toThrow("changed");
+      await db.user.update({
+        where: { id: actor.uid },
+        data: { chemicalAccess: false },
+      });
+      await expect(importChemicalWorkbook(actor, input)).rejects.toThrow();
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("rejects row errors and rolls back the whole batch on audit failure", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const bad = {
+        filename: "fixture.xlsx",
+        bytes: chemicalWorkbook([
+          ["Duplicate", "CCO"],
+          ["duplicate", "invalid-smiles"],
+          ["", "CO"],
+        ]),
+      };
+      const preview = await previewChemicalImport(actor, bad);
+      expect(preview.valid).toBe(false);
+      expect(preview.rows[0].issues).toContain("duplicate");
+      expect(preview.rows[1].issues).toContain("invalidSmiles");
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...bad,
+          batchId: crypto.randomUUID(),
+          expectedDigest: preview.fileSha256,
+        }),
+      ).rejects.toThrow();
+      const good = {
+        filename: "fixture.xlsx",
+        bytes: chemicalWorkbook([
+          ["Valid A", "CCO"],
+          ["Valid B", "CO"],
+        ]),
+      };
+      const valid = await previewChemicalImport(actor, good);
+      const audit = vi
+        .spyOn(auditWriter, "recordUserAudit")
+        .mockRejectedValueOnce(new Error("Synthetic bulk audit failure"));
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...good,
+          batchId: crypto.randomUUID(),
+          expectedDigest: valid.fileSha256,
+        }),
+      ).rejects.toThrow("Synthetic bulk audit failure");
+      audit.mockRestore();
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.chemicalImportBatch.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+      expect(
+        await db.auditEvent.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+    } finally {
+      vi.restoreAllMocks();
+      await f.cleanup();
+    }
+  });
+  it("verifies stored workbook and graph bytes before commit and detects later corruption", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const file = {
+        filename: "fixture.xlsx",
+        bytes: chemicalWorkbook([["Integrity fixture", "CCO"]]),
+      };
+      const preview = await previewChemicalImport(actor, file);
+      const input = {
+        ...file,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+      };
+      const storage = objectStorage();
+      const damaged = vi
+        .spyOn(storage, "get")
+        .mockResolvedValueOnce(Buffer.from("bad bytes"));
+      await expect(importChemicalWorkbook(actor, input)).rejects.toThrow(
+        "verification failed",
+      );
+      damaged.mockRestore();
+      expect(
+        await db.chemicalImportBatch.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+      await importChemicalWorkbook(actor, input);
+      const batch = await db.chemicalImportBatch.findUniqueOrThrow({
+        where: { id: input.batchId },
+      });
+      await storage.put({
+        key: batch.sourcePath,
+        body: Buffer.from("damaged"),
+        contentType: "application/octet-stream",
+        sha256: createHash("sha256").update("damaged").digest("hex"),
+      });
+      expect(await readImportedWorkbook(actor, batch.id)).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+      await f.cleanup();
+    }
+  });
+  it("serializes public catalogue creation with imports so a concurrent name is rejected", async () => {
+    const f = await fixture();
+    let release: () => void = () => {};
+    let publicCreate: Promise<unknown> | undefined;
+    try {
+      const actor = f.actor(f.owners[0]);
+      const file = {
+        filename: "fixture.xlsx",
+        bytes: chemicalWorkbook([["Concurrent name", "CCO"]]),
+      };
+      const preview = await previewChemicalImport(actor, file);
+      let claimed: () => void = () => {};
+      const entered = new Promise<void>((resolve) => {
+        claimed = resolve;
+      });
+      const proceed = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const originalAudit = auditWriter.recordUserAudit;
+      vi.spyOn(auditWriter, "recordUserAudit").mockImplementation(
+        async (client, input) => {
+          if (input.action === "library.material.created") {
+            claimed();
+            await proceed;
+          }
+          await originalAudit(client, input);
+        },
+      );
+      publicCreate = createLibraryMaterial(f.actor(f.ordinary), {
+        name: "Concurrent name",
+        processId: null,
+        composition: "",
+        supplier: "",
+        lot: "",
+      });
+      await entered;
+      let verified: () => void = () => {};
+      const filesReady = new Promise<void>((resolve) => {
+        verified = resolve;
+      });
+      const storage = objectStorage(),
+        originalGet = storage.get.bind(storage);
+      vi.spyOn(storage, "get").mockImplementation(async (key) => {
+        const body = await originalGet(key);
+        if (key.includes("/chemicals/bulk/") && key.endsWith(".svg"))
+          verified();
+        return body;
+      });
+      const importAttempt = importChemicalWorkbook(actor, {
+        ...file,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+      });
+      const rejected = expect(importAttempt).rejects.toThrow();
+      await filesReady;
+      let waiting = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const rows = await db.$queryRaw<
+          { waiting: boolean }[]
+        >`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event = 'advisory') AS waiting`;
+        if (rows[0].waiting) {
+          waiting = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(waiting).toBe(true);
+      release();
+      await publicCreate;
+      await rejected;
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1);
+      expect(
+        await db.chemicalImportBatch.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+    } finally {
+      release();
+      await publicCreate?.catch(() => {});
+      vi.restoreAllMocks();
+      await f.cleanup();
+    }
+  });
   it("announces the portal once to a current scoped maintainer without changing grants", async () => {
     const f = await fixture();
     try {

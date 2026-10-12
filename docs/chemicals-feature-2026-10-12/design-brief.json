@@ -7,6 +7,8 @@
   "dominantProductObject": "SAM material row with an automatically visible molecular structure",
   "signatureComposition": "Dominant editable registry with a 360px molecular evidence inspector",
   "primaryAction": "Save material row",
+  "additionalScreens": ["/chemicals/bulk"],
+  "bulkWorkflow": "Download a two-column Excel template, select a workbook, review validation and molecular graphs, then explicitly import an atomic SAM batch",
   "applicationArchitecture": {
     "shellMode": "workbench",
     "canonicalFrameId": "pheno.p2-data-grid",

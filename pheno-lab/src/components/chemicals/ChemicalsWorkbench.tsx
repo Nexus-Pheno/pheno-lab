@@ -249,6 +249,9 @@ export function ChemicalsWorkbench({
           {t("chemicals.intro")}
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-3">
+          <Link className={button} href="/chemicals/bulk">
+            {t("chemicals.bulk.link")}
+          </Link>
           <form
             action="/chemicals"
             className="flex gap-2 w-full sm:w-auto sm:flex-1 min-w-0 sm:min-w-60 max-w-md"

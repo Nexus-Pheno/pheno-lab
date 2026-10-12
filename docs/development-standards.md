@@ -48,11 +48,12 @@ Browser / mobile responsive routes / Go Bridge
 | Auth/security    | `jose` 签名 Session；`bcryptjs` 密码散列；httpOnly/Secure Cookie                    |
 | Object storage   | 腾讯云 COS；`cos-nodejs-sdk-v5`；CVM instance role                                  |
 | Chemistry        | `@rdkit/rdkit` 2026.9.1；本地 WASM 验证 SMILES 并生成结构图；无需外部 API           |
+| Chemical Excel   | `read-excel-file` 9.3.12 + `fflate` 0.8.3；有界纯文本 XLSX 解析、模板下载及事务批次 |
 | Mail             | Nodemailer 9；SMTP 可选                                                             |
 | Unit/integration | Vitest 4.1.x；独立真实 PostgreSQL 测试库                                            |
 | Browser E2E      | Playwright 1.62.x / Chromium                                                        |
 | Quality          | ESLint 9；Prettier 3.9.x；自定义 structure/deploy/schema-drift checks               |
-| Production       | Ubuntu CVM；Nginx；systemd；受限 deploy_pheno_lab 构建/发布；不可变 release 目录     |
+| Production       | Ubuntu CVM；Nginx；systemd；受限 deploy_pheno_lab 构建/发布；不可变 release 目录    |
 | CI               | GitHub Actions；Node 24、PostgreSQL 18、Go tests、Vitest、Playwright、release build |
 
 升级 Node、Next.js、React、Prisma、PostgreSQL 或 pnpm 属于显式升级任务，不能混入普通功能 PR。

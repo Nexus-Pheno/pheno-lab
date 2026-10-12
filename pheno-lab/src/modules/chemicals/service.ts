@@ -20,6 +20,8 @@ import {
   smilesSchema,
 } from "./schema";
 
+import { ensureChemicalCategory } from "./category-service";
+
 export class ChemicalConflictError extends Error {}
 
 export async function previewChemical(actor: Actor, raw: unknown) {
@@ -121,47 +123,7 @@ export async function saveChemicalRow(actor: Actor, raw: unknown) {
           throw new ChemicalConflictError(
             "A material with this name already exists. Edit its row.",
           );
-        const knownCategory =
-          ["SAM", "ADDITIVE", "SOLVENT", "OTHER"].includes(input.category) ||
-          (await tx.materialCategoryDef.count({
-            where: { organizationId: actor.org, code: input.category },
-          }));
-        if (!knownCategory)
-          throw new Error("Choose a category from this organization.");
-        // Default choices must also exist in the shared catalogue grouping.
-        const defaults: Record<string, { name: string; nameZh: string }> = {
-          SAM: { name: "SAM", nameZh: "SAM" },
-          ADDITIVE: { name: "Additive", nameZh: "添加剂" },
-          SOLVENT: { name: "Solvent", nameZh: "溶剂" },
-          OTHER: { name: "Other", nameZh: "其他" },
-        };
-        if (
-          defaults[input.category] &&
-          !(await tx.materialCategoryDef.count({
-            where: { organizationId: actor.org, code: input.category },
-          }))
-        ) {
-          const maximum = await tx.materialCategoryDef.aggregate({
-            where: { organizationId: actor.org },
-            _max: { position: true },
-          });
-          const category = await tx.materialCategoryDef.create({
-            data: {
-              organizationId: actor.org,
-              code: input.category,
-              ...defaults[input.category],
-              builtIn: true,
-              position: (maximum._max.position ?? 0) + 1,
-            },
-          });
-          await recordUserAudit(tx, {
-            actor,
-            action: "chemistry.category.created",
-            entityType: "MaterialCategoryDef",
-            entityId: category.id,
-            metadata: { code: input.category, builtIn: true },
-          });
-        }
+        await ensureChemicalCategory(tx, actor, input.category);
         const id = existing?.id ?? crypto.randomUUID();
         const key = `organizations/${actor.org}/chemicals/${crypto.randomUUID()}.svg`;
         await objectStorage().put({

@@ -1,4 +1,5 @@
 import "server-only";
+import { lockMaterialCatalogue } from "@/infrastructure/db/material-lock";
 import { publicMaterialSelect } from "@/modules/library/material-visibility";
 
 import { Prisma } from "@prisma/client";
@@ -114,6 +115,7 @@ export async function quickCreateMaterial(
   const name = presetNameSchema.parse(rawName);
   if (processId) processId = experimentIdSchema.parse(processId);
   return db.$transaction(async (tx) => {
+    await lockMaterialCatalogue(tx, actor.org);
     if (processId) {
       const process = await tx.process.count({
         where: { id: processId, organizationId: actor.org },

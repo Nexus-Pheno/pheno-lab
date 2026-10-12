@@ -5,6 +5,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import initRDKit from "@rdkit/rdkit";
+import { chemicalWorkbook } from "../helpers/chemical-workbook";
 import { assertSafeTestDatabaseUrl } from "../../src/infrastructure/db/test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -61,7 +62,16 @@ test.afterAll(async () => {
         path.join("/tmp/pheno-lab-e2e-uploads", evidence.structurePath),
         { force: true },
       );
+    for (const batch of await db.chemicalImportBatch.findMany({
+      where: { organizationId: orgId },
+    }))
+      await rm(path.join("/tmp/pheno-lab-e2e-uploads", batch.sourcePath), {
+        force: true,
+      });
     await db.material.deleteMany({ where: { organizationId: orgId } });
+    await db.chemicalImportBatch.deleteMany({
+      where: { organizationId: orgId },
+    });
     await db.materialCategoryDef.deleteMany({
       where: { organizationId: orgId },
     });
@@ -395,4 +405,156 @@ test("bilingual workbench and focused molecule view fit desktop, tablet and narr
     }
   }
   expect(pageErrors).toEqual([]);
+});
+
+test("Excel template, review, atomic import, private source and bilingual bulk views", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await login(page, ownerEmail);
+  await page
+    .context()
+    .addCookies([
+      { name: "pheno_lang", value: "en", url: "http://127.0.0.1:3467" },
+    ]);
+  await page.goto("/chemicals");
+  await page.getByRole("link", { name: "Bulk upload", exact: true }).click();
+  await expect(page).toHaveURL(/\/chemicals\/bulk$/);
+  const template = await page.request.get("/api/chemicals/template");
+  expect(template.status()).toBe(200);
+  expect(template.headers()["content-disposition"]).toContain(".xlsx");
+  expect(template.headers()["cache-control"]).toContain("no-store");
+  expect((await template.body()).byteLength).toBeGreaterThan(1000);
+  const input = page.locator('input[type="file"]');
+  await input.setInputFiles({
+    name: "error.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from(chemicalWorkbook([["Bad fixture", "invalid-smiles"]])),
+  });
+  await page
+    .getByRole("button", { name: "Validate file", exact: true })
+    .click();
+  await expect(page.getByTestId("bulk-row")).toContainText(
+    "SMILES could not be validated",
+  );
+  await expect(
+    page.getByRole("button", { name: "Import materials", exact: true }),
+  ).toBeDisabled();
+  expect(
+    await db.chemicalImportBatch.count({ where: { organizationId: orgId } }),
+  ).toBe(0);
+  const bytes = Buffer.from(
+    chemicalWorkbook([
+      [`Uploaded SAM A ${suffix}`, referenceSmiles],
+      [`Uploaded SAM B ${suffix}`, "CCO"],
+    ]),
+  );
+  await input.setInputFiles({
+    name: "materials.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: bytes,
+  });
+  await page
+    .getByRole("button", { name: "Validate file", exact: true })
+    .click();
+  await expect(page.getByTestId("bulk-row")).toHaveCount(2);
+  await expect(
+    page.getByTestId("bulk-row").first().locator("img"),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Import materials", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "2 SAM materials imported",
+  );
+  const sourceHref = await page
+    .getByRole("link", { name: "Download uploaded workbook", exact: true })
+    .getAttribute("href");
+  const source = await page.request.get(sourceHref!);
+  expect(source.status()).toBe(200);
+  expect(await source.body()).toEqual(bytes);
+  expect(
+    await db.chemicalImportBatch.count({ where: { organizationId: orgId } }),
+  ).toBe(1);
+  expect(
+    await db.material.count({
+      where: { organizationId: orgId, name: { startsWith: "Uploaded SAM" } },
+    }),
+  ).toBe(2);
+  const qa = "/tmp/pheno-chemicals-bulk-ui-qa";
+  await mkdir(qa, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  for (const language of ["en", "zh"] as const)
+    for (const [width, height] of [
+      [1440, 900],
+      [1024, 768],
+      [390, 844],
+      [320, 700],
+    ]) {
+      await page
+        .context()
+        .addCookies([
+          { name: "pheno_lang", value: language, url: "http://127.0.0.1:3467" },
+        ]);
+      await page.setViewportSize({ width, height });
+      await page.goto("/chemicals/bulk");
+      await page.locator('input[type="file"]').setInputFiles({
+        name: "preview.xlsx",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        buffer: Buffer.from(
+          chemicalWorkbook([["Preview only SAM", referenceSmiles]]),
+        ),
+      });
+      await page
+        .getByRole("button", {
+          name: language === "en" ? "Validate file" : "验证文件",
+          exact: true,
+        })
+        .click();
+      await expect(page.getByTestId("bulk-row").locator("img")).toBeVisible();
+      await expect(
+        page.getByRole("link", {
+          name:
+            language === "en" ? "Download Excel template" : "下载 Excel 模板",
+          exact: true,
+        }),
+      ).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth > innerWidth ||
+            document.documentElement.scrollHeight > innerHeight,
+        ),
+      ).toBe(false);
+      await page.screenshot({ path: `${qa}/${language}-${width}.png` });
+    }
+  expect(errors).toEqual([]);
+  await page.context().clearCookies();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page, ordinaryEmail);
+  expect((await page.request.get("/chemicals/bulk")).status()).toBe(404);
+  expect((await page.request.get("/api/chemicals/template")).status()).toBe(
+    404,
+  );
+  expect((await page.request.get(sourceHref!)).status()).toBe(404);
+  expect(
+    (
+      await page.request.post("/api/chemicals/bulk", {
+        headers: { Origin: "http://127.0.0.1:3467" },
+        multipart: {
+          mode: "preview",
+          file: {
+            name: "materials.xlsx",
+            mimeType:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            buffer: bytes,
+          },
+        },
+      })
+    ).status(),
+  ).toBe(404);
 });
