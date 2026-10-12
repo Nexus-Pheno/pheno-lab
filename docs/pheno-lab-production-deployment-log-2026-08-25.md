@@ -1943,3 +1943,16 @@ Single/Excel registration now reuses a unique active unregistered library Materi
 The requested4PACz record was checked read-only before publication: exactly one activeSAM, no chemistry evidence, an existing21-atom source graph matching the supplied figure. After publication, production read-only Excel validation marked it as an allowed existing-library link. The authorized browser then saved its existing definition through the normal single-row workflow. It reused the original Material ID, stored a version1 private COS structure and wrote one chemistry.material.registered audit. The complete449Material/217SMILES digest and4PACz source fields remained unchanged. Its existing identity/references were retained; no duplicate was created. Existing roles/grants/restrictions/session-version fields also matched preflight; counts stayed1086experiments/19739samples/3TestingRequests/143notifications. No new notification, test category or production bulk import was performed.
 
 Ten approved English/Chinese desktop/tablet/phone cases, four denied-account cases and anonymous denial passed. Shared defaults/custom-add options rendered, no row atom selector remained,4PACz saved images loaded, and private template bytes matched the shipped workbook. Two additional owner/maintainer desktop cases waited for the larger inspector image after row focus. No outer overflow/page errors occurred. Short-lived session files and private temporary source snapshots were removed. Bilingual template instructions and the standalone Bruce guide were updated while retaining the compatible two-column worksheet. Aggregate evidence: [release-evidence/20261012-chemicals-library-link.json](release-evidence/20261012-chemicals-library-link.json). Human acceptance is not asserted.
+
+
+### 17.16 化学 Excel 上传取消 100 行配额（2026-10-12，已上线）
+
+- Michael 要求移除化学上传的 100 行限制。PR #111 合并为 `6a8edac5e2a556404467ea46b9d0d66a7ef65070`；PR/main CI `38266414548` / `38267175021` 均通过。
+- 沿用受限 `deploy_pheno_lab` 和现有 build/deploy release 脚本发布 `20261012-009`。制品 checksum 通过，46 个既有 migration 无待应用项；没有 schema/data migration、权限、服务或网络配置变更。
+- 移除材料行数配额及旧 1,001 行/5,000 单元格门槛。保留 2 MB 文件、ZIP 展开、单项大小、稀疏工作表分配、合法 Excel 坐标及公式/宏/外部引用防护。名称查询和新材料/结构证据按 200 项分块，仍在同一事务提交；已有材料关联和同批重试保持幂等。
+- 本地 verify 235 单元测试、119 真实受保护 PostgreSQL 集成测试和 8 个受影响浏览器测试通过；PR/main CI 完整浏览器套件通过。解析验证 101/1,001/5,001 行，测试库完整导入并重试 1,001 行，浏览器完整导入 125 行。
+- 生产使用只读合成预览，不导入测试材料。Bruce/Michael 均可用旧模板预览 1,001 行；10 个中英文桌面/移动预览视图、4 个拒绝账号及匿名边界通过，125 行结构首尾加载成功。模板下载与最新文件字节相同且 no-store。
+- 前后完整 Material、私有结构证据、类别及权限摘要相同：449 材料、1,086 实验、19,739 样品、3 个 testing request、143 通知、0 个生产 Excel 导入批次。未发送新通知。
+- 仅现有 APP_VERSION 从 008 增至 009；其余 env 字节和 ACL 保持一致。临时受保护 env 备份及短期浏览器 session 文件已移除。一次网络失败产生的本地检查日志已脱敏；临时验证 session 最迟于 2026-10-12 15:14:35 UTC 到期，没有修改真实账号密码或 sessionVersion。
+- authenticated readiness、公网版本 009、非 root `pheno`、loopback 3457、零自动重启及 HTTPS 跳转均通过。双语页面、模板说明及 Bruce 离线指南同步更新；现有两列模板保持兼容。
+- 聚合发布证据：`docs/release-evidence/20261012-chemicals-upload-row-quota.json`；测试说明：`docs/chemicals-feature-2026-10-12/upload-row-limit-qa.md`。不包含真实 SMILES、账号凭据或完整 COS key。人类使用验收尚未声称完成。

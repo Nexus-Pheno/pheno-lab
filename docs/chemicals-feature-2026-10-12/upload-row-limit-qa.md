@@ -13,3 +13,5 @@ Local verification:
 - Template instructions visually reviewed; updated offline guide passed eight English/Chinese desktop/mobile cases. The unchanged sheet names, two-column headers and blank upload sheet remain compatible.
 
 Production evidence is recorded after deployment in the existing production deployment log and release-evidence directory. Release QA performs preview-only synthetic inputs; it does not import synthetic materials into production.
+
+Production release `20261012-009` passed public/private readiness and live verification. Both approved maintainers previewed 1,001 rows using the older downloaded template. Ten EN/ZH desktop/mobile cases displayed all 125 preview rows and loaded first/last structures; four non-maintainers and anonymous access stayed denied. No synthetic production import occurred. Full Material/private-evidence/category/permission digests and experiment/sample/testing/notification counts matched preflight. The template download matched the revised workbook bytes. The original transient network-error log was redacted; temporary session and protected env-backup files were removed.
