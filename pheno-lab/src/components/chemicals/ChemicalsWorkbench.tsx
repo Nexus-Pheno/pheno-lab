@@ -3,17 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Icon } from "@/components/ui";
-import { useLang, useT } from "@/lib/i18n/LanguageProvider";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
-  createChemicalCategoryAction,
   previewChemicalAction,
   saveChemicalAction,
 } from "@/lib/actions/chemicals";
-import type {
-  ChemicalCategory,
-  ChemicalRow,
-  MoleculePreview,
-} from "@/modules/chemicals/types";
+import type { ChemicalRow, MoleculePreview } from "@/modules/chemicals/types";
 
 type Draft = {
   key: string;
@@ -58,12 +53,10 @@ export function ChemicalsWorkbench({
     rows: ChemicalRow[];
     total: number;
     page: number;
-    categories: ChemicalCategory[];
   };
   query: string;
 }) {
-  const t = useT(),
-    lang = useLang();
+  const t = useT();
   const [rows, setRows] = useState<Draft[]>(() => data.rows.map(draftFrom));
   const [selected, setSelected] = useState<string | null>(
     data.rows[0]?.id ?? null,
@@ -75,11 +68,6 @@ export function ChemicalsWorkbench({
   const [showInspector, setShowInspector] = useState(true),
     [focus, setFocus] = useState(false),
     [width, setWidth] = useState(360);
-  const [categories, setCategories] = useState(data.categories),
-    [addingCategory, setAddingCategory] = useState(false),
-    [categoryName, setCategoryName] = useState(""),
-    [categoryZh, setCategoryZh] = useState(""),
-    [categoryError, setCategoryError] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       try {
@@ -106,6 +94,9 @@ export function ChemicalsWorkbench({
   };
   const row = rows.find((r) => r.key === selected);
   const preview = previewSource === row?.smiles ? previewValue : null;
+  const previewImage = preview
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(preview.svg)}`
+    : null;
   const previewError = previewSource === row?.smiles ? rawPreviewError : null;
   const previewing =
     !!row?.smiles.trim() && (loading || previewSource !== row.smiles);
@@ -233,21 +224,6 @@ export function ChemicalsWorkbench({
       );
     }
   };
-  const categoryChoices = [
-    ...(
-      [
-        ["SAM", t("chemicals.sam")],
-        ["ADDITIVE", t("chemicals.additive")],
-        ["SOLVENT", t("chemicals.solvent")],
-        ["OTHER", t("chemicals.other")],
-      ] as const
-    ).map(([code, name]) => ({ code, name, nameZh: "" })),
-    ...categories.filter(
-      (c) => !["SAM", "ADDITIVE", "SOLVENT", "OTHER"].includes(c.code),
-    ),
-  ];
-  const categoryLabel = (category: ChemicalCategory) =>
-    lang === "zh" && category.nameZh ? category.nameZh : category.name;
   const pageLink = (page: number) =>
     `/chemicals?page=${page}&q=${encodeURIComponent(query)}`;
   return (
@@ -295,15 +271,6 @@ export function ChemicalsWorkbench({
           <button
             className={button}
             onClick={() => {
-              setAddingCategory(!addingCategory);
-              setCategoryError(false);
-            }}
-          >
-            {t("chemicals.addCategory")}
-          </button>
-          <button
-            className={button}
-            onClick={() => {
               if (window.innerWidth < 1280) {
                 setShowInspector(true);
                 setFocus(!focus);
@@ -335,67 +302,6 @@ export function ChemicalsWorkbench({
             {t("chemicals.export")}
           </a>
         </div>
-        {addingCategory && (
-          <form
-            className="flex flex-wrap items-end gap-2 mt-3"
-            onSubmit={async (event) => {
-              event.preventDefault();
-              setCategoryError(false);
-              try {
-                const result = await createChemicalCategoryAction({
-                  name: categoryName,
-                  nameZh: categoryZh,
-                });
-                if (result.ok) {
-                  setCategories((old) => [
-                    ...old.filter((c) => c.code !== result.value.code),
-                    result.value,
-                  ]);
-                  setCategoryName("");
-                  setCategoryZh("");
-                  setAddingCategory(false);
-                } else setCategoryError(true);
-              } catch {
-                setCategoryError(true);
-              }
-            }}
-          >
-            <label className="text-xs flex-1 min-w-40">
-              {t("chemicals.categoryName")}
-              <input
-                className={control + " mt-1"}
-                required
-                maxLength={100}
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-              />
-            </label>
-            <label className="text-xs flex-1 min-w-40">
-              {t("chemicals.categoryNameZh")}
-              <input
-                className={control + " mt-1"}
-                maxLength={100}
-                value={categoryZh}
-                onChange={(e) => setCategoryZh(e.target.value)}
-              />
-            </label>
-            <button className={button} type="submit">
-              {t("chemicals.createCategory")}
-            </button>
-            <button
-              className={button}
-              type="button"
-              onClick={() => setAddingCategory(false)}
-            >
-              {t("chemicals.cancel")}
-            </button>
-            {categoryError && (
-              <p role="alert" className="text-sm text-red-700 basis-full">
-                {errorText("failed")}
-              </p>
-            )}
-          </form>
-        )}
       </div>
       <div className="flex-1 min-h-0 flex gap-0 p-3 sm:p-4">
         <section
@@ -467,29 +373,13 @@ export function ChemicalsWorkbench({
                       >
                         {t("chemicals.category")}
                       </label>
-                      <select
+                      <input
                         id={`category-${draft.key}`}
                         aria-label={`${t("chemicals.category")} ${index + 1}`}
-                        className={control}
-                        value={draft.category}
-                        disabled={draft.saving}
-                        onChange={(e) =>
-                          patch(draft.key, { category: e.target.value })
-                        }
-                      >
-                        {!categoryChoices.some(
-                          (c) => c.code === draft.category,
-                        ) && (
-                          <option value={draft.category}>
-                            {draft.category}
-                          </option>
-                        )}
-                        {categoryChoices.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {categoryLabel(c)}
-                          </option>
-                        ))}
-                      </select>
+                        className={control + " bg-subtle"}
+                        value="SAM"
+                        readOnly
+                      />
                     </td>
                     <td className="block sm:table-cell px-3 pb-3 sm:py-3 sm:min-w-64">
                       <label
@@ -514,6 +404,18 @@ export function ChemicalsWorkbench({
                       />
                     </td>
                     <td className="block sm:table-cell px-3 pb-3 sm:py-3 sm:min-w-36">
+                      {((selected === draft.key && previewImage) ||
+                        (draft.id && draft.chemistry && !draft.dirty)) && (
+                        <img
+                          className="w-40 h-auto border border-line bg-white rounded-[4px] mb-2"
+                          src={
+                            (selected === draft.key && previewImage) ||
+                            `/api/chemicals/${draft.id}/structure`
+                          }
+                          alt={`${draft.name} · ${t("chemicals.preview")}`}
+                          data-testid="row-molecule"
+                        />
+                      )}
                       <span className="text-xs flex items-center gap-1">
                         <Icon
                           name={
@@ -641,7 +543,7 @@ export function ChemicalsWorkbench({
                 <>
                   <img
                     className="w-full border border-line bg-white rounded-[4px]"
-                    src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(preview.svg)}`}
+                    src={previewImage!}
                     alt={`${row?.name ?? ""} · ${t("chemicals.preview")}`}
                   />
                   <dl className="text-xs mt-4 space-y-3">

@@ -9,7 +9,6 @@ import {
   listChemicals,
 } from "@/modules/chemicals/query";
 import {
-  createChemicalCategory,
   previewChemical,
   readChemicalStructure,
   saveChemicalRow,
@@ -31,6 +30,7 @@ import { getExperimentDesignerData } from "@/modules/experiments/query";
 import {
   announceChemicalPortal,
   grantChemicalAccess,
+  initializeSamRegistry,
 } from "@/modules/chemicals/operator-service";
 import * as auditWriter from "@/modules/audit/writer";
 
@@ -112,8 +112,8 @@ const input = () => ({
   id: null,
   requestId: crypto.randomUUID(),
   expectedVersion: 0,
-  name: "Synthetic ethanol",
-  category: "SOLVENT",
+  name: "Synthetic SAM fixture",
+  category: "SAM",
   smiles: "CCO",
 });
 const card = {
@@ -190,6 +190,114 @@ describe("private chemical portal on real PostgreSQL", () => {
       await expect(announceChemicalPortal(input)).rejects.toThrow();
       expect(
         await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("keeps existing library materials intact while listing only explicitly registered SAM definitions", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const legacy = await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Existing SAM",
+          category: "SAM",
+          smiles: "CCO",
+        },
+      });
+      expect((await listChemicals(actor, {})).total).toBe(0);
+      const saved = await saveChemicalRow(actor, input());
+      const page = await listChemicals(actor, {});
+      expect(page.total).toBe(1);
+      expect(page.rows.map((x) => x.id)).toEqual([saved.row.id]);
+      await db.materialChemistry.update({
+        where: { materialId: saved.row.id },
+        data: { inSamRegistry: false },
+      });
+      expect((await listChemicals(actor, {})).total).toBe(0);
+      expect(await readChemicalStructure(actor, saved.row.id)).not.toBeNull();
+      expect(
+        await db.material.findUnique({ where: { id: legacy.id } }),
+      ).toMatchObject({ name: "Existing SAM", smiles: "CCO", archived: false });
+      expect(
+        (await getLibraryPageData(f.actor(f.technician))).materials,
+      ).toHaveLength(2);
+      expect((await exportChemicalDefinitions(actor)).materials).toHaveLength(
+        2,
+      );
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("resets only portal membership atomically and idempotently, retaining materials and images", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const reference = await saveChemicalRow(actor, input());
+      const other = await saveChemicalRow(actor, {
+        ...input(),
+        name: "Other synthetic SAM",
+      });
+      const evidence = await db.materialChemistry.findUniqueOrThrow({
+        where: { materialId: reference.row.id },
+      });
+      const envelope = {
+        organizationId: f.org.id,
+        actorUserId: actor.uid,
+        referenceMaterialId: reference.row.id,
+        expectedDigest: reference.row.rowDigest,
+        expectedStructureSha256: evidence.structureSha256,
+        authorizationReference: "Synthetic authorized portal reset",
+      };
+      await expect(
+        initializeSamRegistry({ ...envelope, actorUserId: f.ordinary.id }),
+      ).rejects.toThrow();
+      await expect(
+        initializeSamRegistry({ ...envelope, organizationId: f.foreign.id }),
+      ).rejects.toThrow();
+      await expect(
+        initializeSamRegistry({ ...envelope, expectedDigest: "0".repeat(64) }),
+      ).rejects.toThrow("changed");
+      const audit = vi
+        .spyOn(auditWriter, "recordSystemAudit")
+        .mockRejectedValueOnce(new Error("Synthetic audit failure"));
+      await expect(initializeSamRegistry(envelope)).rejects.toThrow(
+        "Synthetic audit failure",
+      );
+      audit.mockRestore();
+      expect((await listChemicals(actor, {})).total).toBe(2);
+      expect(await initializeSamRegistry(envelope)).toEqual({
+        changed: true,
+        visible: 1,
+      });
+      expect(await initializeSamRegistry(envelope)).toEqual({
+        changed: false,
+        visible: 1,
+      });
+      expect(
+        (await listChemicals(actor, {})).rows.map((row) => row.id),
+      ).toEqual([reference.row.id]);
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(2);
+      expect(await readChemicalStructure(actor, other.row.id)).not.toBeNull();
+      expect(
+        await db.materialChemistry.findUnique({
+          where: { materialId: reference.row.id },
+        }),
+      ).toMatchObject({
+        structureSha256: evidence.structureSha256,
+        version: 1,
+      });
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "chemistry.sam_registry.initialized",
+          },
+        }),
       ).toBe(1);
     } finally {
       await f.cleanup();
@@ -376,7 +484,7 @@ describe("private chemical portal on real PostgreSQL", () => {
       );
       expect(library.materials[0]).not.toHaveProperty("smiles");
       expect(library.materials[0]).not.toHaveProperty("chemistry");
-      expect(library.categories.some((c) => c.code === "SOLVENT")).toBe(true);
+      expect(library.categories.some((c) => c.code === "SAM")).toBe(true);
       expect(
         await db.auditEvent.count({
           where: {
@@ -548,28 +656,21 @@ describe("private chemical portal on real PostgreSQL", () => {
       await f.cleanup();
     }
   });
-  it("creates scoped custom categories and does not expand other stewardship permissions", async () => {
+  it("permits only SAM entries without changing other stewardship grants", async () => {
     const f = await fixture();
     try {
-      const category = await createChemicalCategory(f.actor(f.owners[1]), {
-        name: "Synthetic linker",
-        nameZh: "合成测试类别",
-      });
+      for (const category of [
+        "SOLVENT",
+        "ADDITIVE",
+        "OTHER",
+        "FOREIGN_CATEGORY",
+      ])
+        await expect(
+          saveChemicalRow(f.actor(f.owners[1]), { ...input(), category }),
+        ).rejects.toThrow();
       expect(
-        (
-          await saveChemicalRow(f.actor(f.owners[1]), {
-            ...input(),
-            category: category.code,
-          })
-        ).row.category,
-      ).toBe(category.code);
-      await expect(
-        saveChemicalRow(f.actor(f.owners[1]), {
-          ...input(),
-          name: "Another",
-          category: "FOREIGN_CATEGORY",
-        }),
-      ).rejects.toThrow();
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
       expect(
         (await db.user.findUniqueOrThrow({ where: { id: f.owners[1].id } }))
           .materialAdmin,

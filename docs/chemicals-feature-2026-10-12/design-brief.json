@@ -4,7 +4,7 @@
   "productArchetype": "scientific-workbench",
   "primaryUser": "Two approved private chemistry maintainers",
   "repeatedJob": "Enter material identity and SMILES by row, validate and save a traceable structure",
-  "dominantProductObject": "Material row and validated molecular structure",
+  "dominantProductObject": "SAM material row with an automatically visible molecular structure",
   "signatureComposition": "Dominant editable registry with a 360px molecular evidence inspector",
   "primaryAction": "Save material row",
   "applicationArchitecture": {
@@ -16,7 +16,7 @@
     "paneContracts": [
       {
         "id": "registry",
-        "role": "Search, paginate and edit rows",
+        "role": "Search, paginate and edit SAM rows with inline molecular previews",
         "min": "480px",
         "default": "remaining width",
         "max": "available width",
@@ -39,7 +39,7 @@
       "wide": "grid and resizable inspector",
       "expanded": "grid and inspector",
       "medium": "registry with inspector toggle",
-      "compact": "one focused row or structure view; inputs stack"
+      "compact": "stacked row inputs with an always-visible inline structure; optional focused inspector"
     }
   },
   "evidenceStates": [

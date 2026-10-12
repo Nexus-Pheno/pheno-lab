@@ -24,6 +24,16 @@ describe("local validated molecular structures", () => {
       expect(first.engineVersion).toMatch(/^RDKit /);
     }
   });
+  it("draws the published 2PACz reference graph", async () => {
+    // PubChem CID154704302, CAS20999-38-6; corroborated by TCI C3663.
+    const rendered = await renderMolecule(
+      "C1=CC=C2C(=C1)C3=CC=CC=C3N2CCP(=O)(O)O",
+    );
+    expect(rendered.canonicalSmiles).toBe("O=P(O)(O)CCn1c2ccccc2c2ccccc21");
+    expect(rendered.atomCount).toBe(19);
+    expect(rendered.svg).toContain("<svg");
+    expect(rendered.structureBytes).toBeGreaterThan(1000);
+  });
   it("rejects malformed notation, impossible valence, placeholders and markup", async () => {
     for (const input of [
       "not-smiles",

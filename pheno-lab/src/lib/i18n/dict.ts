@@ -3,7 +3,7 @@
 
 export const en = {
   "chemicals.title": "Pheno Chemicals",
-  "chemicals.intro": "Private chemical definitions. Material names and categories are available to the lab; SMILES and structures stay restricted.",
+  "chemicals.intro": "New SAM materials and reference structures. Saved names are available to the lab; SMILES and structures stay private.",
   "chemicals.addRow": "Add material row",
   "chemicals.name": "Material name",
   "chemicals.category": "Category",
@@ -1560,7 +1560,7 @@ export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
   "chemicals.title": "Pheno Chemicals",
-  "chemicals.intro": "私有化学定义。材料名称与类别可供实验室使用；SMILES 和结构图仅限授权人员访问。",
+  "chemicals.intro": "新 SAM 材料与参考结构。保存后的材料名称可供实验室使用；SMILES 和结构图仅限授权人员查看。",
   "chemicals.addRow": "新增材料行",
   "chemicals.name": "材料名称",
   "chemicals.category": "类别",

@@ -705,6 +705,7 @@ model Material {
 model MaterialChemistry {
   materialId       String   @id
   material         Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  inSamRegistry    Boolean  @default(false)
   requestId        String   @unique
   canonicalSmiles  String
   inputSha256      String

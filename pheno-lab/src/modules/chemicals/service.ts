@@ -182,6 +182,7 @@ export async function saveChemicalRow(actor: Actor, raw: unknown) {
             data: { id, ...data, organizationId: actor.org },
           });
         const evidence = {
+          inSamRegistry: true,
           requestId: input.requestId,
           canonicalSmiles: molecule.canonicalSmiles,
           inputSha256: molecule.inputSha256,
