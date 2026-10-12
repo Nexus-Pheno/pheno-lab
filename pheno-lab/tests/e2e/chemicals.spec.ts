@@ -196,6 +196,24 @@ test("ordinary administrator has public material access but no portal, private e
 test("bilingual workbench and focused molecule view fit desktop, tablet and narrow phones", async ({
   page,
 }) => {
+  // A full page is needed: offscreen accessible row labels must stay inside
+  // the registry scroll owner rather than extending the document height.
+  await db.materialCategoryDef.create({
+    data: {
+      organizationId: orgId,
+      code: "BROWSER_LONG_CATEGORY",
+      name: "Synthetic long material category for browser layout checks",
+      nameZh: "浏览器布局验证使用的较长合成材料分类名称",
+    },
+  });
+  await db.material.createMany({
+    data: Array.from({ length: 44 }, (_, index) => ({
+      organizationId: orgId,
+      name: `ZZ synthetic browser material ${String(index).padStart(2, "0")} with a longer display name`,
+      category: index % 2 ? "BROWSER_LONG_CATEGORY" : "SOLVENT",
+      smiles: index % 3 ? "CC(=O)Oc1ccccc1C(=O)O" : "",
+    })),
+  });
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await login(page, ownerEmail);
@@ -225,6 +243,26 @@ test("bilingual workbench and focused molecule view fit desktop, tablet and narr
           exact: true,
         }),
       ).toBeVisible();
+      await expect(page.getByTestId("chemical-row")).toHaveCount(40);
+      const registry = page.getByTestId("registry-body");
+      expect(
+        await registry.evaluate(
+          (element) => element.scrollHeight > element.clientHeight,
+        ),
+      ).toBe(true);
+      await registry.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect(page.getByTestId("chemical-row").last()).toBeInViewport();
+      await expect(
+        page.getByRole("link", {
+          name: language === "en" ? "Next" : "下一页",
+          exact: true,
+        }),
+      ).toBeInViewport();
+      await registry.evaluate((element) => {
+        element.scrollTop = 0;
+      });
       const state = await page.evaluate(() => ({
         overflow: document.documentElement.scrollWidth > innerWidth,
         vertical: document.documentElement.scrollHeight > innerHeight,
@@ -247,6 +285,11 @@ test("bilingual workbench and focused molecule view fit desktop, tablet and narr
         await expect(
           page.getByTestId("molecule-inspector").locator("img"),
         ).toBeVisible();
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollHeight > innerHeight,
+          ),
+        ).toBe(false);
         await page.screenshot({
           path: path.join(qa, `${language}-${width}-structure.png`),
         });

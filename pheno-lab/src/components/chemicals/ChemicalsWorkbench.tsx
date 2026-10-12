@@ -406,7 +406,7 @@ export function ChemicalsWorkbench({
           }
         >
           <div
-            className="flex-1 min-h-0 overflow-auto"
+            className="relative flex-1 min-h-0 overflow-auto"
             data-testid="registry-body"
           >
             <table className="w-full text-sm block sm:table">
