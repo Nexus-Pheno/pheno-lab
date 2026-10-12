@@ -87,6 +87,7 @@ async function fixture() {
         for (const report of await db.labReport.findMany({ where }))
           await objectStorage().delete(report.storedPath);
         await db.labReport.deleteMany({ where });
+        await db.feedback.deleteMany({ where });
         await db.notification.deleteMany({ where });
         await db.auditEvent.deleteMany({ where });
         await db.user.deleteMany({ where });
@@ -165,7 +166,19 @@ describe("private reports on real PostgreSQL", () => {
       const row = await db.labReport.findUniqueOrThrow({
         where: { id: result.id },
       });
+      await db.feedback.create({
+        data: {
+          organizationId: f.org.id,
+          userId: f.ordinary.id,
+          kind: "bug",
+          message: "Synthetic legacy reference",
+          screenshotPath: row.storedPath,
+        },
+      });
       expect(await canReadObject(f.actor(f.admin), row.storedPath)).toBe(false);
+      expect(await canReadObject(f.actor(f.ordinary), row.storedPath)).toBe(
+        false,
+      );
       await expect(listLabReports(f.actor(f.tester), {})).rejects.toThrow();
       const content = await readLabReportContent(f.actor(f.admin), result.id);
       expect(Buffer.from(content!.body).toString()).toBe(f.html);
