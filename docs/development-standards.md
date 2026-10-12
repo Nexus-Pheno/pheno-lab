@@ -90,6 +90,7 @@ revalidate。它不应复制权限、组织 scope、事务或领域状态转换�
 - `src/infrastructure/crypto/**`：凭据加密。
 - `src/infrastructure/mail/**`：SMTP adapter。
 - `src/infrastructure/push/**`：可选 DingTalk 群机器人 adapter；通知模块按显式组织 slug 路由，业务事件只在事务成功提交后外发，不在 `notify()` 内执行 HTTP。群通知只发固定提示，摘要只发允许的统计字段和成员姓名（2026-09-18 起：最高 PCE 的负责人、昨日参与实验的同事及实验数），不发实验标题、内容或邮箱；没有生产凭据的测试不得触发真实群消息。
+  可选签名 JV 专用机器人仅额外接收 `testing_requested`；通用群继续接收同一 JV 提示、其他业务提示和摘要。两路独立发送且不自动重试；单路成功不代表双路送达。
 - `src/infrastructure/logging/**`：结构化日志。
 
 基础设施实现不应在 Client Component 中出现；业务调用 adapter/interface，不直接散落 SDK 调用。

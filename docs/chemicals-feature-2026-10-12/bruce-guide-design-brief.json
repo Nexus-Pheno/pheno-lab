@@ -1,0 +1,73 @@
+{
+  "brand": "pheno",
+  "productName": "Pheno Chemicals Bruce quick start",
+  "productArchetype": "scientific-workbench",
+  "primaryUser": "Bruce",
+  "repeatedJob": "Understand the private entry workflow before maintaining a material definition",
+  "dominantProductObject": "The material row workflow and access boundary",
+  "signatureComposition": "Six bilingual document sections, input-format example and access comparison",
+  "primaryAction": "Open the authenticated Pheno Chemicals portal",
+  "applicationArchitecture": {
+    "shellMode": "document",
+    "canonicalFrameId": "pheno.p2-data-grid",
+    "pattern": "Document scrolling for a printable feature guide; approved exception to the workbench frame",
+    "visiblePanes": [
+      "guide-document"
+    ],
+    "primarySpaceTarget": "Full document width with a compact public example",
+    "paneContracts": [
+      {
+        "id": "guide-document",
+        "role": "Learn and print the workflow",
+        "min": "320px",
+        "default": "1160px maximum document",
+        "max": "1160px",
+        "scrollOwner": "document",
+        "collapseMode": "Sections and demonstration stack on compact screens",
+        "persistedState": [
+          "language in URL hash"
+        ]
+      }
+    ],
+    "responsiveTransformation": {
+      "wide": "Single document with demonstration row and molecular illustration",
+      "expanded": "Same document",
+      "medium": "Demonstration stacks",
+      "compact": "Single column with bounded table scrolling"
+    }
+  },
+  "evidenceStates": [
+    "Feature live",
+    "Public ethanol demonstration",
+    "Legacy definitions unvalidated",
+    "Saved status required"
+  ],
+  "permissionStates": [
+    "Bruce and Michael only for private chemistry",
+    "Public name/category in existing employee workflows",
+    "Four-manager reports omit private structures"
+  ],
+  "requiredViewports": [
+    "1440x900",
+    "1024x768",
+    "390x844",
+    "320x700"
+  ],
+  "languages": [
+    "en",
+    "zh"
+  ],
+  "approvedAssetDirectory": "pheno-lab/public/brand",
+  "tokenFile": "pheno-lab/src/app/globals.css",
+  "logoAssetId": "pheno.wordmark",
+  "logoAsset": "pheno-lab/public/brand/pheno-logo.png",
+  "logoBackground": "light",
+  "webIconSet": "pheno-lab/public/brand/web/pheno",
+  "specialConstraints": [
+    "Offline bilingual language/print controls",
+    "Approved embedded logo and favicon",
+    "Public synthetic demonstration only; no private lab SMILES or credentials",
+    "Live portal link requires existing login",
+    "This guide is not a research report or saved scientific record"
+  ]
+}

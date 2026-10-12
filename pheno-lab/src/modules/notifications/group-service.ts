@@ -22,7 +22,11 @@ export async function sendGroupNotice(
 ): Promise<boolean> {
   try {
     const config = serverConfig();
-    if (!config.DINGTALK_WEBHOOK_URL || !config.DINGTALK_ORGANIZATION_SLUG)
+    if (
+      !config.DINGTALK_ORGANIZATION_SLUG ||
+      (!config.DINGTALK_WEBHOOK_URL &&
+        !(kind === "testing_requested" && config.DINGTALK_JV_WEBHOOK_URL))
+    )
       return false;
     const organization = await db.organization.findFirst({
       where: {
@@ -33,7 +37,16 @@ export async function sendGroupNotice(
       select: { id: true },
     });
     if (!organization) return false;
-    return await sendDingTalkText(messages[kind]);
+    const deliveries: Promise<boolean>[] = [];
+    if (config.DINGTALK_WEBHOOK_URL)
+      deliveries.push(sendDingTalkText(messages[kind]));
+    if (kind === "testing_requested" && config.DINGTALK_JV_WEBHOOK_URL)
+      deliveries.push(sendDingTalkText(messages[kind], "jv-testing"));
+    // One destination's failure must not suppress the other post-commit alert.
+    const results = await Promise.allSettled(deliveries);
+    return results.some(
+      (result) => result.status === "fulfilled" && result.value,
+    );
   } catch {
     log.warn("dingtalk.notice_failed", { reason: "delivery_unavailable" });
     return false;

@@ -11,10 +11,13 @@ import { chemicalIdSchema, chemicalListSchema } from "./schema";
 import type { ChemicalRow } from "./types";
 import { recordUserAudit } from "@/modules/audit/writer";
 
-export async function requireChemicalAccess(actor: Actor) {
+export async function requireChemicalAccess(
+  actor: Actor,
+  client: Pick<typeof db, "user"> = db,
+) {
   assertFullAccess(actor);
   if ("device" in actor && actor.device) throw new AuthorizationError();
-  const user = await db.user.findFirst({
+  const user = await client.user.findFirst({
     where: {
       id: actor.uid,
       organizationId: actor.org,

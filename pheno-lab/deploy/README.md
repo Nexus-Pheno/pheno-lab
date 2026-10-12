@@ -365,6 +365,17 @@ sudo stat -c '%U %G %a %n' /etc/pheno-lab/pheno-lab.env
 该组织的 ACTIVE 数据库记录；缺少任一值时自动通知和摘要均不发送。不得按组织显示名模糊匹配或
 默认选择第一个组织。可选 `DINGTALK_WEBHOOK_SECRET` 是加签密钥；单独配置密钥会使校验失败。
 
+可选的第二个已批准 JV 专用群机器人使用 `DINGTALK_JV_WEBHOOK_URL` 与
+`DINGTALK_JV_WEBHOOK_SECRET`，两者须一起配置并使用不同于通用机器人的 token；复用同一个
+`DINGTALK_ORGANIZATION_SLUG` 精确组织边界。仅 `testing_requested` 的固定 JV 测试需求提示在
+事务提交后同时发送给通用与 JV 机器人，其他提示和早间摘要仍只走通用机器人。两次发送并行且
+独立失败，不自动重试，任何一个成功时群提示函数返回 true；该布尔值不证明两个群都已送达。
+站内通知/审计仍为事实源。未配置第二机器人时保留现有单群行为。
+
+只有明确批准创建第二机器人和启用该路由后，才可备份现有受保护 env 并增量添加上述两项；
+不要建第二份 env。现有发布链、systemd/Nginx、端口和存储配置保持不变。真实 webhook/签名
+只通过私密通道进入现有 env，不写入 Git、操作日志、HTML 指南或审计 payload。
+
 URL 必须是 `https://oapi.dingtalk.com/robot/send`，只包含一个非空 `access_token`，不得带
 用户信息、fragment、其他参数或预计算的 `timestamp` / `sign`。加签时 adapter 在每次请求中
 生成时间戳和 HMAC-SHA256 签名。无 signing secret 时，机器人必须使用已批准的关键词或 IP

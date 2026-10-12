@@ -17,8 +17,17 @@ const responseSchema = z.object({
   ]),
 });
 
-export function isDingTalkConfigured(): boolean {
-  return Boolean(serverConfig().DINGTALK_WEBHOOK_URL);
+export type DingTalkDestination = "general" | "jv-testing";
+
+export function isDingTalkConfigured(
+  destination: DingTalkDestination = "general",
+): boolean {
+  const config = serverConfig();
+  return Boolean(
+    destination === "jv-testing"
+      ? config.DINGTALK_JV_WEBHOOK_URL
+      : config.DINGTALK_WEBHOOK_URL,
+  );
 }
 
 function signedUrl(webhookUrl: string, secret: string | undefined): string {
@@ -33,25 +42,33 @@ function signedUrl(webhookUrl: string, secret: string | undefined): string {
   return url.toString();
 }
 
-export async function sendDingTalkText(content: string): Promise<boolean> {
+export async function sendDingTalkText(
+  content: string,
+  destination: DingTalkDestination = "general",
+): Promise<boolean> {
   let signal: AbortSignal | undefined;
   try {
     const config = serverConfig();
-    if (!config.DINGTALK_WEBHOOK_URL) return false;
+    const webhook =
+      destination === "jv-testing"
+        ? config.DINGTALK_JV_WEBHOOK_URL
+        : config.DINGTALK_WEBHOOK_URL;
+    const secret =
+      destination === "jv-testing"
+        ? config.DINGTALK_JV_WEBHOOK_SECRET
+        : config.DINGTALK_WEBHOOK_SECRET;
+    if (!webhook) return false;
     signal = AbortSignal.timeout(10_000);
-    const response = await fetch(
-      signedUrl(config.DINGTALK_WEBHOOK_URL, config.DINGTALK_WEBHOOK_SECRET),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({
-          msgtype: "text",
-          text: { content: `${PREFIX}${content}` },
-        }),
-        signal,
-        redirect: "error",
-      },
-    );
+    const response = await fetch(signedUrl(webhook, secret), {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        msgtype: "text",
+        text: { content: `${PREFIX}${content}` },
+      }),
+      signal,
+      redirect: "error",
+    });
     if (!response.ok) {
       log.warn("dingtalk.send_failed", {
         reason: "http_error",
