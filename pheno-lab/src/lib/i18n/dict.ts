@@ -22,7 +22,7 @@ export const en = {
   "chemicals.bulk.template": "Download Excel template",
   "chemicals.bulk.file": "Excel file (.xlsx)",
   "chemicals.bulk.limits":
-    "Up to 100 materials · 2 MB maximum. Choose the category above and use plain-text cells in the template.",
+    "No material row limit · 2 MB maximum. Choose the category above and use plain-text cells in the template.",
   "chemicals.bulk.validate": "Validate file",
   "chemicals.bulk.validating": "Validating…",
   "chemicals.bulk.review": "Review materials",
@@ -44,7 +44,7 @@ export const en = {
   "chemicals.bulk.error.file":
     "Use a valid .xlsx workbook from the template, no larger than 2 MB. Keep the SAM Materials sheet name.",
   "chemicals.bulk.error.limits":
-    "The workbook is too large or complex. Use the template with at most 100 materials.",
+    "The workbook has excessive formatting or worksheet dimensions. Copy the name and SMILES values into a fresh template and keep the file within 2 MB.",
   "chemicals.bulk.error.columns":
     "Keep the two template headers: Molecule name and SMILES. Remove extra populated columns.",
   "chemicals.bulk.error.formulas":
@@ -1648,7 +1648,7 @@ export const zh: Record<TKey, string> = {
   "chemicals.bulk.template": "下载 Excel 模板",
   "chemicals.bulk.file": "Excel 文件（.xlsx）",
   "chemicals.bulk.limits":
-    "每次最多 100 个材料，文件不超过 2 MB。请在上方选择类别，并在模板中填写纯文本。",
+    "材料行数不限，文件不超过 2 MB。请在上方选择类别，并在模板中填写纯文本。",
   "chemicals.bulk.validate": "验证文件",
   "chemicals.bulk.validating": "正在验证…",
   "chemicals.bulk.review": "核对材料",
@@ -1668,7 +1668,7 @@ export const zh: Record<TKey, string> = {
   "chemicals.bulk.error.file":
     "请使用模板填写有效的 .xlsx 工作簿，大小不超过 2 MB，并保留 SAM Materials 工作表名称。",
   "chemicals.bulk.error.limits":
-    "工作簿过大或过于复杂。请使用模板，每次最多填写 100 个材料。",
+    "工作簿的格式或工作表范围过大。请将名称和 SMILES 值复制到新模板，并将文件控制在 2 MB 以内。",
   "chemicals.bulk.error.columns":
     "请保留模板的两列标题 Molecule name 和 SMILES，并移除已填写的额外列。",
   "chemicals.bulk.error.formulas": "请填写纯文本，上传前移除 Excel 公式。",

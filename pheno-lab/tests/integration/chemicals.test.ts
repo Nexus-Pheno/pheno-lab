@@ -146,6 +146,94 @@ const card = {
 };
 
 describe("private chemical portal on real PostgreSQL", () => {
+  it("imports 1001 rows across lookup/write chunks, links the original identity and replays once", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[1]);
+      const linked = await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Larger fixture 700",
+          category: "SAM",
+          supplier: "Synthetic supplier",
+          lot: "Synthetic lot",
+        },
+      });
+      const file = {
+        filename: "larger.xlsx",
+        category: "ADDITIVE",
+        bytes: chemicalWorkbook(
+          Array.from({ length: 1001 }, (_, index) => [
+            `Larger fixture ${index}`,
+            index % 2 ? "CCO" : "c1ccccc1",
+          ]),
+        ),
+      };
+      const preview = await previewChemicalImport(actor, file);
+      expect(preview.valid).toBe(true);
+      expect(preview.rows).toHaveLength(1001);
+      expect(preview.rows[700].linksExisting).toBe(true);
+      expect(
+        await db.chemicalImportBatch.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+      const input = {
+        ...file,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+      };
+      expect(await importChemicalWorkbook(actor, input)).toMatchObject({
+        created: 1000,
+        linked: 1,
+        total: 1001,
+        replayed: false,
+      });
+      expect(await importChemicalWorkbook(actor, input)).toMatchObject({
+        created: 0,
+        total: 1001,
+        replayed: true,
+      });
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1001);
+      expect(
+        await db.materialChemistry.count({
+          where: {
+            material: { organizationId: f.org.id },
+            inSamRegistry: true,
+          },
+        }),
+      ).toBe(1001);
+      expect(
+        await db.material.findUniqueOrThrow({ where: { id: linked.id } }),
+      ).toMatchObject({
+        category: "ADDITIVE",
+        supplier: linked.supplier,
+        lot: linked.lot,
+      });
+      const batch = await db.chemicalImportBatch.findUniqueOrThrow({
+        where: { id: input.batchId },
+      });
+      expect(batch.rowCount).toBe(1001);
+      expect(batch.manifest).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ row: 1002 }),
+          expect.objectContaining({ row: 702, materialId: linked.id }),
+        ]),
+      );
+      expect(
+        Buffer.from((await readImportedWorkbook(actor, input.batchId))!),
+      ).toEqual(Buffer.from(file.bytes));
+      expect(
+        await db.auditEvent.count({
+          where: { organizationId: f.org.id, action: "chemistry.bulk.created" },
+        }),
+      ).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  }, 30_000);
   it("previews without writes and imports an audited, private atomic workbook exactly once", async () => {
     const f = await fixture();
     try {

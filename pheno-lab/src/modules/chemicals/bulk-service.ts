@@ -1,6 +1,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/infrastructure/db/client";
 import { objectStorage } from "@/infrastructure/storage";
@@ -49,6 +50,40 @@ export async function chemicalImportTemplate(actor: Actor) {
   return readSamTemplate();
 }
 
+const DATABASE_CHUNK_SIZE = 200;
+
+/** Keep lookup parameters bounded and resolve names without a quadratic scan. */
+async function registrationGroups(
+  client: Pick<Prisma.TransactionClient, "material">,
+  organizationId: string,
+  names: string[],
+) {
+  const unique = [
+    ...new Map(
+      names.filter(Boolean).map((name) => [name.toLowerCase(), name]),
+    ).values(),
+  ];
+  const groups = new Map<string, RegistrationMaterial[]>();
+  for (let offset = 0; offset < unique.length; offset += DATABASE_CHUNK_SIZE) {
+    const matches = await client.material.findMany({
+      where: {
+        organizationId,
+        OR: unique.slice(offset, offset + DATABASE_CHUNK_SIZE).map((name) => ({
+          name: { equals: name, mode: "insensitive" as const },
+        })),
+      },
+      select: registrationSelect,
+    });
+    for (const match of matches) {
+      const key = match.name.toLowerCase();
+      const group = groups.get(key) ?? [];
+      group.push(match);
+      groups.set(key, group);
+    }
+  }
+  return groups;
+}
+
 async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
   if (
     !["SAM", "ADDITIVE", "SOLVENT", "OTHER"].includes(input.category) &&
@@ -62,6 +97,10 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
   const entries = await readSamWorkbook(input.bytes, input.filename);
   const rows: ChemicalImportRow[] = [];
   const molecules: Awaited<ReturnType<typeof renderMolecule>>[] = [];
+  const rendered = new Map<
+    string,
+    Awaited<ReturnType<typeof renderMolecule>>
+  >();
   const names = new Map<string, number[]>();
   for (const entry of entries) {
     const [nameValue, smilesValue] = entry.cells;
@@ -90,7 +129,8 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
     rows.push(row);
     if (!row.issues.length) {
       try {
-        const molecule = await renderMolecule(smiles);
+        const molecule = rendered.get(smiles) ?? (await renderMolecule(smiles));
+        rendered.set(smiles, molecule);
         molecules.push(molecule);
         row.preview = {
           svg: molecule.svg,
@@ -107,20 +147,17 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
   for (const indices of names.values())
     if (indices.length > 1)
       for (const index of indices) rows[index].issues.push("duplicate");
-  const existing = await db.material.findMany({
-    where: {
-      organizationId: actor.org,
-      OR: rows
-        .filter((row) => row.name)
-        .map((row) => ({
-          name: { equals: row.name, mode: "insensitive" as const },
-        })),
-    },
-    select: registrationSelect,
-  });
+  const existing = await registrationGroups(
+    db,
+    actor.org,
+    rows.map((row) => row.name),
+  );
   const targets: (RegistrationMaterial | null)[] = [];
   for (const row of rows) {
-    const target = registrationTarget(existing, row.name);
+    const target = registrationTarget(
+      existing.get(row.name.toLowerCase()) ?? [],
+      row.name,
+    );
     if (target.issue) row.issues.push(target.issue);
     row.linksExisting = !!target.material;
     targets.push(target.material);
@@ -257,17 +294,16 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
             replayed: true,
           };
         }
-        const current = await tx.material.findMany({
-          where: {
-            organizationId: actor.org,
-            OR: preview.rows.map((row) => ({
-              name: { equals: row.name, mode: "insensitive" as const },
-            })),
-          },
-          select: registrationSelect,
-        });
+        const current = await registrationGroups(
+          tx,
+          actor.org,
+          preview.rows.map((row) => row.name),
+        );
         const finalTargets = preview.rows.map((row, index) => {
-          const target = registrationTarget(current, row.name);
+          const target = registrationTarget(
+            current.get(row.name.toLowerCase()) ?? [],
+            row.name,
+          );
           if (target.issue)
             throw new ChemicalImportConflict(
               "Material names changed. Validate the workbook again.",
@@ -307,6 +343,8 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
             })),
           },
         });
+        const additions: Prisma.MaterialCreateManyInput[] = [];
+        const newDefinitions: Prisma.MaterialChemistryCreateManyInput[] = [];
         for (const [index, row] of preview.rows.entries()) {
           const molecule = molecules[index];
           const existing = finalTargets[index];
@@ -316,16 +354,15 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
               data: { category: input.category, smiles: row.smiles },
             });
           else
-            await tx.material.create({
-              data: {
-                id: materialIds[index],
-                organizationId: actor.org,
-                name: row.name,
-                category: input.category,
-                smiles: row.smiles,
-              },
+            additions.push({
+              id: materialIds[index],
+              organizationId: actor.org,
+              name: row.name,
+              category: input.category,
+              smiles: row.smiles,
             });
           const evidence = {
+            materialId: materialIds[index],
             inSamRegistry: true,
             importBatchId: input.batchId,
             requestId: crypto.randomUUID(),
@@ -339,10 +376,29 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
             version: (existing?.chemistry?.version ?? 0) + 1,
             generatedAt: new Date(),
           };
-          await tx.materialChemistry.upsert({
-            where: { materialId: materialIds[index] },
-            create: { materialId: materialIds[index], ...evidence },
-            update: evidence,
+          if (existing?.chemistry)
+            await tx.materialChemistry.update({
+              where: { materialId: materialIds[index] },
+              data: evidence,
+            });
+          else newDefinitions.push(evidence);
+        }
+        for (
+          let offset = 0;
+          offset < additions.length;
+          offset += DATABASE_CHUNK_SIZE
+        ) {
+          await tx.material.createMany({
+            data: additions.slice(offset, offset + DATABASE_CHUNK_SIZE),
+          });
+        }
+        for (
+          let offset = 0;
+          offset < newDefinitions.length;
+          offset += DATABASE_CHUNK_SIZE
+        ) {
+          await tx.materialChemistry.createMany({
+            data: newDefinitions.slice(offset, offset + DATABASE_CHUNK_SIZE),
           });
         }
         await ensureChemicalCategory(tx, actor, input.category);

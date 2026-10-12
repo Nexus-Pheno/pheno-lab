@@ -725,3 +725,72 @@ test("Excel category changes invalidate preview and a library match is linked on
     lot: existing.lot,
   });
 });
+
+test("uploads more than 100 rows with bilingual review and imports the entire file", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await login(page, ownerEmail);
+  const bytes = Buffer.from(
+    chemicalWorkbook(
+      Array.from({ length: 125 }, (_, index) => [
+        `Larger browser ${suffix} ${index}`,
+        "CCO",
+      ]),
+    ),
+  );
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  for (const [language, width, height] of [
+    ["en", 1440, 900],
+    ["zh", 390, 844],
+  ] as const) {
+    await page
+      .context()
+      .addCookies([
+        { name: "pheno_lang", value: language, url: "http://127.0.0.1:3467" },
+      ]);
+    await page.setViewportSize({ width, height });
+    await page.goto("/chemicals/bulk");
+    await expect(page.getByTestId("chemicals-bulk")).toContainText(
+      language === "en" ? "No material row limit" : "材料行数不限",
+    );
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "larger.xlsx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      buffer: bytes,
+    });
+    await page
+      .getByRole("button", {
+        name: language === "en" ? "Validate file" : "验证文件",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByTestId("bulk-row")).toHaveCount(125);
+    await page.getByTestId("bulk-row").last().scrollIntoViewIfNeeded();
+    await expect(
+      page.getByTestId("bulk-row").last().locator("img"),
+    ).toHaveJSProperty("naturalWidth", 560);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth > innerWidth ||
+          document.documentElement.scrollHeight > innerHeight,
+      ),
+    ).toBe(false);
+    if (language === "zh") {
+      await page.getByRole("button", { name: "导入材料", exact: true }).click();
+      await expect(page.getByRole("status")).toContainText("125 个材料已录入");
+    }
+  }
+  expect(
+    await db.material.count({
+      where: {
+        organizationId: orgId,
+        name: { startsWith: `Larger browser ${suffix}` },
+      },
+    }),
+  ).toBe(125);
+  expect(errors).toEqual([]);
+});
