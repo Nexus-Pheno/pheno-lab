@@ -15,7 +15,7 @@
 应用 CVM 不保存 PostgreSQL 主数据、数据库备份或上传附件。数据库备份和恢复在
 PostgreSQL 服务器侧统一管理。COS 是对象存储，不是向量数据库；本次上线不依赖向量服务。
 
-> 命令默认 SSH 用户是 `ubuntu`。如果你的用户名不同，统一替换文中的 `ubuntu`。
+> 第 3 节首次建机命令使用管理员 `ubuntu`；第 4 节日常构建与发布使用 `deploy_pheno_lab`。
 > 不要把真实密码、数据库 URL、session secret 或云密钥粘贴到 GitHub Issue / PR。
 
 ## 0. 生产部署契约（coding agent 必读）
@@ -106,6 +106,42 @@ PostgreSQL 服务器管理。
 - 批量数据库/文件导入是第四种独立授权，不和 release 同时执行；必须遵守
   [`../../docs/data-import-rules.md`](../../docs/data-import-rules.md)。
 
+### 0.5 受限 SSH 部署账号（2026-10-12 起）
+
+现有生产机日常开发、构建和发布使用 `deploy_pheno_lab` 的普通 SSH shell，运行身份仍为
+`pheno`。管理员初始化账号及 ACL；部署账号不加入 sudo、docker、systemd-journal 等特权组。
+`ubuntu` 的登录凭据及管理权限保持原样。
+
+- 可读写 `/srv/pheno-lab/source`、`releases`，并切换 `/srv/pheno-lab/current`。
+- 可读写现有 `/etc/pheno-lab/pheno-lab.env`，用于批准发布时增量修改 `APP_VERSION`；不另建 env。
+  这也意味着部署者能读取 Pheno Lab 自身的生产凭据和数据访问配置。
+- 可读写自己的 home 和标准临时目录；系统公共文件遵循 Linux 的普通用户权限。
+- 通过命名 ACL 拒绝访问同机其他应用目录、配置及已有部署副本；`pheno` 运行身份同样被拒绝。
+  新建、移动其他应用目录或产生新的配置副本后，管理员须复核 ACL。
+- SSH 使用独立 key，禁止 SSH agent/端口/X11 转发和用户 SSH rc，允许普通终端及 SFTP。
+- sudo 仅允许下列完整命令及参数；不允许 root shell、安装系统软件、改 unit 或执行发布脚本。
+
+```bash
+sudo -n /usr/bin/systemctl start pheno-lab.service
+sudo -n /usr/bin/systemctl stop pheno-lab.service
+sudo -n /usr/bin/systemctl restart pheno-lab.service
+sudo -n /usr/bin/systemctl --no-pager status pheno-lab.service
+sudo -n /usr/bin/journalctl --no-pager -u pheno-lab.service -n 200
+```
+
+构建和发布脚本直接以 `deploy_pheno_lab` 执行，两者都拒绝 root；禁止用 sudo 执行仓库代码。
+解包、配置检查、migration 和代码均以普通用户执行；脚本仅对固定服务启停使用 sudo。
+新 release 属于部署账号，`pheno` 对代码只读，仅 `.next/cache` 获得写 ACL。管理员不得在
+日常发布时重新 `install -d -m 0750` 或 `chmod -R` source/releases，以免覆盖命名 ACL 的 mask。
+需要管理员操作时，先 `sudo -iu deploy_pheno_lab` 再执行现有发布链路。
+
+GitHub 拉取使用账号 home 中的仓库专用 key，`core.sshCommand` 不再指向 `/root/.ssh`；
+Git `safe.directory` 只声明 `/srv/pheno-lab/source`。服务器上的源文件变更须按项目规则评审、
+合入仓库；未知或未合并的 source 变更仍适用第 4.1 节停止发布规则。
+
+普通 SSH 用户与 ACL 提供同机文件权限隔离；它可以访问本机网络和实例 metadata。
+Pheno Lab 的数据库/COS 权限由现有应用凭据和实例角色决定，不是完整虚拟机隔离。
+
 ## 1. 生产拓扑
 
 ```text
@@ -120,14 +156,14 @@ Internet
 
 ```text
 /srv/pheno-lab/
-├─ source/                         # root 管理的 Git 工作区
+├─ source/                         # deploy_pheno_lab 管理的 Git 工作区
 ├─ releases/
-│  ├─ 20260825-001/              # root:pheno，除 .next/cache 外只读
+│  ├─ 20260825-001/              # runtime 只读，.next/cache 有写 ACL
 │  └─ 20260825-002/
 └─ current -> releases/20260825-002
 
 /etc/pheno-lab/
-└─ pheno-lab.env                   # root:pheno 0640，不进 Git
+└─ pheno-lab.env                   # root:pheno + 部署账号命名 ACL，不进 Git
 ```
 
 `git pull` 只改 source，不会覆盖当前运行的 release。发布脚本会先校验和构建，再原子切换
@@ -512,7 +548,10 @@ sudo certbot renew --dry-run --run-deploy-hooks
 
 ### 3.10 首次构建和发布
 
+管理员完成第 0.5 节账号及 ACL 初始化后，切换到部署身份执行：
+
 ```bash
+sudo -iu deploy_pheno_lab
 cd /srv/pheno-lab/source
 git fetch --prune origin
 git switch main
@@ -527,7 +566,7 @@ export NODE_ENV=production
 
 RELEASE_ID="$(date +%Y%m%d)-001"
 ./deploy/scripts/build-release.sh "/tmp/pheno-lab-$RELEASE_ID.tar.gz"
-sudo ./deploy/scripts/deploy-release.sh \
+./deploy/scripts/deploy-release.sh \
   "/tmp/pheno-lab-$RELEASE_ID.tar.gz" "$RELEASE_ID"
 
 unset DATABASE_URL SESSION_SECRET INGEST_CRON_SECRET HEALTHCHECK_TOKEN \
@@ -581,8 +620,8 @@ bootstrap 命令，只有带空库保护、advisory lock、事务和审计的一
 在 App CVM：
 
 ```bash
-sudo systemctl status pheno-lab --no-pager
-sudo journalctl -u pheno-lab -n 100 --no-pager
+sudo -n /usr/bin/systemctl --no-pager status pheno-lab.service
+sudo -n /usr/bin/journalctl --no-pager -u pheno-lab.service -n 200
 curl -fsS http://127.0.0.1:3457/api/health/live
 
 set -a
@@ -620,8 +659,10 @@ release ID。
 
 ### 4.1 只读预检
 
+以下命令以 `deploy_pheno_lab` SSH 登录执行。
+
 ```bash
-sudo -i
+whoami
 
 systemctl is-active pheno-lab.service
 systemctl is-active nginx.service
@@ -655,7 +696,7 @@ test ! -e "/tmp/pheno-lab-$RELEASE_ID.tar.gz"
 test ! -e "/tmp/pheno-lab-$RELEASE_ID.tar.gz.sha256"
 ```
 
-使用 `sudoedit /etc/pheno-lab/pheno-lab.env`，只把现有 `APP_VERSION=` 改成相同的
+以部署账号使用编辑器增量修改现有 `/etc/pheno-lab/pheno-lab.env`，只把现有 `APP_VERSION=` 改成相同的
 `$RELEASE_ID`。不要复制 env、不要新建 env、不要更改其他 secret。编辑后验证（不输出 secret）：
 
 ```bash
@@ -691,6 +732,12 @@ cd /srv/pheno-lab/source/pheno-lab
 脚本会重新执行 frozen install 和完整 `pnpm run verify`。任一检查失败都停止发布；不得修改
 production source、跳过测试或手工打包。
 
+若 `/tmp` 的 tmpfs 空间不足，先检查 `/var/tmp` 的容量，可仅对本次构建设置
+`TMPDIR=/var/tmp` 并将 artifact/checksum 放在 `/var/tmp/pheno-lab-<release-id>.tar.gz`。
+这是标准临时目录中的构建产物，不是新运行配置；4.4 使用同一已校验路径。不得删除他人的
+artifact、移动生产附件或建立第二套发布链路。构建与发布的 umask 为 027；发布后移除本次
+临时环境备份，保留可审计的 artifact/checksum。
+
 ### 4.4 发布
 
 ```bash
@@ -710,7 +757,7 @@ release，但数据库 migration 不会自动回滚。
 ### 4.5 发布后验收
 
 ```bash
-systemctl status pheno-lab.service --no-pager
+sudo -n /usr/bin/systemctl --no-pager status pheno-lab.service
 readlink -f /srv/pheno-lab/current
 ss -lntp | grep ':3457'
 curl -fsS http://127.0.0.1:3457/api/health/live
@@ -724,7 +771,7 @@ curl -sS -o /dev/null \
   http://lab.szkl.com/
 curl -fsS https://lab.szkl.com/api/health/live
 
-journalctl -u pheno-lab.service -n 100 --no-pager
+sudo -n /usr/bin/journalctl --no-pager -u pheno-lab.service -n 200
 ```
 
 预期：`current` 指向本次 release；3457 只监听 `127.0.0.1`；liveness/readiness 成功；HTTP 301
@@ -779,20 +826,20 @@ Schema compatibility alone is not permission compatibility. Code predating Pheno
 
 ```bash
 readlink -f /srv/pheno-lab/current
-sudo find /srv/pheno-lab/releases -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
+find /srv/pheno-lab/releases -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
 
 ROLLBACK_RELEASE=20260825-001
-sudo ln -sfn "/srv/pheno-lab/releases/$ROLLBACK_RELEASE" /srv/pheno-lab/current.next
-sudo mv -Tf /srv/pheno-lab/current.next /srv/pheno-lab/current
-sudo systemctl restart pheno-lab
-sudo systemctl status pheno-lab --no-pager
+ln -sfn "/srv/pheno-lab/releases/$ROLLBACK_RELEASE" /srv/pheno-lab/current.next
+mv -Tf /srv/pheno-lab/current.next /srv/pheno-lab/current
+sudo -n /usr/bin/systemctl restart pheno-lab.service
+sudo -n /usr/bin/systemctl --no-pager status pheno-lab.service
 ```
 
-常用诊断命令：
+常用诊断命令（Nginx、网络管理命令由管理员执行，部署账号没有其 sudo 权限）：
 
 ```bash
-sudo systemctl status pheno-lab --no-pager
-sudo journalctl -u pheno-lab -n 200 --no-pager
+sudo -n /usr/bin/systemctl --no-pager status pheno-lab.service
+sudo -n /usr/bin/journalctl --no-pager -u pheno-lab.service -n 200
 sudo journalctl -u nginx -n 100 --no-pager
 sudo nginx -t
 sudo ss -lntp | grep -E ':(80|443|3457)\b'

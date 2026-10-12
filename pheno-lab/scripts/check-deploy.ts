@@ -28,6 +28,42 @@ for (const script of scripts) {
   }
 }
 
+const releaseScript = readFileSync(
+  path.join(process.cwd(), "deploy/scripts/deploy-release.sh"),
+  "utf8",
+);
+for (const script of [
+  "deploy/scripts/build-release.sh",
+  "deploy/scripts/deploy-release.sh",
+]) {
+  if (
+    !readFileSync(path.join(process.cwd(), script), "utf8").includes(
+      "EUID == 0",
+    )
+  ) {
+    throw new Error(`${script} must refuse root execution`);
+  }
+}
+if (!/^SERVICE=pheno-lab\.service$/m.test(releaseScript))
+  throw new Error("release script must target the fixed application service");
+if (/^\s*(?:systemctl|chown)\s/m.test(releaseScript)) {
+  throw new Error("release script must not run privileged commands directly");
+}
+const serviceCommands = releaseScript.match(/^\s*sudo .*$/gm) ?? [];
+if (
+  serviceCommands.length === 0 ||
+  serviceCommands.some(
+    (command) =>
+      !/^\s*sudo -n \/usr\/bin\/systemctl (?:restart|stop) "\$SERVICE"$/.test(
+        command,
+      ),
+  )
+) {
+  throw new Error(
+    "release sudo must only control the fixed application service",
+  );
+}
+
 const deploymentFiles = {
   env: readFileSync(
     path.join(process.cwd(), "deploy/pheno-lab.env.example"),

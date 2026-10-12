@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 027
+
+if (( EUID == 0 )); then
+  echo "run this script as deploy_pheno_lab, without sudo" >&2
+  exit 2
+fi
 
 APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 OUTPUT="${1:-}"
