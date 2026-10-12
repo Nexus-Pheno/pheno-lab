@@ -1,0 +1,73 @@
+{
+  "brand": "pheno",
+  "productName": "Pheno Lab Reports section",
+  "productArchetype": "scientific-workbench",
+  "primaryUser": "Designated report managers",
+  "repeatedJob": "Compare material–process combinations and choose informative experiments",
+  "dominantProductObject": "Immutable dated research report",
+  "signatureComposition": "Title/date list with explicit access state, followed by a full-height isolated report viewer",
+  "primaryAction": "Open the complete report",
+  "applicationArchitecture": {
+    "shellMode": "workbench",
+    "canonicalFrameId": "approved exception — existing Pheno application frame with user-requested report list",
+    "pattern": "Existing fixed application header; report catalogue or complete document viewer",
+    "visiblePanes": [
+      "report catalogue or report viewer"
+    ],
+    "primarySpaceTarget": "List owns the reading column; viewer fills the remaining frame height",
+    "paneContracts": [
+      {
+        "id": "reports",
+        "role": "Browse report metadata or read complete content",
+        "min": "288px at 320px viewport",
+        "default": "1024px list maximum; full-width viewer",
+        "max": "Available application width",
+        "scrollOwner": "List main pane or iframe document",
+        "collapseMode": "List fields stack on phones; viewer toolbar wraps",
+        "persistedState": [
+          "Report language stored locally when available"
+        ]
+      }
+    ],
+    "responsiveTransformation": {
+      "wide": "Dated title list inside existing application frame",
+      "expanded": "Same list with date and access columns",
+      "medium": "List uses available width; content viewer fills frame",
+      "compact": "Stacked title/date/access rows and wrapped viewer toolbar"
+    }
+  },
+  "evidenceStates": [
+    "Production records reviewed read-only",
+    "Exploratory associations, not causal estimates",
+    "Published external evidence with limited transferability",
+    "Implementation and prospective experiments proposed, not performed"
+  ],
+  "permissionStates": [
+    "Organization-scoped title/date catalogue for regular members",
+    "Explicit manager grant for complete HTML",
+    "Testing-only accounts retain testing boundary"
+  ],
+  "requiredViewports": [
+    "1440x900",
+    "1024x768",
+    "390x844",
+    "320x700"
+  ],
+  "languages": [
+    "en",
+    "zh"
+  ],
+  "approvedAssetDirectory": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/public/brand",
+  "tokenFile": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/tokens/pheno.tokens.json",
+  "logoAssetId": "pheno.wordmark.primary",
+  "logoAsset": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/public/brand/pheno-logo.png",
+  "logoBackground": "white",
+  "webIconSet": "/Users/michael/Documents/Michael Overall/Pheno SZKL Design System/public/brand/web/pheno",
+  "specialConstraints": [
+    "Use the existing application frame, approved Pheno assets and tokens",
+    "Preserve testing-only and setup boundaries",
+    "Metadata visible to full-access members; content requires explicit manager grant",
+    "Pagination of 20 reports; no publication or upload UI",
+    "Private report content and raw analysis remain outside Git"
+  ]
+}

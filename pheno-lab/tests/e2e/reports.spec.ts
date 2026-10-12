@@ -132,7 +132,7 @@ test("regular users see locked titles/date in both languages at desktop and mobi
     await context.addCookies([
       { name: "pheno_lang", value: lang, url: "http://127.0.0.1:3467" },
     ]);
-    for (const width of [1440, 390, 320]) {
+    for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/reports");
       await expect(page.getByText(title, { exact: true })).toBeVisible();
@@ -144,6 +144,11 @@ test("regular users see locked titles/date in both languages at desktop and mobi
         await page
           .locator("main")
           .evaluate((e) => e.scrollWidth <= e.clientWidth),
+      ).toBe(true);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
       ).toBe(true);
       await expect(page.locator(`a[href="/reports/${reportId}"]`)).toHaveCount(
         0,
