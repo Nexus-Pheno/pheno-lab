@@ -68,7 +68,6 @@ export async function listChemicals(actor: Actor, raw: unknown) {
   const where = {
     organizationId: actor.org,
     archived: false,
-    category: "SAM",
     chemistry: { is: { inSamRegistry: true } },
     ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
   };
@@ -82,12 +81,33 @@ export async function listChemicals(actor: Actor, raw: unknown) {
     }),
     db.material.count({ where }),
     db.materialCategoryDef.findMany({
-      where: { organizationId: actor.org },
+      where: {
+        organizationId: actor.org,
+        OR: [
+          { code: { in: ["SAM", "ADDITIVE", "SOLVENT"] } },
+          { builtIn: false },
+        ],
+      },
       orderBy: { position: "asc" },
       select: { code: true, name: true, nameZh: true },
     }),
   ]);
   return { rows: rows.map(toChemicalRow), total, page, categories };
+}
+
+export async function listChemicalCategories(actor: Actor) {
+  await requireChemicalAccess(actor);
+  return db.materialCategoryDef.findMany({
+    where: {
+      organizationId: actor.org,
+      OR: [
+        { code: { in: ["SAM", "ADDITIVE", "SOLVENT"] } },
+        { builtIn: false },
+      ],
+    },
+    orderBy: { position: "asc" },
+    select: { code: true, name: true, nameZh: true },
+  });
 }
 
 export function chemicalRowDigest(row: {

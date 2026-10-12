@@ -12,7 +12,7 @@ export const chemicalRowSchema = z.object({
     .nullable()
     .default(null),
   name: z.string().trim().min(1).max(200),
-  category: z.literal("SAM"),
+  category: z.string().trim().min(1).max(100),
   smiles: smilesSchema,
 });
 export const chemicalListSchema = z.object({

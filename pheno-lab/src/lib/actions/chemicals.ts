@@ -38,7 +38,7 @@ export async function saveChemicalAction(input: unknown) {
         error instanceof InvalidSmilesError
           ? "invalidSmiles"
           : error instanceof ChemicalConflictError
-            ? "conflict"
+            ? error.code
             : "failed",
     };
   }

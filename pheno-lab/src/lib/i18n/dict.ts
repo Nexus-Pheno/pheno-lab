@@ -2,43 +2,74 @@
 // materials-science lab audience (工艺/表征 terminology), not machine-translated.
 
 export const en = {
+  "chemicals.error.exists":
+    "This material is already in Pheno Chemicals. Edit its existing row.",
+  "chemicals.error.ambiguous":
+    "Several library records share this name. Resolve the duplicate names in the library before adding chemistry.",
+  "chemicals.error.archived":
+    "This material is archived. Restore it in the library before adding chemistry.",
+  "chemicals.bulk.issue.ambiguous":
+    "Several library records share this name. Resolve them before importing.",
+  "chemicals.bulk.issue.archived":
+    "This material is archived. Restore it in the library first.",
+  "chemicals.bulk.linkExisting": "Link existing library material; no duplicate",
+
   "chemicals.bulk.link": "Bulk upload",
-  "chemicals.bulk.title": "Bulk upload SAM materials",
+  "chemicals.bulk.title": "Bulk upload materials",
   "chemicals.bulk.back": "Back to Pheno Chemicals",
-  "chemicals.bulk.intro": "Download the template, enter molecule names and SMILES, then validate and review the structures before importing.",
+  "chemicals.bulk.intro":
+    "Download the template, enter molecule names and SMILES, then validate and review the structures before importing.",
   "chemicals.bulk.template": "Download Excel template",
   "chemicals.bulk.file": "Excel file (.xlsx)",
-  "chemicals.bulk.limits": "Up to 100 new SAM materials · 2 MB maximum. Use the SAM Materials sheet and plain-text cells.",
+  "chemicals.bulk.limits":
+    "Up to 100 materials · 2 MB maximum. Choose the category above and use plain-text cells in the template.",
   "chemicals.bulk.validate": "Validate file",
   "chemicals.bulk.validating": "Validating…",
   "chemicals.bulk.review": "Review materials",
   "chemicals.bulk.import": "Import materials",
   "chemicals.bulk.importing": "Importing…",
-  "chemicals.bulk.empty": "Choose a completed workbook and validate it to see the rows and molecular structures.",
+  "chemicals.bulk.empty":
+    "Choose a completed workbook and validate it to see the rows and molecular structures.",
   "chemicals.bulk.row": "Excel row",
   "chemicals.bulk.ready": "Ready to import",
-  "chemicals.bulk.success": "SAM materials imported. Their names are available in the shared library.",
-  "chemicals.bulk.replayed": "materials were already imported. No duplicates were created.",
+  "chemicals.bulk.success":
+    "materials registered. Their names are available in the shared library.",
+  "chemicals.bulk.replayed":
+    "materials were already imported. No duplicates were created.",
   "chemicals.bulk.source": "Download uploaded workbook",
-  "chemicals.bulk.fix": "Correct the highlighted rows in Excel and upload the file again. Nothing has been imported.",
-  "chemicals.bulk.error.access": "Private chemistry access is unavailable. Sign in with an authorized personal account.",
-  "chemicals.bulk.error.file": "Use a valid .xlsx workbook from the template, no larger than 2 MB. Keep the SAM Materials sheet name.",
-  "chemicals.bulk.error.limits": "The workbook is too large or complex. Use the template with at most 100 materials.",
-  "chemicals.bulk.error.columns": "Keep the two template headers: Molecule name and SMILES. Remove extra populated columns.",
-  "chemicals.bulk.error.formulas": "Use plain-text values. Remove Excel formulas before uploading.",
-  "chemicals.bulk.error.empty": "The SAM Materials sheet has no filled material rows.",
-  "chemicals.bulk.error.conflict": "The workbook or material names changed. Validate the file again before importing.",
-  "chemicals.bulk.error.failed": "The operation could not complete. Your file and preview are retained; retry when the connection is available.",
+  "chemicals.bulk.fix":
+    "Correct the highlighted rows in Excel and upload the file again. Nothing has been imported.",
+  "chemicals.bulk.error.access":
+    "Private chemistry access is unavailable. Sign in with an authorized personal account.",
+  "chemicals.bulk.error.file":
+    "Use a valid .xlsx workbook from the template, no larger than 2 MB. Keep the SAM Materials sheet name.",
+  "chemicals.bulk.error.limits":
+    "The workbook is too large or complex. Use the template with at most 100 materials.",
+  "chemicals.bulk.error.columns":
+    "Keep the two template headers: Molecule name and SMILES. Remove extra populated columns.",
+  "chemicals.bulk.error.formulas":
+    "Use plain-text values. Remove Excel formulas before uploading.",
+  "chemicals.bulk.error.empty":
+    "The SAM Materials sheet has no filled material rows.",
+  "chemicals.bulk.error.conflict":
+    "The workbook or material names changed. Validate the file again before importing.",
+  "chemicals.bulk.error.failed":
+    "The operation could not complete. Your file and preview are retained; retry when the connection is available.",
   "chemicals.bulk.issue.name": "Enter a molecule name of 1–200 characters.",
   "chemicals.bulk.issue.smiles": "Enter SMILES of 1–4,000 characters.",
   "chemicals.bulk.issue.text": "Use plain-text values in both columns.",
-  "chemicals.bulk.issue.columns": "Remove extra populated columns from this row.",
-  "chemicals.bulk.issue.duplicate": "This name appears more than once in the workbook.",
-  "chemicals.bulk.issue.exists": "This name already exists in the shared material library.",
-  "chemicals.bulk.issue.invalidSmiles": "SMILES could not be validated. Check the structure notation.",
+  "chemicals.bulk.issue.columns":
+    "Remove extra populated columns from this row.",
+  "chemicals.bulk.issue.duplicate":
+    "This name appears more than once in the workbook.",
+  "chemicals.bulk.issue.exists":
+    "This material is already in Pheno Chemicals. Edit its existing row.",
+  "chemicals.bulk.issue.invalidSmiles":
+    "SMILES could not be validated. Check the structure notation.",
 
   "chemicals.title": "Pheno Chemicals",
-  "chemicals.intro": "New SAM materials and reference structures. Saved names are available to the lab; SMILES and structures stay private.",
+  "chemicals.intro":
+    "Material definitions and reference structures. Existing library materials are linked without duplication; SMILES and structures stay private.",
   "chemicals.addRow": "Add material row",
   "chemicals.name": "Material name",
   "chemicals.category": "Category",
@@ -52,9 +83,11 @@ export const en = {
   "chemicals.legacy": "Not yet validated",
   "chemicals.validated": "Validated structure",
   "chemicals.preview": "Structure preview",
-  "chemicals.previewHint": "Select a row and enter SMILES to preview its molecular structure.",
+  "chemicals.previewHint":
+    "Select a row and enter SMILES to preview its molecular structure.",
   "chemicals.previewing": "Validating structure…",
-  "chemicals.generated": "Generated locally with RDKit. This checks the notation, not the identity or purity of a supplied material.",
+  "chemicals.generated":
+    "Generated locally with RDKit. This checks the notation, not the identity or purity of a supplied material.",
   "chemicals.atoms": "Parsed graph atoms",
   "chemicals.canonical": "Canonical SMILES",
   "chemicals.search": "Search material names",
@@ -75,13 +108,16 @@ export const en = {
   "chemicals.createCategory": "Create category",
   "chemicals.cancel": "Cancel",
   "chemicals.removeDraft": "Remove unsaved row",
-  "chemicals.error.invalidSmiles": "SMILES could not be validated. Check the notation; your row is preserved.",
-  "chemicals.error.conflict": "The name already exists or the row changed. Reload the current material before saving again.",
-  "chemicals.error.failed": "The operation could not complete. Check access and connectivity; your input is preserved.",
+  "chemicals.error.invalidSmiles":
+    "SMILES could not be validated. Check the notation; your row is preserved.",
+  "chemicals.error.conflict":
+    "The row changed. Reload the current material before saving again.",
+  "chemicals.error.failed":
+    "The operation could not complete. Check access and connectivity; your input is preserved.",
   "chemicals.export": "Export for analysis",
   "chemicals.sam": "SAM",
-  "chemicals.additive": "Additive",
-  "chemicals.solvent": "Solvent",
+  "chemicals.additive": "Additives",
+  "chemicals.solvent": "Solvents",
   "chemicals.other": "Other",
   "testing.title": "JV testing",
   "testing.permission": "JV testing only · read-only",
@@ -1594,43 +1630,65 @@ export const en = {
 export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
+  "chemicals.error.exists": "该材料已在 Pheno Chemicals 中，请编辑已有材料行。",
+  "chemicals.error.ambiguous":
+    "共享材料库中有多条同名记录，请先在材料库中核对并处理重名记录。",
+  "chemicals.error.archived":
+    "该材料已归档，请先在材料库中恢复后再录入化学定义。",
+  "chemicals.bulk.issue.ambiguous":
+    "共享材料库中有多条同名记录，请核对后再导入。",
+  "chemicals.bulk.issue.archived": "该材料已归档，请先在材料库中恢复。",
+  "chemicals.bulk.linkExisting": "关联共享材料库中的已有材料，不重复创建",
+
   "chemicals.bulk.link": "批量上传",
-  "chemicals.bulk.title": "批量上传 SAM 材料",
+  "chemicals.bulk.title": "批量上传材料",
   "chemicals.bulk.back": "返回 Pheno Chemicals",
-  "chemicals.bulk.intro": "下载模板，填写分子名称和 SMILES，再验证文件、核对结构并确认导入。",
+  "chemicals.bulk.intro":
+    "下载模板，填写分子名称和 SMILES，再验证文件、核对结构并确认导入。",
   "chemicals.bulk.template": "下载 Excel 模板",
   "chemicals.bulk.file": "Excel 文件（.xlsx）",
-  "chemicals.bulk.limits": "每次最多 100 个新 SAM 材料，文件不超过 2 MB。请使用 SAM Materials 工作表并填写纯文本。",
+  "chemicals.bulk.limits":
+    "每次最多 100 个材料，文件不超过 2 MB。请在上方选择类别，并在模板中填写纯文本。",
   "chemicals.bulk.validate": "验证文件",
   "chemicals.bulk.validating": "正在验证…",
   "chemicals.bulk.review": "核对材料",
   "chemicals.bulk.import": "导入材料",
   "chemicals.bulk.importing": "正在导入…",
-  "chemicals.bulk.empty": "选择已填写的工作簿并验证，即可查看材料行和分子结构。",
+  "chemicals.bulk.empty":
+    "选择已填写的工作簿并验证，即可查看材料行和分子结构。",
   "chemicals.bulk.row": "Excel 行",
   "chemicals.bulk.ready": "可导入",
-  "chemicals.bulk.success": "个 SAM 材料已导入，名称可在共享材料库使用。",
+  "chemicals.bulk.success": "个材料已录入，名称可在共享材料库使用。",
   "chemicals.bulk.replayed": "个材料已在此前导入，本次没有新增重复记录。",
   "chemicals.bulk.source": "下载已上传工作簿",
-  "chemicals.bulk.fix": "请在 Excel 中修正标记的行，再重新上传。当前尚未导入任何材料。",
-  "chemicals.bulk.error.access": "当前无法访问私有化学数据。请使用已获授权的个人账号登录。",
-  "chemicals.bulk.error.file": "请使用模板填写有效的 .xlsx 工作簿，大小不超过 2 MB，并保留 SAM Materials 工作表名称。",
-  "chemicals.bulk.error.limits": "工作簿过大或过于复杂。请使用模板，每次最多填写 100 个材料。",
-  "chemicals.bulk.error.columns": "请保留模板的两列标题 Molecule name 和 SMILES，并移除已填写的额外列。",
+  "chemicals.bulk.fix":
+    "请在 Excel 中修正标记的行，再重新上传。当前尚未导入任何材料。",
+  "chemicals.bulk.error.access":
+    "当前无法访问私有化学数据。请使用已获授权的个人账号登录。",
+  "chemicals.bulk.error.file":
+    "请使用模板填写有效的 .xlsx 工作簿，大小不超过 2 MB，并保留 SAM Materials 工作表名称。",
+  "chemicals.bulk.error.limits":
+    "工作簿过大或过于复杂。请使用模板，每次最多填写 100 个材料。",
+  "chemicals.bulk.error.columns":
+    "请保留模板的两列标题 Molecule name 和 SMILES，并移除已填写的额外列。",
   "chemicals.bulk.error.formulas": "请填写纯文本，上传前移除 Excel 公式。",
   "chemicals.bulk.error.empty": "SAM Materials 工作表中没有已填写的材料行。",
-  "chemicals.bulk.error.conflict": "工作簿或材料名称已发生变化，请重新验证文件后再导入。",
-  "chemicals.bulk.error.failed": "操作未能完成。已保留所选文件和预览，请在网络恢复后重试。",
+  "chemicals.bulk.error.conflict":
+    "工作簿或材料名称已发生变化，请重新验证文件后再导入。",
+  "chemicals.bulk.error.failed":
+    "操作未能完成。已保留所选文件和预览，请在网络恢复后重试。",
   "chemicals.bulk.issue.name": "请填写 1–200 个字符的分子名称。",
   "chemicals.bulk.issue.smiles": "请填写 1–4,000 个字符的 SMILES。",
   "chemicals.bulk.issue.text": "两列都必须使用纯文本。",
   "chemicals.bulk.issue.columns": "请移除此行已填写的额外列。",
   "chemicals.bulk.issue.duplicate": "该名称在工作簿中出现多次。",
-  "chemicals.bulk.issue.exists": "共享材料库中已存在该名称。",
+  "chemicals.bulk.issue.exists":
+    "该材料已在 Pheno Chemicals 中，请编辑已有材料行。",
   "chemicals.bulk.issue.invalidSmiles": "SMILES 无法验证，请核对结构表示。",
 
   "chemicals.title": "Pheno Chemicals",
-  "chemicals.intro": "新 SAM 材料与参考结构。保存后的材料名称可供实验室使用；SMILES 和结构图仅限授权人员查看。",
+  "chemicals.intro":
+    "材料定义与参考结构。已有材料直接关联共享材料库，不重复创建；SMILES 和结构图仅限授权人员查看。",
   "chemicals.addRow": "新增材料行",
   "chemicals.name": "材料名称",
   "chemicals.category": "类别",
@@ -1646,7 +1704,8 @@ export const zh: Record<TKey, string> = {
   "chemicals.preview": "结构预览",
   "chemicals.previewHint": "选择一行并填写 SMILES，即可预览对应的分子结构。",
   "chemicals.previewing": "正在验证结构…",
-  "chemicals.generated": "由本地 RDKit 生成。验证的是结构记法，不代表已核实实际材料的身份或纯度。",
+  "chemicals.generated":
+    "由本地 RDKit 生成。验证的是结构记法，不代表已核实实际材料的身份或纯度。",
   "chemicals.atoms": "解析结构原子数",
   "chemicals.canonical": "规范化 SMILES",
   "chemicals.search": "搜索材料名称",
@@ -1667,9 +1726,11 @@ export const zh: Record<TKey, string> = {
   "chemicals.createCategory": "创建类别",
   "chemicals.cancel": "取消",
   "chemicals.removeDraft": "移除未保存行",
-  "chemicals.error.invalidSmiles": "无法验证 SMILES，请检查结构记法。输入内容已保留。",
-  "chemicals.error.conflict": "材料名称已存在或记录已更新。请重新加载当前材料后再保存。",
-  "chemicals.error.failed": "操作未完成，请检查权限和网络连接。输入内容已保留。",
+  "chemicals.error.invalidSmiles":
+    "无法验证 SMILES，请检查结构记法。输入内容已保留。",
+  "chemicals.error.conflict": "材料记录已更新，请重新加载当前材料后再保存。",
+  "chemicals.error.failed":
+    "操作未完成，请检查权限和网络连接。输入内容已保留。",
   "chemicals.export": "导出分析数据",
   "chemicals.sam": "SAM",
   "chemicals.additive": "添加剂",

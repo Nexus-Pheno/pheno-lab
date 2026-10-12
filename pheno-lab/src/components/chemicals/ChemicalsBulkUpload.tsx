@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { ChemicalCategoryPicker } from "./ChemicalCategoryPicker";
+import type { ChemicalCategory } from "@/modules/chemicals/types";
 import type { ChemicalImportPreview } from "@/modules/chemicals/bulk-types";
 
 const button =
@@ -13,8 +15,14 @@ type ImportResult = {
   total: number;
   replayed: boolean;
 };
-export function ChemicalsBulkUpload() {
+export function ChemicalsBulkUpload({
+  initialCategories,
+}: {
+  initialCategories: ChemicalCategory[];
+}) {
   const t = useT();
+  const [category, setCategory] = useState("SAM");
+  const [categories, setCategories] = useState(initialCategories);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ChemicalImportPreview | null>(null);
   const [batchId, setBatchId] = useState("");
@@ -28,6 +36,7 @@ export function ChemicalsBulkUpload() {
     const form = new FormData();
     form.set("file", file);
     form.set("mode", mode);
+    form.set("category", category);
     if (mode === "import" && preview) {
       form.set("batchId", batchId);
       form.set("expectedDigest", preview.fileSha256);
@@ -82,6 +91,28 @@ export function ChemicalsBulkUpload() {
       <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-4 gap-3">
         <section className="border border-line rounded-[6px] bg-surface p-4 shrink-0">
           <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full sm:w-52 text-xs">
+              <p className="mb-1">{t("chemicals.category")}</p>
+              <ChemicalCategoryPicker
+                value={category}
+                categories={categories}
+                label={t("chemicals.category")}
+                disabled={!!busy}
+                onChange={(value) => {
+                  setCategory(value);
+                  setPreview(null);
+                  setResult(null);
+                  setError(null);
+                  setBatchId(crypto.randomUUID());
+                }}
+                onCreated={(value) =>
+                  setCategories((old) => [
+                    ...old.filter((c) => c.code !== value.code),
+                    value,
+                  ])
+                }
+              />
+            </div>
             <a className={button} href="/api/chemicals/template">
               {t("chemicals.bulk.template")}
             </a>
@@ -240,7 +271,9 @@ export function ChemicalsBulkUpload() {
                             t(
                               result
                                 ? "chemicals.saved"
-                                : "chemicals.bulk.ready",
+                                : row.linksExisting
+                                  ? "chemicals.bulk.linkExisting"
+                                  : "chemicals.bulk.ready",
                             )
                           )}
                         </td>

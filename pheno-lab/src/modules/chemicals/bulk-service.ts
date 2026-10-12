@@ -16,6 +16,12 @@ import {
 import type { Actor } from "@/modules/authorization/actor";
 import { recordUserAudit } from "@/modules/audit/writer";
 import { requireChemicalAccess } from "./query";
+import {
+  registrationTarget,
+  registrationSelect,
+  type RegistrationMaterial,
+} from "./registration";
+import { chemicalRowDigest } from "./query";
 import { ensureChemicalCategory } from "./category-service";
 import type { ChemicalImportPreview, ChemicalImportRow } from "./bulk-types";
 
@@ -23,6 +29,7 @@ export { ChemicalWorkbookError } from "@/infrastructure/chemistry/workbook";
 export { MAX_CHEMICAL_FILE_BYTES } from "@/infrastructure/chemistry/workbook";
 const fileSchema = z.object({
   filename: z.string().min(1).max(255),
+  category: z.string().trim().min(1).max(100).default("SAM"),
   bytes: z
     .instanceof(Uint8Array)
     .refine(
@@ -43,6 +50,15 @@ export async function chemicalImportTemplate(actor: Actor) {
 }
 
 async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
+  if (
+    !["SAM", "ADDITIVE", "SOLVENT", "OTHER"].includes(input.category) &&
+    !(await db.materialCategoryDef.count({
+      where: { organizationId: actor.org, code: input.category },
+    }))
+  )
+    throw new ChemicalImportConflict(
+      "Choose a category from this organization.",
+    );
   const entries = await readSamWorkbook(input.bytes, input.filename);
   const rows: ChemicalImportRow[] = [];
   const molecules: Awaited<ReturnType<typeof renderMolecule>>[] = [];
@@ -57,6 +73,7 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
       smiles: smiles.slice(0, 4000),
       issues: [],
       preview: null,
+      linksExisting: false,
     };
     if (!name || name.length > 200) row.issues.push("name");
     if (!smiles || smiles.length > 4000) row.issues.push("smiles");
@@ -99,22 +116,24 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
           name: { equals: row.name, mode: "insensitive" as const },
         })),
     },
-    select: { name: true },
+    select: registrationSelect,
   });
-  for (const row of rows)
-    if (
-      existing.some(
-        (material) => material.name.toLowerCase() === row.name.toLowerCase(),
-      )
-    )
-      row.issues.push("exists");
+  const targets: (RegistrationMaterial | null)[] = [];
+  for (const row of rows) {
+    const target = registrationTarget(existing, row.name);
+    if (target.issue) row.issues.push(target.issue);
+    row.linksExisting = !!target.material;
+    targets.push(target.material);
+  }
   return {
     preview: {
       rows,
       fileSha256: digest(input.bytes),
+      category: input.category,
       valid: rows.every((row) => row.issues.length === 0),
     } satisfies ChemicalImportPreview,
     molecules,
+    targets,
   };
 }
 
@@ -153,6 +172,16 @@ async function putVerified(key: string, body: Uint8Array, contentType: string) {
     throw new Error("Stored file verification failed.");
 }
 
+function batchCategory(manifest: unknown) {
+  if (
+    Array.isArray(manifest) &&
+    manifest[0] &&
+    typeof manifest[0].category === "string"
+  )
+    return manifest[0].category;
+  return "SAM"; // Existing two-column SAM batches remain replay-compatible.
+}
+
 export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
   await requireChemicalAccess(actor);
   const input = commitSchema.parse(raw);
@@ -163,7 +192,10 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
     where: { id: input.batchId, organizationId: actor.org },
   });
   if (previous) {
-    if (previous.sourceSha256 !== fileSha256)
+    if (
+      previous.sourceSha256 !== fileSha256 ||
+      batchCategory(previous.manifest) !== input.category
+    )
       throw new ChemicalImportConflict("Batch contains a different workbook.");
     return {
       batchId: previous.id,
@@ -172,7 +204,7 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
       replayed: true,
     };
   }
-  const { preview, molecules } = await prepare(actor, input);
+  const { preview, molecules, targets } = await prepare(actor, input);
   if (!preview.valid)
     throw new ChemicalImportConflict(
       "Review workbook errors before importing.",
@@ -180,7 +212,7 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
   const prefix = `organizations/${actor.org}/chemicals/bulk/${input.batchId}/`;
   const keys: string[] = [];
   const sourcePath = `${prefix}${crypto.randomUUID()}.xlsx`;
-  const materialIds = preview.rows.map(() => crypto.randomUUID());
+  const materialIds: string[] = preview.rows.map(() => crypto.randomUUID());
   const structurePaths = preview.rows.map(
     () => `${prefix}${crypto.randomUUID()}.svg`,
   );
@@ -211,7 +243,10 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
           where: { id: input.batchId, organizationId: actor.org },
         });
         if (repeated) {
-          if (repeated.sourceSha256 !== fileSha256)
+          if (
+            repeated.sourceSha256 !== fileSha256 ||
+            batchCategory(repeated.manifest) !== input.category
+          )
             throw new ChemicalImportConflict(
               "Batch contains a different workbook.",
             );
@@ -222,18 +257,38 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
             replayed: true,
           };
         }
-        const duplicates = await tx.material.count({
+        const current = await tx.material.findMany({
           where: {
             organizationId: actor.org,
             OR: preview.rows.map((row) => ({
               name: { equals: row.name, mode: "insensitive" as const },
             })),
           },
+          select: registrationSelect,
         });
-        if (duplicates)
-          throw new ChemicalImportConflict(
-            "Material names changed. Validate the workbook again.",
-          );
+        const finalTargets = preview.rows.map((row, index) => {
+          const target = registrationTarget(current, row.name);
+          if (target.issue)
+            throw new ChemicalImportConflict(
+              "Material names changed. Validate the workbook again.",
+            );
+          const before = targets[index];
+          if (
+            before &&
+            (!target.material ||
+              before.id !== target.material.id ||
+              chemicalRowDigest(before) !==
+                chemicalRowDigest(target.material) ||
+              (before.chemistry?.version ?? 0) !==
+                (target.material.chemistry?.version ?? 0))
+          )
+            throw new ChemicalImportConflict(
+              "Material changed. Validate the workbook again.",
+            );
+          if (target.material) materialIds[index] = target.material.id;
+          return target.material;
+        });
+        const linked = finalTargets.filter(Boolean).length;
         await tx.chemicalImportBatch.create({
           data: {
             id: input.batchId,
@@ -246,6 +301,7 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
             manifest: preview.rows.map((row, index) => ({
               row: row.row,
               materialId: materialIds[index],
+              category: input.category,
               inputSha256: molecules[index].inputSha256,
               structureSha256: molecules[index].structureSha256,
             })),
@@ -253,43 +309,61 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
         });
         for (const [index, row] of preview.rows.entries()) {
           const molecule = molecules[index];
-          await tx.material.create({
-            data: {
-              id: materialIds[index],
-              organizationId: actor.org,
-              name: row.name,
-              category: "SAM",
-              smiles: row.smiles,
-              chemistry: {
-                create: {
-                  inSamRegistry: true,
-                  importBatchId: input.batchId,
-                  requestId: crypto.randomUUID(),
-                  canonicalSmiles: molecule.canonicalSmiles,
-                  inputSha256: molecule.inputSha256,
-                  structurePath: structurePaths[index],
-                  structureSha256: molecule.structureSha256,
-                  structureBytes: molecule.structureBytes,
-                  engineVersion: molecule.engineVersion,
-                  atomCount: molecule.atomCount,
-                },
+          const existing = finalTargets[index];
+          if (existing)
+            await tx.material.update({
+              where: { id: existing.id },
+              data: { category: input.category, smiles: row.smiles },
+            });
+          else
+            await tx.material.create({
+              data: {
+                id: materialIds[index],
+                organizationId: actor.org,
+                name: row.name,
+                category: input.category,
+                smiles: row.smiles,
               },
-            },
+            });
+          const evidence = {
+            inSamRegistry: true,
+            importBatchId: input.batchId,
+            requestId: crypto.randomUUID(),
+            canonicalSmiles: molecule.canonicalSmiles,
+            inputSha256: molecule.inputSha256,
+            structurePath: structurePaths[index],
+            structureSha256: molecule.structureSha256,
+            structureBytes: molecule.structureBytes,
+            engineVersion: molecule.engineVersion,
+            atomCount: molecule.atomCount,
+            version: (existing?.chemistry?.version ?? 0) + 1,
+            generatedAt: new Date(),
+          };
+          await tx.materialChemistry.upsert({
+            where: { materialId: materialIds[index] },
+            create: { materialId: materialIds[index], ...evidence },
+            update: evidence,
           });
         }
-        await ensureChemicalCategory(tx, actor, "SAM");
+        await ensureChemicalCategory(tx, actor, input.category);
         await recordUserAudit(tx, {
           actor,
           action: "chemistry.bulk.created",
           entityType: "ChemicalImportBatch",
           entityId: input.batchId,
           requestId: input.batchId,
-          changes: { created: preview.rows.length, category: "SAM" },
+          changes: {
+            registered: preview.rows.length,
+            created: preview.rows.length - linked,
+            linked,
+            category: input.category,
+          },
           metadata: { fileSha256, sourceBytes: input.bytes.byteLength },
         });
         return {
           batchId: input.batchId,
-          created: preview.rows.length,
+          created: preview.rows.length - linked,
+          linked,
           total: preview.rows.length,
           replayed: false,
         };

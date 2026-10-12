@@ -152,9 +152,14 @@ test("authorized row entry validates, saves locally rendered structure and creat
     .getByRole("textbox", { name: "Material name 1", exact: true })
     .fill(`Browser 2PACz ${suffix}`);
   await expect(
-    page.getByRole("textbox", { name: "Category 1", exact: true }),
+    page.getByRole("combobox", { name: "Category 1", exact: true }),
   ).toHaveValue("SAM");
-  await expect(page.getByRole("combobox")).toHaveCount(0);
+  await expect(
+    page.getByRole("combobox", { name: "Category 1", exact: true }),
+  ).toContainText("Additives");
+  await expect(page.getByRole("button", { name: /^Select row/ })).toHaveCount(
+    0,
+  );
   await page
     .getByRole("textbox", { name: "SMILES 1", exact: true })
     .fill(referenceSmiles);
@@ -467,7 +472,7 @@ test("Excel template, review, atomic import, private source and bilingual bulk v
     .getByRole("button", { name: "Import materials", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText(
-    "2 SAM materials imported",
+    "2 materials registered",
   );
   const sourceHref = await page
     .getByRole("link", { name: "Download uploaded workbook", exact: true })
@@ -557,4 +562,166 @@ test("Excel template, review, atomic import, private source and bilingual bulk v
       })
     ).status(),
   ).toBe(404);
+});
+
+test("existing library rows link without duplication and category edits/custom additions sync", async ({
+  page,
+}) => {
+  const existing = await db.material.create({
+    data: {
+      organizationId: orgId,
+      name: `A Existing library fixture ${suffix}`,
+      category: "SAM",
+      smiles: referenceSmiles,
+      supplier: "Synthetic vendor",
+      lot: "Preserved lot",
+    },
+  });
+  await login(page, ownerEmail);
+  await page
+    .context()
+    .addCookies([
+      { name: "pheno_lang", value: "en", url: "http://127.0.0.1:3467" },
+    ]);
+  await page.goto("/chemicals");
+  await page
+    .getByRole("button", { name: "Add material row", exact: true })
+    .click();
+  const row = page.getByTestId("chemical-row").first();
+  await row
+    .getByRole("textbox", { name: "Material name 1", exact: true })
+    .fill(existing.name);
+  await row
+    .getByRole("combobox", { name: "Category 1", exact: true })
+    .selectOption("ADDITIVE");
+  await row
+    .getByRole("textbox", { name: "SMILES 1", exact: true })
+    .fill(referenceSmiles);
+  await expect(page.getByRole("button", { name: /^Select row/ })).toHaveCount(
+    0,
+  );
+  await row.getByRole("button", { name: "Save row", exact: true }).click();
+  await expect(row).toContainText("Saved");
+  expect(
+    await db.material.count({
+      where: { organizationId: orgId, name: existing.name },
+    }),
+  ).toBe(1);
+  expect(
+    await db.material.findUniqueOrThrow({ where: { id: existing.id } }),
+  ).toMatchObject({
+    category: "ADDITIVE",
+    supplier: existing.supplier,
+    lot: existing.lot,
+  });
+  await row
+    .getByRole("combobox", { name: "Category 1", exact: true })
+    .selectOption("SOLVENT");
+  await row.getByRole("button", { name: "Save row", exact: true }).click();
+  await expect(row).toContainText("Saved");
+  expect(
+    (await db.material.findUniqueOrThrow({ where: { id: existing.id } }))
+      .category,
+  ).toBe("SOLVENT");
+  await row
+    .getByRole("combobox", { name: "Category 1", exact: true })
+    .selectOption("__add__");
+  const customName = `Custom category ${suffix}`;
+  await row
+    .getByRole("textbox", { name: "Category name (English)", exact: true })
+    .fill(customName);
+  await row
+    .getByRole("textbox", {
+      name: "Category name (Chinese, optional)",
+      exact: true,
+    })
+    .fill("自定义测试类别");
+  await row
+    .getByRole("button", { name: "Create category", exact: true })
+    .click();
+  await expect(row.getByTestId("chemical-category-create")).toHaveCount(0);
+  await row.getByRole("button", { name: "Save row", exact: true }).click();
+  await expect(row).toContainText("Saved");
+  const custom = await db.materialCategoryDef.findFirstOrThrow({
+    where: { organizationId: orgId, name: customName },
+  });
+  expect(
+    (await db.material.findUniqueOrThrow({ where: { id: existing.id } }))
+      .category,
+  ).toBe(custom.code);
+  await page.reload();
+  const loaded = page
+    .getByTestId("chemical-row")
+    .filter({ has: page.locator(`input[value="${existing.name}"]`) });
+  await expect(loaded.getByRole("combobox")).toHaveValue(custom.code);
+  await expect(loaded.getByTestId("row-molecule")).toHaveJSProperty(
+    "naturalWidth",
+    560,
+  );
+});
+
+test("Excel category changes invalidate preview and a library match is linked on import", async ({
+  page,
+}) => {
+  const existing = await db.material.create({
+    data: {
+      organizationId: orgId,
+      name: `Excel library fixture ${suffix}`,
+      category: "SAM",
+      supplier: "Keep vendor",
+      lot: "Keep lot",
+    },
+  });
+  await login(page, ownerEmail);
+  await page
+    .context()
+    .addCookies([
+      { name: "pheno_lang", value: "en", url: "http://127.0.0.1:3467" },
+    ]);
+  await page.goto("/chemicals/bulk");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "fixture.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from(
+      chemicalWorkbook([
+        [existing.name, referenceSmiles],
+        [`Excel new fixture ${suffix}`, "CCO"],
+      ]),
+    ),
+  });
+  await page
+    .getByRole("combobox", { name: "Category", exact: true })
+    .selectOption("SOLVENT");
+  await page
+    .getByRole("button", { name: "Validate file", exact: true })
+    .click();
+  await expect(page.getByTestId("bulk-row").first()).toContainText(
+    "Link existing library material",
+  );
+  await page
+    .getByRole("combobox", { name: "Category", exact: true })
+    .selectOption("ADDITIVE");
+  await expect(page.getByTestId("bulk-row")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Validate file", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Import materials", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "2 materials registered",
+  );
+  expect(
+    await db.material.count({
+      where: { organizationId: orgId, name: existing.name },
+    }),
+  ).toBe(1);
+  expect(
+    await db.material.findUniqueOrThrow({ where: { id: existing.id } }),
+  ).toMatchObject({
+    category: "ADDITIVE",
+    supplier: existing.supplier,
+    lot: existing.lot,
+  });
 });

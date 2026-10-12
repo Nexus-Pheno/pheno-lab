@@ -7,6 +7,8 @@ export type ChemicalImportIssue =
   | "columns"
   | "duplicate"
   | "exists"
+  | "ambiguous"
+  | "archived"
   | "invalidSmiles";
 export type ChemicalImportRow = {
   row: number;
@@ -14,9 +16,11 @@ export type ChemicalImportRow = {
   smiles: string;
   issues: ChemicalImportIssue[];
   preview: MoleculePreview | null;
+  linksExisting: boolean;
 };
 export type ChemicalImportPreview = {
   fileSha256: string;
+  category: string;
   rows: ChemicalImportRow[];
   valid: boolean;
 };

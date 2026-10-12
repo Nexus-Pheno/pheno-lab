@@ -8,7 +8,12 @@ import {
   previewChemicalAction,
   saveChemicalAction,
 } from "@/lib/actions/chemicals";
-import type { ChemicalRow, MoleculePreview } from "@/modules/chemicals/types";
+import { ChemicalCategoryPicker } from "./ChemicalCategoryPicker";
+import type {
+  ChemicalCategory,
+  ChemicalRow,
+  MoleculePreview,
+} from "@/modules/chemicals/types";
 
 type Draft = {
   key: string;
@@ -53,10 +58,12 @@ export function ChemicalsWorkbench({
     rows: ChemicalRow[];
     total: number;
     page: number;
+    categories: ChemicalCategory[];
   };
   query: string;
 }) {
   const t = useT();
+  const [categories, setCategories] = useState(data.categories);
   const [rows, setRows] = useState<Draft[]>(() => data.rows.map(draftFrom));
   const [selected, setSelected] = useState<string | null>(
     data.rows[0]?.id ?? null,
@@ -336,6 +343,11 @@ export function ChemicalsWorkbench({
                       "block sm:table-row border-b border-line " +
                       (selected === draft.key ? "bg-brand-soft/30" : "")
                     }
+                    onFocusCapture={() => setSelected(draft.key)}
+                    onClick={(event) => {
+                      if (!(event.target as HTMLElement).closest("button"))
+                        setSelected(draft.key);
+                    }}
                     data-testid="chemical-row"
                   >
                     <td className="block sm:table-cell p-3 sm:min-w-48">
@@ -346,15 +358,6 @@ export function ChemicalsWorkbench({
                         {t("chemicals.name")}
                       </label>
                       <div className="flex gap-2">
-                        <button
-                          className={button + " shrink-0 w-11 px-0"}
-                          title={t("chemicals.select")}
-                          aria-label={`${t("chemicals.select")} ${index + 1}`}
-                          aria-pressed={selected === draft.key}
-                          onClick={() => setSelected(draft.key)}
-                        >
-                          <Icon name="Atom" size={17} />
-                        </button>
                         <input
                           id={`name-${draft.key}`}
                           aria-label={`${t("chemicals.name")} ${index + 1}`}
@@ -376,12 +379,18 @@ export function ChemicalsWorkbench({
                       >
                         {t("chemicals.category")}
                       </label>
-                      <input
-                        id={`category-${draft.key}`}
-                        aria-label={`${t("chemicals.category")} ${index + 1}`}
-                        className={control + " bg-subtle"}
-                        value="SAM"
-                        readOnly
+                      <ChemicalCategoryPicker
+                        value={draft.category}
+                        categories={categories}
+                        label={`${t("chemicals.category")} ${index + 1}`}
+                        disabled={draft.saving}
+                        onChange={(category) => patch(draft.key, { category })}
+                        onCreated={(category) =>
+                          setCategories((old) => [
+                            ...old.filter((c) => c.code !== category.code),
+                            category,
+                          ])
+                        }
                       />
                     </td>
                     <td className="block sm:table-cell px-3 pb-3 sm:py-3 sm:min-w-64">

@@ -12,6 +12,7 @@ import {
   previewChemical,
   readChemicalStructure,
   saveChemicalRow,
+  createChemicalCategory,
 } from "@/modules/chemicals/service";
 import { getLibraryPageData } from "@/modules/library/query";
 import { saveMaterialCard } from "@/modules/library/service";
@@ -112,6 +113,7 @@ async function fixture() {
         await db.notification.deleteMany({ where });
         await db.auditEvent.deleteMany({ where });
         await db.material.deleteMany({ where });
+        await db.process.deleteMany({ where });
         await db.chemicalImportBatch.deleteMany({ where });
         await db.materialCategoryDef.deleteMany({ where });
         await db.user.deleteMany({ where });
@@ -333,7 +335,7 @@ describe("private chemical portal on real PostgreSQL", () => {
       await f.cleanup();
     }
   });
-  it("serializes public catalogue creation with imports so a concurrent name is rejected", async () => {
+  it("serializes public catalogue creation and links its existing identity without duplication", async () => {
     const f = await fixture();
     let release: () => void = () => {};
     let publicCreate: Promise<unknown> | undefined;
@@ -386,7 +388,11 @@ describe("private chemical portal on real PostgreSQL", () => {
         batchId: crypto.randomUUID(),
         expectedDigest: preview.fileSha256,
       });
-      const rejected = expect(importAttempt).rejects.toThrow();
+      const resolved = expect(importAttempt).resolves.toMatchObject({
+        created: 0,
+        linked: 1,
+        total: 1,
+      });
       await filesReady;
       let waiting = false;
       for (let attempt = 0; attempt < 50; attempt++) {
@@ -402,7 +408,7 @@ describe("private chemical portal on real PostgreSQL", () => {
       expect(waiting).toBe(true);
       release();
       await publicCreate;
-      await rejected;
+      await resolved;
       expect(
         await db.material.count({ where: { organizationId: f.org.id } }),
       ).toBe(1);
@@ -410,7 +416,7 @@ describe("private chemical portal on real PostgreSQL", () => {
         await db.chemicalImportBatch.count({
           where: { organizationId: f.org.id },
         }),
-      ).toBe(0);
+      ).toBe(1);
     } finally {
       release();
       await publicCreate?.catch(() => {});
@@ -942,26 +948,324 @@ describe("private chemical portal on real PostgreSQL", () => {
       await f.cleanup();
     }
   });
-  it("permits only SAM entries without changing other stewardship grants", async () => {
+  it("saves SAM, Additives, Solvents and shared custom categories without stewardship grants", async () => {
     const f = await fixture();
     try {
-      for (const category of [
-        "SOLVENT",
-        "ADDITIVE",
-        "OTHER",
-        "FOREIGN_CATEGORY",
-      ])
-        await expect(
-          saveChemicalRow(f.actor(f.owners[1]), { ...input(), category }),
-        ).rejects.toThrow();
+      const actor = f.actor(f.owners[1]);
+      const category = await createChemicalCategory(actor, {
+        name: "Custom testing",
+        nameZh: "自定义测试",
+      });
       expect(
-        await db.material.count({ where: { organizationId: f.org.id } }),
-      ).toBe(0);
+        await createChemicalCategory(actor, { name: "custom testing" }),
+      ).toMatchObject({ code: category.code });
       expect(
-        (await db.user.findUniqueOrThrow({ where: { id: f.owners[1].id } }))
+        await createChemicalCategory(actor, { name: "Additives" }),
+      ).toMatchObject({ code: "ADDITIVE" });
+      for (const code of ["SAM", "ADDITIVE", "SOLVENT", category.code])
+        await saveChemicalRow(actor, {
+          ...input(),
+          name: `Synthetic ${code}`,
+          category: code,
+        });
+      expect((await listChemicals(actor, {})).total).toBe(4);
+      expect(
+        (await getLibraryPageData(f.actor(f.technician))).categories.some(
+          (c) => c.code === category.code,
+        ),
+      ).toBe(true);
+      await expect(
+        saveChemicalRow(actor, { ...input(), category: "FOREIGN_CATEGORY" }),
+      ).rejects.toThrow();
+      await expect(
+        createChemicalCategory(f.actor(f.admin), { name: "Denied" }),
+      ).rejects.toThrow();
+      expect(
+        (await db.user.findUniqueOrThrow({ where: { id: actor.uid } }))
           .materialAdmin,
       ).toBe(false);
     } finally {
+      await f.cleanup();
+    }
+  });
+  it("registers an existing library identity once while preserving metadata and experiment links", async () => {
+    const f = await fixture();
+    try {
+      const process = await db.process.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Synthetic process",
+          kind: "PROCESSING",
+        },
+      });
+      const material = await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Existing fixture",
+          category: "SAM",
+          smiles: "CCO",
+          supplier: "Synthetic supplier",
+          lot: "Synthetic lot",
+          notes: "Preserve notes",
+          properties: { fixture: true },
+          processId: process.id,
+        },
+      });
+      const experiment = await db.experiment.create({
+        data: {
+          organizationId: f.org.id,
+          code: `link-${crypto.randomUUID()}`,
+          title: "Synthetic history",
+          createdById: f.owners[0].id,
+          steps: {
+            create: {
+              processId: process.id,
+              position: 0,
+              name: "Synthetic step",
+              materials: {
+                create: { materialId: material.id, amount: "Synthetic amount" },
+              },
+            },
+          },
+        },
+        include: { steps: { include: { materials: true } } },
+      });
+      const link = experiment.steps[0].materials[0];
+      const actor = f.actor(f.owners[1]);
+      const request = {
+        ...input(),
+        name: "existing fixture",
+        category: "ADDITIVE",
+        smiles: "CO",
+      };
+      const [first, retry] = await Promise.all([
+        saveChemicalRow(actor, request),
+        saveChemicalRow(actor, request),
+      ]);
+      expect(first.row.id).toBe(material.id);
+      expect(retry.row.id).toBe(material.id);
+      expect(first.created).toBe(false);
+      expect(retry.created).toBe(false);
+      const stored = await db.material.findUniqueOrThrow({
+        where: { id: material.id },
+        include: { chemistry: true },
+      });
+      expect(stored).toMatchObject({
+        name: material.name,
+        category: "ADDITIVE",
+        smiles: "CO",
+        supplier: material.supplier,
+        lot: material.lot,
+        notes: material.notes,
+        properties: material.properties,
+        processId: process.id,
+        archived: false,
+      });
+      expect(stored.chemistry).toMatchObject({
+        inSamRegistry: true,
+        version: 1,
+      });
+      expect(
+        await db.stepMaterial.findUniqueOrThrow({ where: { id: link.id } }),
+      ).toEqual(link);
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "chemistry.material.registered",
+          },
+        }),
+      ).toBe(1);
+      await expect(
+        saveChemicalRow(actor, { ...request, requestId: crypto.randomUUID() }),
+      ).rejects.toMatchObject({ code: "exists" });
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("links existing and new Excel rows atomically with category-bound retries", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const existing = await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Existing bulk",
+          category: "SAM",
+          smiles: "CCO",
+          supplier: "Synthetic vendor",
+          lot: "Keep this lot",
+        },
+      });
+      const file = {
+        filename: "fixture.xlsx",
+        bytes: chemicalWorkbook([
+          ["existing bulk", "CO"],
+          ["New bulk", "CCO"],
+        ]),
+        category: "SOLVENT",
+      };
+      const preview = await previewChemicalImport(actor, file);
+      expect(preview.valid).toBe(true);
+      expect(preview.rows.map((r) => r.linksExisting)).toEqual([true, false]);
+      expect(
+        await db.materialChemistry.count({
+          where: { materialId: existing.id },
+        }),
+      ).toBe(0);
+      const request = {
+        ...file,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+      };
+      const results = await Promise.all([
+        importChemicalWorkbook(actor, request),
+        importChemicalWorkbook(actor, request),
+      ]);
+      expect(results.map((r) => r.created).sort()).toEqual([0, 1]);
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(2);
+      expect(
+        await db.material.findUniqueOrThrow({ where: { id: existing.id } }),
+      ).toMatchObject({
+        category: "SOLVENT",
+        smiles: "CO",
+        supplier: existing.supplier,
+        lot: existing.lot,
+        name: existing.name,
+      });
+      const batch = await db.chemicalImportBatch.findUniqueOrThrow({
+        where: { id: request.batchId },
+      });
+      expect(batch.manifest).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            row: 2,
+            materialId: existing.id,
+            category: "SOLVENT",
+          }),
+        ]),
+      );
+      expect(
+        Buffer.from((await readImportedWorkbook(actor, batch.id))!).equals(
+          Buffer.from(file.bytes),
+        ),
+      ).toBe(true);
+      await expect(
+        importChemicalWorkbook(actor, { ...request, category: "ADDITIVE" }),
+      ).rejects.toThrow();
+      expect(
+        (await previewChemicalImport(actor, file)).rows[0].issues,
+      ).toContain("exists");
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("does not guess across ambiguous/archived names or reuse another organization's material", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      for (let i = 0; i < 2; i++)
+        await db.material.create({
+          data: {
+            organizationId: f.org.id,
+            name: "Ambiguous fixture",
+            category: "SAM",
+          },
+        });
+      await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Archived fixture",
+          archived: true,
+          category: "SAM",
+        },
+      });
+      await expect(
+        saveChemicalRow(actor, { ...input(), name: "Ambiguous fixture" }),
+      ).rejects.toMatchObject({ code: "ambiguous" });
+      await expect(
+        saveChemicalRow(actor, { ...input(), name: "Archived fixture" }),
+      ).rejects.toMatchObject({ code: "archived" });
+      const foreign = await db.material.create({
+        data: {
+          organizationId: f.foreign.id,
+          name: "Scoped fixture",
+          category: "SOLVENT",
+          smiles: "CO",
+        },
+      });
+      const saved = await saveChemicalRow(actor, {
+        ...input(),
+        name: foreign.name,
+      });
+      expect(saved.created).toBe(true);
+      expect(saved.row.id).not.toBe(foreign.id);
+      expect(
+        await db.material.findUniqueOrThrow({ where: { id: foreign.id } }),
+      ).toEqual(foreign);
+      const preview = await previewChemicalImport(actor, {
+        filename: "fixture.xlsx",
+        bytes: chemicalWorkbook([
+          ["Ambiguous fixture", "CCO"],
+          ["Archived fixture", "CCO"],
+        ]),
+      });
+      expect(preview.rows.map((r) => r.issues)).toEqual([
+        ["ambiguous"],
+        ["archived"],
+      ]);
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("rolls an existing-record registration back if its audit fails", async () => {
+    const f = await fixture();
+    try {
+      const material = await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Rollback fixture",
+          category: "SAM",
+          smiles: "CCO",
+          lot: "Preserve",
+        },
+      });
+      const audit = auditWriter.recordUserAudit;
+      vi.spyOn(auditWriter, "recordUserAudit").mockImplementation(
+        async (tx, payload) => {
+          if (payload.action === "chemistry.material.registered")
+            throw new Error("Synthetic registration failure");
+          await audit(tx, payload);
+        },
+      );
+      await expect(
+        saveChemicalRow(f.actor(f.owners[0]), {
+          ...input(),
+          name: material.name,
+          category: "SOLVENT",
+          smiles: "CO",
+        }),
+      ).rejects.toThrow("Synthetic registration failure");
+      expect(
+        await db.material.findUniqueOrThrow({ where: { id: material.id } }),
+      ).toEqual(material);
+      expect(
+        await db.materialChemistry.count({
+          where: { materialId: material.id },
+        }),
+      ).toBe(0);
+      expect(
+        await db.materialCategoryDef.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+    } finally {
+      vi.restoreAllMocks();
       await f.cleanup();
     }
   });

@@ -20,9 +20,23 @@ import {
   smilesSchema,
 } from "./schema";
 
+import { registrationTarget, registrationSelect } from "./registration";
 import { ensureChemicalCategory } from "./category-service";
 
-export class ChemicalConflictError extends Error {}
+export class ChemicalConflictError extends Error {
+  constructor(
+    public readonly code:
+      "conflict" | "exists" | "ambiguous" | "archived" = "conflict",
+  ) {
+    super(
+      code === "conflict"
+        ? "Material changed. Reload it before saving."
+        : code === "exists"
+          ? "This material already exists in Pheno Chemicals."
+          : code,
+    );
+  }
+}
 
 export async function previewChemical(actor: Actor, raw: unknown) {
   await requireChemicalAccess(actor);
@@ -68,14 +82,15 @@ export async function saveChemicalRow(actor: Actor, raw: unknown) {
         });
         if (previousRequest) {
           if (
-            previousRequest.name !== input.name ||
+            (input.id
+              ? previousRequest.name !== input.name
+              : previousRequest.name.toLowerCase() !==
+                input.name.toLowerCase()) ||
             previousRequest.category !== input.category ||
             previousRequest.smiles !== input.smiles ||
             (input.id && input.id !== previousRequest.id)
           )
-            throw new ChemicalConflictError(
-              "This save request already contains different data.",
-            );
+            throw new ChemicalConflictError();
           return {
             row: toChemicalRow(
               await tx.material.findUniqueOrThrow({
@@ -86,43 +101,49 @@ export async function saveChemicalRow(actor: Actor, raw: unknown) {
             created: false,
           };
         }
-        const existing = input.id
+        let existing = input.id
           ? await tx.material.findFirst({
               where: {
                 id: input.id,
                 organizationId: actor.org,
                 archived: false,
               },
-              select: {
-                id: true,
-                name: true,
-                category: true,
-                smiles: true,
-                chemistry: { select: { version: true } },
-              },
+              select: registrationSelect,
             })
           : null;
-        if (input.id && !existing) throw new Error("Material not found.");
-        if ((existing?.chemistry?.version ?? 0) !== input.expectedVersion)
-          throw new ChemicalConflictError(
-            "Material changed. Reload it before saving.",
-          );
-        if (existing && input.expectedDigest !== chemicalRowDigest(existing))
-          throw new ChemicalConflictError(
-            "Material changed. Reload it before saving.",
-          );
-        const duplicate = await tx.material.findFirst({
-          where: {
-            organizationId: actor.org,
-            name: { equals: input.name, mode: "insensitive" },
-            ...(input.id ? { id: { not: input.id } } : {}),
-          },
-          select: { id: true },
-        });
-        if (duplicate && (!existing || existing.name !== input.name))
-          throw new ChemicalConflictError(
-            "A material with this name already exists. Edit its row.",
-          );
+        if (input.id && !existing) throw new ChemicalConflictError();
+        if (input.id) {
+          if (
+            (existing?.chemistry?.version ?? 0) !== input.expectedVersion ||
+            (existing && input.expectedDigest !== chemicalRowDigest(existing))
+          )
+            throw new ChemicalConflictError();
+          const duplicate = await tx.material.count({
+            where: {
+              organizationId: actor.org,
+              name: { equals: input.name, mode: "insensitive" },
+              id: { not: input.id },
+            },
+          });
+          if (
+            duplicate &&
+            existing?.name.toLowerCase() !== input.name.toLowerCase()
+          )
+            throw new ChemicalConflictError("ambiguous");
+        } else {
+          if (input.expectedVersion !== 0 || input.expectedDigest !== null)
+            throw new ChemicalConflictError();
+          const matches = await tx.material.findMany({
+            where: {
+              organizationId: actor.org,
+              name: { equals: input.name, mode: "insensitive" },
+            },
+            select: registrationSelect,
+          });
+          const target = registrationTarget(matches, input.name);
+          if (target.issue) throw new ChemicalConflictError(target.issue);
+          existing = target.material;
+        }
         await ensureChemicalCategory(tx, actor, input.category);
         const id = existing?.id ?? crypto.randomUUID();
         const key = `organizations/${actor.org}/chemicals/${crypto.randomUUID()}.svg`;
@@ -134,7 +155,7 @@ export async function saveChemicalRow(actor: Actor, raw: unknown) {
         });
         uploadedKey = key;
         const data = {
-          name: input.name,
+          name: existing && !input.id ? existing.name : input.name,
           category: input.category,
           smiles: input.smiles,
         };
@@ -163,9 +184,12 @@ export async function saveChemicalRow(actor: Actor, raw: unknown) {
         });
         await recordUserAudit(tx, {
           actor,
-          action: existing
-            ? "chemistry.material.updated"
-            : "chemistry.material.created",
+          action:
+            existing && !input.id
+              ? "chemistry.material.registered"
+              : existing
+                ? "chemistry.material.updated"
+                : "chemistry.material.created",
           entityType: "Material",
           entityId: id,
           metadata: {
@@ -209,6 +233,27 @@ export async function createChemicalCategory(actor: Actor, raw: unknown) {
   const input = chemicalCategorySchema.parse(raw);
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`chemical-save:${actor.org}`}, 0))`;
+    await requireChemicalAccess(actor, tx);
+    const builtin = (
+      {
+        sam: "SAM",
+        additive: "ADDITIVE",
+        additives: "ADDITIVE",
+        添加剂: "ADDITIVE",
+        solvent: "SOLVENT",
+        solvents: "SOLVENT",
+        溶剂: "SOLVENT",
+      } as Record<string, string>
+    )[input.name.toLowerCase()];
+    if (builtin) {
+      await ensureChemicalCategory(tx, actor, builtin);
+      return tx.materialCategoryDef.findUniqueOrThrow({
+        where: {
+          organizationId_code: { organizationId: actor.org, code: builtin },
+        },
+        select: { code: true, name: true, nameZh: true },
+      });
+    }
     const same = await tx.materialCategoryDef.findFirst({
       where: {
         organizationId: actor.org,
@@ -221,7 +266,8 @@ export async function createChemicalCategory(actor: Actor, raw: unknown) {
       input.name
         .toUpperCase()
         .replace(/[^A-Z0-9]+/g, "_")
-        .replace(/^_|_$/g, "") || "CATEGORY";
+        .replace(/^_|_$/g, "")
+        .slice(0, 80) || "CATEGORY";
     let code = base,
       index = 2;
     while (
