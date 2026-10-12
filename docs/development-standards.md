@@ -52,7 +52,7 @@ Browser / mobile responsive routes / Go Bridge
 | Unit/integration | Vitest 4.1.x；独立真实 PostgreSQL 测试库                                            |
 | Browser E2E      | Playwright 1.62.x / Chromium                                                        |
 | Quality          | ESLint 9；Prettier 3.9.x；自定义 structure/deploy/schema-drift checks               |
-| Production       | Ubuntu CVM；Nginx；systemd；不可变 release 目录                                     |
+| Production       | Ubuntu CVM；Nginx；systemd；受限 deploy_pheno_lab 构建/发布；不可变 release 目录     |
 | CI               | GitHub Actions；Node 24、PostgreSQL 18、Go tests、Vitest、Playwright、release build |
 
 升级 Node、Next.js、React、Prisma、PostgreSQL 或 pnpm 属于显式升级任务，不能混入普通功能 PR。

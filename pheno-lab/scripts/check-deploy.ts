@@ -32,9 +32,20 @@ const releaseScript = readFileSync(
   path.join(process.cwd(), "deploy/scripts/deploy-release.sh"),
   "utf8",
 );
-if (!releaseScript.includes("EUID == 0")) {
-  throw new Error("release script must refuse root execution");
+for (const script of [
+  "deploy/scripts/build-release.sh",
+  "deploy/scripts/deploy-release.sh",
+]) {
+  if (
+    !readFileSync(path.join(process.cwd(), script), "utf8").includes(
+      "EUID == 0",
+    )
+  ) {
+    throw new Error(`${script} must refuse root execution`);
+  }
 }
+if (!/^SERVICE=pheno-lab\.service$/m.test(releaseScript))
+  throw new Error("release script must target the fixed application service");
 if (/^\s*(?:systemctl|chown)\s/m.test(releaseScript)) {
   throw new Error("release script must not run privileged commands directly");
 }

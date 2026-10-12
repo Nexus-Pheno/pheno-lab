@@ -15,7 +15,7 @@
 应用 CVM 不保存 PostgreSQL 主数据、数据库备份或上传附件。数据库备份和恢复在
 PostgreSQL 服务器侧统一管理。COS 是对象存储，不是向量数据库；本次上线不依赖向量服务。
 
-> 命令默认 SSH 用户是 `ubuntu`。如果你的用户名不同，统一替换文中的 `ubuntu`。
+> 第 3 节首次建机命令使用管理员 `ubuntu`；第 4 节日常构建与发布使用 `deploy_pheno_lab`。
 > 不要把真实密码、数据库 URL、session secret 或云密钥粘贴到 GitHub Issue / PR。
 
 ## 0. 生产部署契约（coding agent 必读）
@@ -129,7 +129,7 @@ sudo -n /usr/bin/systemctl --no-pager status pheno-lab.service
 sudo -n /usr/bin/journalctl --no-pager -u pheno-lab.service -n 200
 ```
 
-发布脚本直接以 `deploy_pheno_lab` 执行，禁止 `sudo ./deploy/scripts/deploy-release.sh`。
+构建和发布脚本直接以 `deploy_pheno_lab` 执行，两者都拒绝 root；禁止用 sudo 执行仓库代码。
 解包、配置检查、migration 和代码均以普通用户执行；脚本仅对固定服务启停使用 sudo。
 新 release 属于部署账号，`pheno` 对代码只读，仅 `.next/cache` 获得写 ACL。管理员不得在
 日常发布时重新 `install -d -m 0750` 或 `chmod -R` source/releases，以免覆盖命名 ACL 的 mask。
@@ -731,6 +731,12 @@ cd /srv/pheno-lab/source/pheno-lab
 
 脚本会重新执行 frozen install 和完整 `pnpm run verify`。任一检查失败都停止发布；不得修改
 production source、跳过测试或手工打包。
+
+若 `/tmp` 的 tmpfs 空间不足，先检查 `/var/tmp` 的容量，可仅对本次构建设置
+`TMPDIR=/var/tmp` 并将 artifact/checksum 放在 `/var/tmp/pheno-lab-<release-id>.tar.gz`。
+这是标准临时目录中的构建产物，不是新运行配置；4.4 使用同一已校验路径。不得删除他人的
+artifact、移动生产附件或建立第二套发布链路。构建与发布的 umask 为 027；发布后移除本次
+临时环境备份，保留可审计的 artifact/checksum。
 
 ### 4.4 发布
 
