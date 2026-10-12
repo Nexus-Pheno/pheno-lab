@@ -68,6 +68,8 @@ export async function listChemicals(actor: Actor, raw: unknown) {
   const where = {
     organizationId: actor.org,
     archived: false,
+    category: "SAM",
+    chemistry: { is: { inSamRegistry: true } },
     ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
   };
   const [rows, total, categories] = await Promise.all([

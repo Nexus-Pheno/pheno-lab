@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
+import initRDKit from "@rdkit/rdkit";
 import { assertSafeTestDatabaseUrl } from "../../src/infrastructure/db/test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -13,6 +15,7 @@ assertSafeTestDatabaseUrl({
   ci: process.env.CI === "true",
 });
 const db = new PrismaClient({ datasources: { db: { url: testDatabaseUrl } } });
+const referenceSmiles = "C1=CC=C2C(=C1)C3=CC=CC=C3N2CCP(=O)(O)O";
 const suffix = crypto.randomUUID(),
   password = "chemical-browser-test-password";
 const ownerEmail = `chemical-owner-${suffix}@example.test`,
@@ -118,23 +121,34 @@ test("portal-ready notice is bilingual and opens the authorized chemistry page",
 test("authorized row entry validates, saves locally rendered structure and creates a public picker entry", async ({
   page,
 }) => {
+  await db.material.create({
+    data: {
+      organizationId: orgId,
+      name: "Legacy shared SAM",
+      category: "SAM",
+      smiles: "CCO",
+    },
+  });
   await login(page, ownerEmail);
   await page.goto("/profile");
   await page
     .getByRole("link", { name: "Pheno Chemicals", exact: true })
     .click();
+  await expect(page.getByTestId("chemical-row")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Add material row", exact: true })
     .click();
   await page
     .getByRole("textbox", { name: "Material name 1", exact: true })
-    .fill(`Browser ethanol ${suffix}`);
-  await page
-    .getByRole("combobox", { name: "Category 1", exact: true })
-    .selectOption("SOLVENT");
+    .fill(`Browser 2PACz ${suffix}`);
+  await expect(
+    page.getByRole("textbox", { name: "Category 1", exact: true }),
+  ).toHaveValue("SAM");
+  await expect(page.getByRole("combobox")).toHaveCount(0);
   await page
     .getByRole("textbox", { name: "SMILES 1", exact: true })
-    .fill("CCO");
+    .fill(referenceSmiles);
+  await expect(page.getByTestId("row-molecule").first()).toBeVisible();
   await expect(
     page.getByTestId("molecule-inspector").locator("img"),
   ).toBeVisible();
@@ -145,11 +159,11 @@ test("authorized row entry validates, saves locally rendered structure and creat
     .click();
   await expect(page.getByTestId("chemical-row").first()).toContainText("Saved");
   const material = await db.material.findFirstOrThrow({
-    where: { organizationId: orgId, name: `Browser ethanol ${suffix}` },
+    where: { organizationId: orgId, name: `Browser 2PACz ${suffix}` },
     include: { chemistry: true },
   });
   materialId = material.id;
-  expect(material.smiles).toBe("CCO");
+  expect(material.smiles).toBe(referenceSmiles);
   expect(material.chemistry?.structurePath).toContain(`/chemicals/`);
   const image = await page.request.get(
     `/api/chemicals/${material.id}/structure`,
@@ -161,8 +175,12 @@ test("authorized row entry validates, saves locally rendered structure and creat
   expect(exported.status()).toBe(200);
   expect(await exported.json()).toMatchObject({
     classification: "private_chemistry",
-    materials: [{ name: material.name, smiles: "CCO" }],
+    materials: expect.arrayContaining([
+      expect.objectContaining({ name: material.name, smiles: referenceSmiles }),
+    ]),
   });
+  await page.reload();
+  await expect(page.getByTestId("row-molecule").first()).toBeVisible();
   await page
     .getByRole("slider", { name: "Inspector width", exact: true })
     .focus();
@@ -209,7 +227,7 @@ test("authorized row entry validates, saves locally rendered structure and creat
   expect(
     (await db.material.findUniqueOrThrow({ where: { id: material.id } }))
       .smiles,
-  ).toBe("CCO");
+  ).toBe(referenceSmiles);
 });
 test("ordinary administrator has public material access but no portal, private export, image or SMILES payload", async ({
   page,
@@ -231,29 +249,51 @@ test("ordinary administrator has public material access but no portal, private e
     ).toBe(404);
   const library = await page.request.get("/library");
   expect(library.status()).toBe(200);
-  expect(await library.text()).not.toContain('\\"smiles\\":\\"CCO\\"');
+  expect(await library.text()).not.toContain(referenceSmiles);
 });
 test("bilingual workbench and focused molecule view fit desktop, tablet and narrow phones", async ({
   page,
 }) => {
   // A full page is needed: offscreen accessible row labels must stay inside
   // the registry scroll owner rather than extending the document height.
-  await db.materialCategoryDef.create({
-    data: {
-      organizationId: orgId,
-      code: "BROWSER_LONG_CATEGORY",
-      name: "Synthetic long material category for browser layout checks",
-      nameZh: "浏览器布局验证使用的较长合成材料分类名称",
-    },
-  });
-  await db.material.createMany({
-    data: Array.from({ length: 44 }, (_, index) => ({
-      organizationId: orgId,
-      name: `ZZ synthetic browser material ${String(index).padStart(2, "0")} with a longer display name`,
-      category: index % 2 ? "BROWSER_LONG_CATEGORY" : "SOLVENT",
-      smiles: index % 3 ? "CC(=O)Oc1ccccc1C(=O)O" : "",
-    })),
-  });
+  const rdkit = await initRDKit({ print: () => {}, printErr: () => {} });
+  const mol = rdkit.get_mol(referenceSmiles)!;
+  const svg = mol.get_svg(560, 360);
+  const canonicalSmiles = mol.get_smiles();
+  mol.delete();
+  for (let index = 0; index < 44; index++) {
+    const key = `organizations/${orgId}/chemicals/${crypto.randomUUID()}.svg`;
+    const destination = path.join("/tmp/pheno-lab-e2e-uploads", key);
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, svg);
+    await db.material.create({
+      data: {
+        organizationId: orgId,
+        name: `ZZ synthetic SAM ${String(index).padStart(2, "0")} with a longer display name`,
+        category: "SAM",
+        smiles: referenceSmiles,
+        chemistry: {
+          create: {
+            inSamRegistry: true,
+            requestId: crypto.randomUUID(),
+            canonicalSmiles,
+            inputSha256: crypto
+              .createHash("sha256")
+              .update(referenceSmiles)
+              .digest("hex"),
+            structurePath: key,
+            structureSha256: crypto
+              .createHash("sha256")
+              .update(svg)
+              .digest("hex"),
+            structureBytes: Buffer.byteLength(svg),
+            atomCount: 19,
+            engineVersion: `RDKit ${rdkit.version()}`,
+          },
+        },
+      },
+    });
+  }
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await login(page, ownerEmail);
@@ -284,6 +324,11 @@ test("bilingual workbench and focused molecule view fit desktop, tablet and narr
         }),
       ).toBeVisible();
       await expect(page.getByTestId("chemical-row")).toHaveCount(40);
+      await expect(page.getByTestId("row-molecule").first()).toBeVisible();
+      await expect(page.getByTestId("row-molecule").first()).toHaveJSProperty(
+        "naturalWidth",
+        560,
+      );
       const registry = page.getByTestId("registry-body");
       expect(
         await registry.evaluate(

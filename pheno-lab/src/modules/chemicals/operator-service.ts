@@ -1,10 +1,92 @@
 import "server-only";
 
+import crypto from "node:crypto";
 import { z } from "zod";
 import { db } from "@/infrastructure/db/client";
 import { recordSystemAudit } from "@/modules/audit/writer";
 import { notify } from "@/modules/notifications/service";
-import { requireChemicalAccess } from "./query";
+import { chemicalRowDigest, requireChemicalAccess } from "./query";
+import { readChemicalStructure } from "./service";
+
+const registrySchema = z.object({
+  organizationId: z.string().trim().min(1).max(200),
+  actorUserId: z.string().trim().min(1).max(200),
+  referenceMaterialId: z.string().trim().min(1).max(200),
+  expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedStructureSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  authorizationReference: z.string().trim().min(5).max(500),
+});
+
+/** Explicitly approved portal reset; leaves all scientific source data intact. */
+export async function initializeSamRegistry(raw: unknown) {
+  const input = registrySchema.parse(raw);
+  const user = await db.user.findFirstOrThrow({
+    where: { id: input.actorUserId, organizationId: input.organizationId },
+    select: { id: true, role: true },
+  });
+  const actor = { uid: user.id, org: input.organizationId, role: user.role };
+  const structure = await readChemicalStructure(
+    actor,
+    input.referenceMaterialId,
+  );
+  if (
+    !structure ||
+    crypto.createHash("sha256").update(structure).digest("hex") !==
+      input.expectedStructureSha256
+  )
+    throw new Error("A verified saved reference structure is required.");
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`chemical-save:${actor.org}`},0))`;
+    await requireChemicalAccess(actor, tx);
+    await tx.$queryRaw`SELECT "id" FROM "Material" WHERE "id" = ${input.referenceMaterialId} AND "organizationId" = ${actor.org} FOR UPDATE`;
+    const reference = await tx.material.findFirst({
+      where: {
+        id: input.referenceMaterialId,
+        organizationId: actor.org,
+        archived: false,
+        category: "SAM",
+      },
+      include: { chemistry: true },
+    });
+    if (
+      !reference?.chemistry ||
+      chemicalRowDigest(reference) !== input.expectedDigest ||
+      reference.chemistry.structureSha256 !== input.expectedStructureSha256 ||
+      reference.chemistry.inputSha256 !==
+        crypto.createHash("sha256").update(reference.smiles).digest("hex")
+    )
+      throw new Error("Reference changed; review the current definition.");
+    const others = await tx.materialChemistry.count({
+      where: {
+        inSamRegistry: true,
+        material: { organizationId: actor.org },
+        materialId: { not: reference.id },
+      },
+    });
+    if (reference.chemistry.inSamRegistry && !others)
+      return { changed: false, visible: 1 };
+    await tx.materialChemistry.updateMany({
+      where: { inSamRegistry: true, material: { organizationId: actor.org } },
+      data: { inSamRegistry: false },
+    });
+    await tx.materialChemistry.update({
+      where: { materialId: reference.id },
+      data: { inSamRegistry: true },
+    });
+    await recordSystemAudit(tx, {
+      organizationId: actor.org,
+      action: "chemistry.sam_registry.initialized",
+      entityType: "Material",
+      entityId: reference.id,
+      changes: { visible: 1, removedFromPortal: others },
+      metadata: {
+        authorizationReference: input.authorizationReference,
+        sourceDataPreserved: true,
+      },
+    });
+    return { changed: true, visible: 1 };
+  });
+}
 
 const grantSchema = z.object({
   organizationId: z.string().trim().min(1).max(200),
