@@ -1,4 +1,6 @@
 import "server-only";
+
+import { publicMaterialSelect } from "@/modules/library/material-visibility";
 import { substrateCounts } from "@/lib/test-plan";
 
 import type { Prisma } from "@prisma/client";
@@ -31,7 +33,7 @@ const fullStepInclude = {
   environment: true,
   materials: {
     orderBy: { position: "asc" as const },
-    include: { material: true },
+    include: { material: { select: publicMaterialSelect } },
   },
   parameters: {
     orderBy: { position: "asc" as const },
@@ -310,7 +312,9 @@ export async function syncAutoLabels(experimentId: string) {
         include: {
           process: true,
           equipment: true,
-          materials: { include: { material: true } },
+          materials: {
+            include: { material: { select: publicMaterialSelect } },
+          },
         },
       },
       characterizations: { include: { process: true } },

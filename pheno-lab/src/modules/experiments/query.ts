@@ -1,4 +1,6 @@
 import "server-only";
+
+import { publicMaterialSelect } from "@/modules/library/material-visibility";
 import { fmtBeijing } from "@/lib/datetime";
 
 import { db } from "@/infrastructure/db/client";
@@ -108,6 +110,7 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
       orderBy: { name: "asc" },
     }),
     db.material.findMany({
+      select: publicMaterialSelect,
       where: { organizationId: actor.org, archived: false },
       orderBy: { name: "asc" },
     }),
@@ -328,7 +331,7 @@ export async function getReportExperiment(actor: Actor, rawId: unknown) {
           environment: true,
           materials: {
             orderBy: { position: "asc" },
-            include: { material: true },
+            include: { material: { select: publicMaterialSelect } },
           },
           parameters: {
             orderBy: { position: "asc" },

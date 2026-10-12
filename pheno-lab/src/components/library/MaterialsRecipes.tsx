@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Material } from "@prisma/client";
+import type { } from "@prisma/client";
+import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
 import {
   saveMaterialCard, setMaterialArchived, saveRecipe, setRecipeArchived,
   createMaterialCategory, renameMaterialCategory, deleteMaterialCategory, moveMaterialCategory,
@@ -12,7 +13,6 @@ import type { MaterialCard, RecipePayload } from "@/lib/materials-meta";
 import { fuzzyFilter } from "@/lib/fuzzy";
 import { useT, useTerm } from "@/lib/i18n/LanguageProvider";
 import { Icon, FieldLabel, inputCls } from "@/components/ui";
-import { MoleculeView } from "./MoleculeView";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 
 export type CategoryRow = { id: string; code: string; name: string; nameZh: string; builtIn: boolean };
@@ -201,7 +201,7 @@ export function MaterialModal({
     name: material?.name ?? "",
     category: material?.category ?? category,
     composition: material?.composition ?? "",
-    smiles: material?.smiles ?? "",
+    smiles: "",
     casNumber: material?.casNumber ?? "",
     molecularWeight: material?.molecularWeight ?? "",
     purity: material?.purity ?? "",
@@ -258,25 +258,7 @@ export function MaterialModal({
             </div>
           </div>
           {field(t("mat.formula"), "composition", true)}
-          {(form.smiles || !ro) && (
-            <div>
-              <FieldLabel>{t("mat.smiles")}</FieldLabel>
-              <input
-                className={inputCls + " mono"}
-                placeholder="e.g. OP(=O)(O)CCn1c2ccccc2c2ccccc21"
-                value={form.smiles}
-                readOnly={ro}
-                onChange={(e) => patch({ smiles: e.target.value })}
-              />
-              <p className="text-[10px] text-muted mt-1">{t("mat.smilesHint")}</p>
-            </div>
-          )}
-          {form.smiles.trim() && (
-            <div>
-              <FieldLabel>{t("mat.structure")}</FieldLabel>
-              <MoleculeView smiles={form.smiles} />
-            </div>
-          )}
+
           <div className="grid grid-cols-3 gap-2.5">
             {field("CAS", "casNumber", true)}
             {field(t("mat.mw"), "molecularWeight", true)}

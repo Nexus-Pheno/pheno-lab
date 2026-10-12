@@ -1,5 +1,7 @@
 import "server-only";
 
+import { publicMaterialSelect } from "@/modules/library/material-visibility";
+
 import { db } from "@/infrastructure/db/client";
 import { experimentTermWhere } from "@/modules/experiments/search-where";
 import type { Prisma } from "@prisma/client";
@@ -47,7 +49,10 @@ const experimentInclude = {
       process: true,
       equipment: true,
       environment: true,
-      materials: { orderBy: { position: "asc" }, include: { material: true } },
+      materials: {
+        orderBy: { position: "asc" },
+        include: { material: { select: publicMaterialSelect } },
+      },
       parameters: {
         orderBy: { position: "asc" },
         include: { variations: true },

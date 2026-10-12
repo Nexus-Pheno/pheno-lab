@@ -47,6 +47,7 @@ Browser / mobile responsive routes / Go Bridge
 | Validation       | Zod 4.4.x                                                                           |
 | Auth/security    | `jose` 签名 Session；`bcryptjs` 密码散列；httpOnly/Secure Cookie                    |
 | Object storage   | 腾讯云 COS；`cos-nodejs-sdk-v5`；CVM instance role                                  |
+| Chemistry        | `@rdkit/rdkit` 2026.9.1；本地 WASM 验证 SMILES 并生成结构图；无需外部 API           |
 | Mail             | Nodemailer 9；SMTP 可选                                                             |
 | Unit/integration | Vitest 4.1.x；独立真实 PostgreSQL 测试库                                            |
 | Browser E2E      | Playwright 1.62.x / Chromium                                                        |

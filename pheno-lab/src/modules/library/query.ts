@@ -1,5 +1,7 @@
 import "server-only";
 
+import { publicMaterialSelect } from "./material-visibility";
+
 import { db } from "@/infrastructure/db/client";
 import type { RecipePayload } from "@/lib/materials-meta";
 import type { Actor } from "@/modules/authorization/actor";
@@ -39,6 +41,7 @@ export async function getLibraryPageData(actor: Actor) {
       },
     }),
     db.material.findMany({
+      select: publicMaterialSelect,
       where,
       orderBy: [{ archived: "asc" }, { name: "asc" }],
     }),

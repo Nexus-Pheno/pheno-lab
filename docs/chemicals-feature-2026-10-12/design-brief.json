@@ -1,0 +1,75 @@
+{
+  "brand": "pheno",
+  "productName": "Pheno Chemicals",
+  "productArchetype": "scientific-workbench",
+  "primaryUser": "Two approved private chemistry maintainers",
+  "repeatedJob": "Enter material identity and SMILES by row, validate and save a traceable structure",
+  "dominantProductObject": "Material row and validated molecular structure",
+  "signatureComposition": "Dominant editable registry with a 360px molecular evidence inspector",
+  "primaryAction": "Save material row",
+  "applicationArchitecture": {
+    "shellMode": "workbench",
+    "canonicalFrameId": "pheno.p2-data-grid",
+    "pattern": "Existing laboratory shell, registry and structure inspector",
+    "visiblePanes": ["registry", "molecule-inspector"],
+    "primarySpaceTarget": "60-70 percent registry at expanded widths",
+    "paneContracts": [
+      {
+        "id": "registry",
+        "role": "Search, paginate and edit rows",
+        "min": "480px",
+        "default": "remaining width",
+        "max": "available width",
+        "scrollOwner": "registry-body",
+        "collapseMode": "focused row on compact",
+        "persistedState": ["query", "page"]
+      },
+      {
+        "id": "molecule-inspector",
+        "role": "Inspect selected structure",
+        "min": "280px",
+        "default": "360px",
+        "max": "480px",
+        "scrollOwner": "inspector-body",
+        "collapseMode": "explicit toggle and focus on compact",
+        "persistedState": ["width", "visibility"]
+      }
+    ],
+    "responsiveTransformation": {
+      "wide": "grid and resizable inspector",
+      "expanded": "grid and inspector",
+      "medium": "registry with inspector toggle",
+      "compact": "one focused row or structure view; inputs stack"
+    }
+  },
+  "evidenceStates": [
+    "missing SMILES",
+    "legacy definition awaiting validation",
+    "invalid SMILES",
+    "valid preview",
+    "saved validated structure",
+    "stale conflict",
+    "failed save with draft preserved"
+  ],
+  "permissionStates": [
+    "fresh explicit grant",
+    "hidden and 404 without grant",
+    "no implicit administrator bypass",
+    "testing/setup/shared-device excluded"
+  ],
+  "requiredViewports": ["1440x900", "1024x768", "390x844", "320x700"],
+  "languages": ["en", "zh"],
+  "approvedAssetDirectory": "pheno-lab/public/brand",
+  "tokenFile": "pheno-lab/src/app/globals.css",
+  "logoAssetId": "pheno.wordmark",
+  "logoAsset": "pheno-lab/public/brand/pheno-logo.png",
+  "logoBackground": "light",
+  "webIconSet": "pheno-lab/public/brand/web/pheno",
+  "specialConstraints": [
+    "Preserve existing shell and approved assets",
+    "Private SMILES and images; public material names/categories remain selectable",
+    "No private definitions or production identifiers in repository artifacts",
+    "Local RDKit validation/drawing without provider calls",
+    "Existing COS adapter; immutable images retained after successful replacement"
+  ]
+}

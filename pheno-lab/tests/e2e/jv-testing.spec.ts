@@ -282,13 +282,15 @@ test("a colleague hands off substrates and the specialist reads only testing in 
   await expect(
     page.getByRole("img", { name: "Substrate photo", exact: true }),
   ).toBeVisible();
-  expect(
-    await page
-      .getByRole("img", { name: "Substrate photo", exact: true })
-      .evaluate(
-        (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
-      ),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .getByRole("img", { name: "Substrate photo", exact: true })
+        .evaluate(
+          (img: HTMLImageElement) => img.complete && img.naturalWidth > 0,
+        ),
+    )
+    .toBe(true);
   expect(await page.locator("body").innerText()).not.toMatch(
     /PRIVATE PREPARATION|PRIVATE HYPOTHESIS/,
   );

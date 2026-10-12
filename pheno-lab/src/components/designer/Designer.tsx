@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type {
   Equipment,
-  Material,
   Preset,
   LabEnvironment,
   Process,
 } from "@prisma/client";
+import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
 import type {
   ExperimentFull,
   StepFull,

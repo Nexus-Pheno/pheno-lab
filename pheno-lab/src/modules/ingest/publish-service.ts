@@ -1,4 +1,5 @@
 import "server-only";
+import { assertPublicSmiles } from "@/modules/library/material-visibility";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -150,6 +151,7 @@ export async function publishIngestItem(
 
       if (item.kind === "MATERIAL") {
         const d = parseIngestDraft(kind, payload) as MaterialDraft;
+        assertPublicSmiles(d.smiles);
         // Only an explicitly chosen target is updated; otherwise this is new.
         const existing = updateTargetId
           ? await tx.material.findFirst({

@@ -1,4 +1,5 @@
 import "server-only";
+import { assertPublicSmiles, redactSmilesJson } from "./material-visibility";
 
 import { isDeepStrictEqual } from "node:util";
 import type { Material, Prisma } from "@prisma/client";
@@ -21,6 +22,7 @@ function snapshot(material: Material) {
   return {
     ...materialCardSchema.parse({
       ...material,
+      smiles: "",
       properties: material.properties ?? {},
     }),
     archived: material.archived,
@@ -63,6 +65,7 @@ export async function notifyLibraryReview(
 
 export async function submitMaterialEdit(actor: Actor, raw: unknown) {
   const { materialId, changes } = materialEditSchema.parse(raw);
+  assertPublicSmiles(changes.smiles);
   const result = await db.$transaction(async (client) => {
     const material = await client.material.findFirstOrThrow({
       where: { id: materialId, organizationId: actor.org, archived: false },
@@ -126,11 +129,17 @@ export async function reviewMaterialEdit(actor: Actor, raw: unknown) {
       where: { id: suggestion.materialId, organizationId: actor.org },
     });
     if (decision === "APPROVED") {
-      if (!isDeepStrictEqual(snapshot(material), suggestion.baseSnapshot))
+      if (
+        !isDeepStrictEqual(
+          snapshot(material),
+          redactSmilesJson(suggestion.baseSnapshot),
+        )
+      )
         throw new Error(
           "Material changed since this suggestion. Reject it and request a fresh suggestion.",
         );
       const changes = materialCardSchema.parse(suggestion.changes);
+      assertPublicSmiles(changes.smiles);
       if (
         changes.processId &&
         !(await client.process.count({
@@ -142,6 +151,7 @@ export async function reviewMaterialEdit(actor: Actor, raw: unknown) {
         where: { id: material.id },
         data: {
           ...changes,
+          smiles: undefined,
           properties: changes.properties as Prisma.InputJsonValue,
         },
       });
@@ -189,8 +199,8 @@ export async function listMaterialEdits(actor: Actor) {
     material: row.material.name,
     author: row.createdBy.name,
     status: row.status,
-    changes: materialCardSchema.parse(row.changes),
-    base: materialCardSchema.parse(row.baseSnapshot),
+    changes: materialCardSchema.parse(redactSmilesJson(row.changes)),
+    base: materialCardSchema.parse(redactSmilesJson(row.baseSnapshot)),
   }));
 }
 

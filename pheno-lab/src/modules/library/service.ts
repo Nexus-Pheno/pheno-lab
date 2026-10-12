@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  assertPublicSmiles,
+  publicMaterialSelect,
+} from "./material-visibility";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -265,6 +269,7 @@ export async function createLibraryMaterial(actor: Actor, raw: unknown) {
     await requireOrgProcess(tx, actor, input.processId);
     const row = await tx.material.create({
       data: { ...input, organizationId: actor.org },
+      select: publicMaterialSelect,
     });
     await recordUserAudit(tx, {
       actor,
@@ -308,19 +313,24 @@ export async function saveMaterialCard(
       where: { id: actor.uid, organizationId: actor.org, active: true },
     });
   const card = materialCardSchema.parse(raw);
+  assertPublicSmiles(card.smiles);
   return db.$transaction(async (tx) => {
     await requireOrgProcess(tx, actor, card.processId);
     const data = {
       ...card,
+      // Blank public form values must never erase the private definition.
+      smiles: undefined,
       properties: card.properties as Prisma.InputJsonValue,
     };
     const row = id
       ? await tx.material.update({
           where: { id, organizationId: actor.org },
           data,
+          select: publicMaterialSelect,
         })
       : await tx.material.create({
           data: { ...data, organizationId: actor.org },
+          select: publicMaterialSelect,
         });
     await recordUserAudit(tx, {
       actor,

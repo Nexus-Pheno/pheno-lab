@@ -1,4 +1,5 @@
 import "server-only";
+import { publicMaterialSelect } from "@/modules/library/material-visibility";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -120,6 +121,7 @@ export async function quickCreateMaterial(
       if (!process) throw new Error("Process belongs to another organization.");
     }
     const row = await tx.material.create({
+      select: publicMaterialSelect,
       data: { organizationId: actor.org, name, processId },
     });
     await recordUserAudit(tx, {

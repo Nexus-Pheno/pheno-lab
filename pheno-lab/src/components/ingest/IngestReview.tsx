@@ -844,7 +844,6 @@ function ReviewModal({
                 </div>
               </div>
               {textField(t("mat.formula"), "composition", true)}
-              {textField(t("mat.smiles"), "smiles", true)}
               <div className="grid grid-cols-3 gap-2.5">
                 {textField("CAS", "casNumber", true)}
                 {textField(t("mat.mw"), "molecularWeight", true)}
