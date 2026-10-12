@@ -79,6 +79,7 @@ model Organization {
   codeLedger      SampleCodeReservation[]
   testingRequests TestingRequest[]
   accountHandoffs AccountHandoff[]
+  labReports      LabReport[]
 }
 
 // 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
@@ -133,6 +134,7 @@ model User {
   recipeSteward              Boolean                  @default(false)
   deviceAdmin                Boolean                  @default(false) // shared tablets: register, hand out setup links, revoke
   memberAdmin                Boolean                  @default(false) // approve registrations and add new technicians
+  reportAccess               Boolean                  @default(false) // explicit managerial report grant; no implicit admin access
   testingOnly                Boolean                  @default(false) // read-only JV workspace, no preparation/research access
   mustChangePassword         Boolean                  @default(false)
   temporaryPasswordExpiresAt DateTime?
@@ -1089,6 +1091,25 @@ model AnalysisRun {
   finishedAt      DateTime?
 
   @@index([organizationId, startedAt])
+}
+
+// Immutable report metadata; the complete bilingual HTML is a private COS object.
+model LabReport {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  publicationKey String
+  titleEn        String
+  titleZh        String
+  generatedAt    DateTime
+  publishedAt    DateTime     @default(now())
+  storedPath     String       @unique
+  contentSha256  String
+  contentBytes   Int
+  recipientIds   String[]
+
+  @@unique([organizationId, publicationKey])
+  @@index([organizationId, generatedAt, id])
 }
 
 model AuditEvent {

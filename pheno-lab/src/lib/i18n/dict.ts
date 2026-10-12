@@ -325,6 +325,21 @@ export const en = {
   "set.campaignHint":
     'Optional — group related experiments under one larger campaign, e.g. "Anneal optimization Q3". Searchable from the board.',
   "nav.analysis": "Analysis",
+  "reports.title": "Reports",
+  "reports.intro":
+    "Research reports for designated managers. Open a report to read the complete bilingual analysis.",
+  "reports.restricted":
+    "Report titles and dates are visible to the team. Full reports are restricted to designated managers.",
+  "reports.reportTitle": "Report title",
+  "reports.generated": "Generated",
+  "reports.access": "Access",
+  "reports.empty": "No reports have been published yet.",
+  "reports.open": "Open report",
+  "reports.locked": "Restricted",
+  "reports.pages": "Report pages",
+  "reports.previous": "Previous",
+  "reports.next": "Next",
+  "notif.report_published": "published a research report",
   "an.askTab": "Ask",
   "an.manualTab": "Compare one condition",
   "an.askSubtitle":
@@ -1794,6 +1809,21 @@ export const zh: Record<TKey, string> = {
   "set.campaignHint":
     "可选——将相关实验归入同一个大专题，如「Q3 退火优化」。可在看板中搜索。",
   "nav.analysis": "分析",
+  "reports.title": "报告",
+  "reports.intro":
+    "供指定管理人员阅读的研究报告。打开报告可查看完整中英双语分析。",
+  "reports.restricted":
+    "团队成员可查看报告标题与生成日期。完整报告仅限指定管理人员访问。",
+  "reports.reportTitle": "报告标题",
+  "reports.generated": "生成时间",
+  "reports.access": "访问权限",
+  "reports.empty": "尚未发布报告。",
+  "reports.open": "查看报告",
+  "reports.locked": "访问受限",
+  "reports.pages": "报告分页",
+  "reports.previous": "上一页",
+  "reports.next": "下一页",
+  "notif.report_published": "已发布研究报告",
   "an.askTab": "提问",
   "an.manualTab": "单条件对比",
   "an.askSubtitle":
