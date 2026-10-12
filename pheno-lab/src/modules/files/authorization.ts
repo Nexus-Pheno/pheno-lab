@@ -18,7 +18,7 @@ export async function canReadObject(
     if (parts[1] !== actor.org) return false;
     // Reports have an exclusive reader and must never inherit attachment access,
     // even if a legacy or unrelated business record references the same key.
-    if (parts[2] === "reports") return false;
+    if (parts[2] === "reports" || parts[2] === "chemicals") return false;
     // A newly uploaded image is readable by its uploader before the form is
     // saved and creates a database reference. Afterwards the resource checks
     // below also let authorized collaborators read it.

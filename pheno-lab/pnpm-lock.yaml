@@ -11,6 +11,9 @@ importers:
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@rdkit/rdkit':
+        specifier: 2026.9.1
+        version: 2026.9.1
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
@@ -695,6 +698,9 @@ packages:
 
   '@prisma/get-platform@6.19.3':
     resolution: {integrity: sha512-xFj1VcJ1N3MKooOQAGO0W5tsd0W2QzIvW7DD7c/8H14Zmp4jseeWAITm+w2LLoLrlhoHdPPh0NMZ8mfL6puoHA==}
+
+  '@rdkit/rdkit@2026.9.1':
+    resolution: {integrity: sha512-nbdi5yEw+mG2kIxFvgVMGulS5fjNMzzocx9nKs01NAjNpFAEQVb6RDl3pd9AWEa7m5D8DR4QAS6CDzu+5xjzEA==}
 
   '@rolldown/binding-android-arm-eabi@1.2.5':
     resolution: {integrity: sha512-DLe/i+l8ynIBY7XEQ191TeZvCoowIGa18R+dIV30GW7DiOtp74i/xX8hs8GUjW5ARV7VZuie3d6AumSmCwbeRA==}
@@ -3502,6 +3508,8 @@ snapshots:
   '@prisma/get-platform@6.19.3':
     dependencies:
       '@prisma/debug': 6.19.3
+
+  '@rdkit/rdkit@2026.9.1': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.5':
     optional: true

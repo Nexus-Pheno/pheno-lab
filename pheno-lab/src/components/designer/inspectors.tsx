@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Equipment, Material, Preset, LabEnvironment } from "@prisma/client";
+import type { Equipment, Preset, LabEnvironment } from "@prisma/client";
+import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
 import type { StepFull, CharFull, StepDraft, CharDraft, ParamInput, MaterialInput } from "@/lib/types";
 import { equipmentOptionLabel, paramDefs } from "@/lib/types";
 import { Icon, FieldLabel, inputCls, selectCls } from "@/components/ui";

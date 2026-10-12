@@ -86,6 +86,13 @@ new organizations can be added later without schema changes.
   deactivated accounts cannot sign in. OTP codes are never written to logs;
   until SMTP is configured, an admin can retrieve pending codes from the Users
   page.
+- **Pheno Chemicals** is a separate private row-entry portal for the two explicitly
+  approved chemistry maintainers. Names/categories stay available to employees;
+  SMILES, canonical definitions, structures and the audited agent export require
+  fresh explicit chemistry access. Local RDKit validates and draws structures
+  without an external chemistry API or LLM tokens. Open it from Profile.
+  Legacy SMILES remains unchanged until an authorized row is saved. See
+  [`src/modules/chemicals/README.md`](src/modules/chemicals/README.md).
 - An admin can delegate the **Members** responsibility independently of roles.
   Delegates can share the registration link, approve their organization's new
   technicians and create technician accounts. Role changes, other permission

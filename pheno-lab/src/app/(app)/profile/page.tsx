@@ -10,11 +10,13 @@ import { BadgeBind } from "@/components/profile/BadgeBind";
 import { getProfileData, listMyFeedback } from "@/modules/accounts/query";
 import { getSystemStatus } from "@/modules/system/query";
 import { fmtBeijing } from "@/lib/datetime";
+import { canOpenChemicals } from "@/modules/chemicals/query";
 
 export default async function ProfilePage() {
   const session = await requireSession();
   const deviceSteward = await hasStewardship(session, "deviceAdmin");
   const memberSteward = await hasStewardship(session, "memberAdmin");
+  const chemicalAccess = await canOpenChemicals(session);
   const t = await getT();
   const [{ user, organization: org, aiProviders, statistics }, myFeedback] =
     await Promise.all([getProfileData(session), listMyFeedback(session)]);
@@ -118,6 +120,8 @@ export default async function ProfilePage() {
           <Icon name="FileText" size={18} />
           {t("reports.title")}
         </Link>
+
+        {chemicalAccess && <Link href="/chemicals" className="flex items-center gap-2 bg-surface border border-line rounded-[6px] p-4 text-sm font-semibold text-brand-deep hover:bg-brand-soft"><Icon name="Atom" size={18}/>{t("chemicals.title")}</Link>}
 
         <ProfileForms
           user={{

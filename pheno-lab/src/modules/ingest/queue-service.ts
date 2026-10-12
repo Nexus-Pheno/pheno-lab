@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  assertPublicSmiles,
+  redactSmilesJson,
+} from "@/modules/library/material-visibility";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -138,7 +142,7 @@ function assertReviewer(actor: Actor): void {
 
 export async function listIngestItems(actor: Actor) {
   const formulaSteward = await hasStewardship(actor, "recipeSteward");
-  return db.ingestItem.findMany({
+  const rows = await db.ingestItem.findMany({
     where: {
       organizationId: actor.org,
       ...(formulaSteward ? {} : { kind: { not: "FORMULA" } }),
@@ -146,6 +150,10 @@ export async function listIngestItems(actor: Actor) {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: { reviewedBy: { select: { name: true } } },
   });
+  return rows.map((row) => ({
+    ...row,
+    payload: redactSmilesJson(row.payload) as Prisma.JsonValue,
+  }));
 }
 
 /** Stage extracted facts for review (used by the agent intake script). */
@@ -161,6 +169,8 @@ export async function stageIngestItem(
 ) {
   assertReviewer(actor);
   const data = stageIngestSchema.parse(raw);
+  if (data.kind === "MATERIAL")
+    assertPublicSmiles(data.payload.smiles as string | undefined);
   return db.$transaction(async (tx) => {
     const row = await tx.ingestItem.create({
       data: {
@@ -200,7 +210,7 @@ export async function getIngestPayload(
     select: { kind: true, payload: true },
   });
   if (item?.kind === "FORMULA") await assertStewardship(actor, "recipeSteward");
-  return (item?.payload ?? {}) as Record<string, unknown>;
+  return redactSmilesJson(item?.payload ?? {}) as Record<string, unknown>;
 }
 
 export async function assertIngestItemStewardship(actor: Actor, id: string) {
@@ -224,6 +234,16 @@ export async function updateIngestPayload(
   const reviewNote = ingestReviewNoteSchema.parse(rawNote);
   await assertIngestItemStewardship(actor, id);
   await db.$transaction(async (tx) => {
+    const previous = await tx.ingestItem.findFirstOrThrow({
+      where: { id, organizationId: actor.org },
+      select: { kind: true, payload: true },
+    });
+    if (previous.kind === "MATERIAL") {
+      assertPublicSmiles(payload.smiles as string | undefined);
+      // Preserve legacy private input until an authorized chemistry review.
+      payload.smiles =
+        (previous.payload as Record<string, unknown> | null)?.smiles ?? "";
+    }
     const result = await tx.ingestItem.updateMany({
       where: { id, organizationId: actor.org, status: "PENDING" },
       data: { payload: payload as Prisma.InputJsonValue, reviewNote },

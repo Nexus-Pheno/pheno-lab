@@ -1,3 +1,4 @@
+import { publicMaterialSelect } from "@/modules/library/material-visibility";
 import type { Prisma } from "@prisma/client";
 import type { ParamDef } from "@/lib/library";
 
@@ -16,7 +17,7 @@ export const experimentInclude = {
       process: true,
       equipment: true,
       environment: true,
-      materials: { orderBy: { position: "asc" }, include: { material: true } },
+      materials: { orderBy: { position: "asc" }, include: { material: { select: publicMaterialSelect } } },
       parameters: {
         orderBy: { position: "asc" },
         include: { variations: true },

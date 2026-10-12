@@ -1,0 +1,318 @@
+import "server-only";
+
+import crypto from "node:crypto";
+import { db } from "@/infrastructure/db/client";
+import { objectStorage } from "@/infrastructure/storage";
+import { renderMolecule } from "@/infrastructure/chemistry/renderer";
+export { InvalidSmilesError } from "@/infrastructure/chemistry/renderer";
+import type { Actor } from "@/modules/authorization/actor";
+import { recordUserAudit } from "@/modules/audit/writer";
+import {
+  chemicalSelect,
+  requireChemicalAccess,
+  toChemicalRow,
+  chemicalRowDigest,
+} from "./query";
+import {
+  chemicalCategorySchema,
+  chemicalIdSchema,
+  chemicalRowSchema,
+  smilesSchema,
+} from "./schema";
+
+export class ChemicalConflictError extends Error {}
+
+export async function previewChemical(actor: Actor, raw: unknown) {
+  await requireChemicalAccess(actor);
+  const molecule = await renderMolecule(smilesSchema.parse(raw));
+  return {
+    svg: molecule.svg,
+    canonicalSmiles: molecule.canonicalSmiles,
+    atomCount: molecule.atomCount,
+    engineVersion: molecule.engineVersion,
+  };
+}
+
+export async function saveChemicalRow(actor: Actor, raw: unknown) {
+  await requireChemicalAccess(actor);
+  const input = chemicalRowSchema.parse(raw);
+  const molecule = await renderMolecule(input.smiles);
+  let uploadedKey: string | null = null;
+  try {
+    return await db.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`chemical-save:${actor.org}`}, 0))`;
+        const fresh = await tx.user.findFirst({
+          where: {
+            id: actor.uid,
+            organizationId: actor.org,
+            active: true,
+            pendingApproval: false,
+            testingOnly: false,
+            mustChangePassword: false,
+            chemicalAccess: true,
+            role: { in: ["ADMIN", "MANAGER"] },
+            organization: { status: "ACTIVE" },
+          },
+          select: { id: true },
+        });
+        if (!fresh) throw new Error("Private chemistry access is restricted.");
+        const previousRequest = await tx.material.findFirst({
+          where: {
+            organizationId: actor.org,
+            chemistry: { is: { requestId: input.requestId } },
+          },
+          select: { ...chemicalSelect, chemistry: true },
+        });
+        if (previousRequest) {
+          if (
+            previousRequest.name !== input.name ||
+            previousRequest.category !== input.category ||
+            previousRequest.smiles !== input.smiles ||
+            (input.id && input.id !== previousRequest.id)
+          )
+            throw new ChemicalConflictError(
+              "This save request already contains different data.",
+            );
+          return {
+            row: toChemicalRow(
+              await tx.material.findUniqueOrThrow({
+                where: { id: previousRequest.id },
+                select: chemicalSelect,
+              }),
+            ),
+            created: false,
+          };
+        }
+        const existing = input.id
+          ? await tx.material.findFirst({
+              where: {
+                id: input.id,
+                organizationId: actor.org,
+                archived: false,
+              },
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                smiles: true,
+                chemistry: { select: { version: true } },
+              },
+            })
+          : null;
+        if (input.id && !existing) throw new Error("Material not found.");
+        if ((existing?.chemistry?.version ?? 0) !== input.expectedVersion)
+          throw new ChemicalConflictError(
+            "Material changed. Reload it before saving.",
+          );
+        if (existing && input.expectedDigest !== chemicalRowDigest(existing))
+          throw new ChemicalConflictError(
+            "Material changed. Reload it before saving.",
+          );
+        const duplicate = await tx.material.findFirst({
+          where: {
+            organizationId: actor.org,
+            name: { equals: input.name, mode: "insensitive" },
+            ...(input.id ? { id: { not: input.id } } : {}),
+          },
+          select: { id: true },
+        });
+        if (duplicate && (!existing || existing.name !== input.name))
+          throw new ChemicalConflictError(
+            "A material with this name already exists. Edit its row.",
+          );
+        const knownCategory =
+          ["SAM", "ADDITIVE", "SOLVENT", "OTHER"].includes(input.category) ||
+          (await tx.materialCategoryDef.count({
+            where: { organizationId: actor.org, code: input.category },
+          }));
+        if (!knownCategory)
+          throw new Error("Choose a category from this organization.");
+        // Default choices must also exist in the shared catalogue grouping.
+        const defaults: Record<string, { name: string; nameZh: string }> = {
+          SAM: { name: "SAM", nameZh: "SAM" },
+          ADDITIVE: { name: "Additive", nameZh: "添加剂" },
+          SOLVENT: { name: "Solvent", nameZh: "溶剂" },
+          OTHER: { name: "Other", nameZh: "其他" },
+        };
+        if (
+          defaults[input.category] &&
+          !(await tx.materialCategoryDef.count({
+            where: { organizationId: actor.org, code: input.category },
+          }))
+        ) {
+          const maximum = await tx.materialCategoryDef.aggregate({
+            where: { organizationId: actor.org },
+            _max: { position: true },
+          });
+          const category = await tx.materialCategoryDef.create({
+            data: {
+              organizationId: actor.org,
+              code: input.category,
+              ...defaults[input.category],
+              builtIn: true,
+              position: (maximum._max.position ?? 0) + 1,
+            },
+          });
+          await recordUserAudit(tx, {
+            actor,
+            action: "chemistry.category.created",
+            entityType: "MaterialCategoryDef",
+            entityId: category.id,
+            metadata: { code: input.category, builtIn: true },
+          });
+        }
+        const id = existing?.id ?? crypto.randomUUID();
+        const key = `organizations/${actor.org}/chemicals/${crypto.randomUUID()}.svg`;
+        await objectStorage().put({
+          key,
+          body: Buffer.from(molecule.svg),
+          contentType: "image/svg+xml",
+          sha256: molecule.structureSha256,
+        });
+        uploadedKey = key;
+        const data = {
+          name: input.name,
+          category: input.category,
+          smiles: input.smiles,
+        };
+        if (existing) await tx.material.update({ where: { id }, data });
+        else
+          await tx.material.create({
+            data: { id, ...data, organizationId: actor.org },
+          });
+        const evidence = {
+          requestId: input.requestId,
+          canonicalSmiles: molecule.canonicalSmiles,
+          inputSha256: molecule.inputSha256,
+          structurePath: key,
+          structureSha256: molecule.structureSha256,
+          structureBytes: molecule.structureBytes,
+          atomCount: molecule.atomCount,
+          engineVersion: molecule.engineVersion,
+          version: (existing?.chemistry?.version ?? 0) + 1,
+          generatedAt: new Date(),
+        };
+        await tx.materialChemistry.upsert({
+          where: { materialId: id },
+          create: { materialId: id, ...evidence },
+          update: evidence,
+        });
+        await recordUserAudit(tx, {
+          actor,
+          action: existing
+            ? "chemistry.material.updated"
+            : "chemistry.material.created",
+          entityType: "Material",
+          entityId: id,
+          metadata: {
+            category: input.category,
+            version: evidence.version,
+            engineVersion: molecule.engineVersion,
+            hasValidatedStructure: true,
+          },
+        });
+        return {
+          row: toChemicalRow(
+            await tx.material.findUniqueOrThrow({
+              where: { id },
+              select: chemicalSelect,
+            }),
+          ),
+          created: !existing,
+        };
+      },
+      { timeout: 30000 },
+    );
+  } catch (error) {
+    if (uploadedKey) {
+      try {
+        if (
+          !(await db.materialChemistry.count({
+            where: { structurePath: uploadedKey },
+          }))
+        )
+          await objectStorage().delete(uploadedKey);
+      } catch {
+        /* Preserve the object if the commit outcome cannot be confirmed. */
+      }
+    }
+    throw error;
+  }
+}
+
+export async function createChemicalCategory(actor: Actor, raw: unknown) {
+  await requireChemicalAccess(actor);
+  const input = chemicalCategorySchema.parse(raw);
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`chemical-save:${actor.org}`}, 0))`;
+    const same = await tx.materialCategoryDef.findFirst({
+      where: {
+        organizationId: actor.org,
+        name: { equals: input.name, mode: "insensitive" },
+      },
+      select: { code: true, name: true, nameZh: true },
+    });
+    if (same) return same;
+    const base =
+      input.name
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_")
+        .replace(/^_|_$/g, "") || "CATEGORY";
+    let code = base,
+      index = 2;
+    while (
+      await tx.materialCategoryDef.count({
+        where: { organizationId: actor.org, code },
+      })
+    )
+      code = `${base}_${index++}`;
+    const maximum = await tx.materialCategoryDef.aggregate({
+      where: { organizationId: actor.org },
+      _max: { position: true },
+    });
+    const row = await tx.materialCategoryDef.create({
+      data: {
+        organizationId: actor.org,
+        code,
+        ...input,
+        position: (maximum._max.position ?? 0) + 1,
+      },
+      select: { id: true, code: true, name: true, nameZh: true },
+    });
+    await recordUserAudit(tx, {
+      actor,
+      action: "chemistry.category.created",
+      entityType: "MaterialCategoryDef",
+      entityId: row.id,
+      changes: { code },
+    });
+    return { code: row.code, name: row.name, nameZh: row.nameZh };
+  });
+}
+
+export async function readChemicalStructure(actor: Actor, rawId: unknown) {
+  await requireChemicalAccess(actor);
+  const id = chemicalIdSchema.parse(rawId);
+  const row = await db.material.findFirst({
+    where: { id, organizationId: actor.org, archived: false },
+    select: { smiles: true, chemistry: true },
+  });
+  if (!row?.chemistry) return null;
+  const evidence = row.chemistry;
+  if (
+    evidence.inputSha256 !==
+      crypto.createHash("sha256").update(row.smiles).digest("hex") ||
+    !evidence.structurePath.startsWith(`organizations/${actor.org}/chemicals/`)
+  )
+    return null;
+  const body = await objectStorage().get(evidence.structurePath);
+  if (
+    !body ||
+    body.byteLength !== evidence.structureBytes ||
+    crypto.createHash("sha256").update(body).digest("hex") !==
+      evidence.structureSha256
+  )
+    return null;
+  return body;
+}

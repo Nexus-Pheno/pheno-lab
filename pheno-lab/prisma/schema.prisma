@@ -135,6 +135,7 @@ model User {
   deviceAdmin                Boolean                  @default(false) // shared tablets: register, hand out setup links, revoke
   memberAdmin                Boolean                  @default(false) // approve registrations and add new technicians
   reportAccess               Boolean                  @default(false) // explicit managerial report grant; no implicit admin access
+  chemicalAccess             Boolean                  @default(false) // explicit private chemistry grant; no implicit admin access
   testingOnly                Boolean                  @default(false) // read-only JV workspace, no preparation/research access
   mustChangePassword         Boolean                  @default(false)
   temporaryPasswordExpiresAt DateTime?
@@ -697,6 +698,23 @@ model Material {
   stepMaterials   StepMaterial[]
   executions      ExecutionMaterial[]
   editSuggestions MaterialEditSuggestion[]
+  chemistry       MaterialChemistry?
+}
+
+// SMILES remains authoritative on Material; derived structure evidence is private.
+model MaterialChemistry {
+  materialId       String   @id
+  material         Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  requestId        String   @unique
+  canonicalSmiles  String
+  inputSha256      String
+  structurePath    String   @unique
+  structureSha256  String
+  structureBytes   Int
+  engineVersion    String
+  atomCount        Int
+  version          Int      @default(1)
+  generatedAt      DateTime @default(now())
 }
 
 model MaterialEditSuggestion {

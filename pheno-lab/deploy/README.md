@@ -741,6 +741,12 @@ Louis。
 
 ## 5. 回滚和诊断
 
+### Pheno Chemicals privacy (2026-10-12)
+
+The additive chemistry migration preserves existing material definitions and grants nobody automatically. After the normal release/readiness checks, approved operator provisioning enables exactly two identity-checked chemistry maintainers through the existing environment and transactional grant service. Do not seed, backfill, regenerate legacy structures, or modify other stewardship/role fields during this release. RDKit is bundled in the existing deployment artifact; no new runtime environment, service, port or external API is required.
+
+Schema compatibility alone is not permission compatibility. Code predating Pheno Chemicals returns SMILES in shared catalogue/experiment/intake payloads and ignores the new private grant. **Do not roll back to such code while claiming chemistry remains private.** A rollback target must retain the public material projections and private-reader restrictions, or use an explicitly approved isolation plan that prevents affected views from exposing definitions. Clearing grants does not make the older shared readers safe. Retain the current validated release and use the existing release scripts for any approved recovery.
+
 ### JV 测试专员账号（2026-10-09 起）
 
 `20261009010000_jv_testing_accounts` 仅增加默认 false 的账号限制字段、session version 和两个新表；

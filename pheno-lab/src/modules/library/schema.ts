@@ -96,13 +96,22 @@ export const materialCardSchema = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().min(1).max(120),
   composition: shortText,
-  smiles: z.string().trim().max(4000),
+  // Public material DTOs deliberately omit private chemistry.
+  smiles: z.string().trim().max(4000).default(""),
   casNumber: shortText,
   molecularWeight: shortText,
   purity: shortText,
   supplier: shortText,
   lot: shortText,
-  properties: z.record(z.string(), z.string().max(4000)),
+  properties: z.record(
+    z
+      .string()
+      .refine(
+        (key) => !/smiles/i.test(key),
+        "Private chemistry belongs in Pheno Chemicals.",
+      ),
+    z.string().max(4000),
+  ),
   notes: z.string().max(20_000),
   processId: idSchema.nullable(),
 });

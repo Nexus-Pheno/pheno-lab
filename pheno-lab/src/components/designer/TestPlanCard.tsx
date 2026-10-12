@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Process, Equipment, Material } from "@prisma/client";
+import type { Process, Equipment } from "@prisma/client";
+import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
 import type { TestPlan, TestPlanVariable } from "@/lib/library";
 import { GROUP_LABELS } from "@/lib/library";
 import { substrateCounts } from "@/lib/test-plan";
