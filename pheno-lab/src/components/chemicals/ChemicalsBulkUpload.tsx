@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { ChemicalCategoryPicker } from "./ChemicalCategoryPicker";
 import type { ChemicalCategory } from "@/modules/chemicals/types";
-import type { ChemicalImportPreview } from "@/modules/chemicals/bulk-types";
+import type {
+  ChemicalImportPreview,
+  ChemicalImportReview,
+} from "@/modules/chemicals/bulk-types";
 
 const button =
   "min-h-11 px-3 py-2 border border-line rounded-[4px] text-sm font-semibold inline-flex items-center justify-center hover:bg-subtle disabled:opacity-50";
@@ -29,17 +32,97 @@ export function ChemicalsBulkUpload({
   const [busy, setBusy] = useState<"preview" | "import" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [review, setReview] = useState<ChemicalImportReview>({
+    edits: [],
+    excludedRows: [],
+  });
+  const [selectedRows, setSelectedRows] = useState<number[]>([]);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const invalidateReview = () => {
+    setDraftDirty(true);
+    setResult(null);
+    setError(null);
+    setBatchId(crypto.randomUUID());
+  };
+  const resetReview = () => {
+    setReview({ edits: [], excludedRows: [] });
+    setSelectedRows([]);
+    setPreview(null);
+    setDraftDirty(false);
+    setResult(null);
+    setError(null);
+    setBatchId(crypto.randomUUID());
+  };
+  const editRow = (
+    rowNumber: number,
+    field: "name" | "smiles",
+    value: string,
+  ) => {
+    const row = preview?.rows.find((item) => item.row === rowNumber);
+    if (!row) return;
+    const changed = {
+      ...row,
+      [field]: value,
+      linksExisting: false,
+      preview: field === "smiles" ? null : row.preview,
+    };
+    setReview((old) => ({
+      ...old,
+      edits: [
+        ...old.edits.filter((edit) => edit.row !== rowNumber),
+        {
+          ...old.edits.find((edit) => edit.row === rowNumber),
+          row: rowNumber,
+          [field]: value,
+        },
+      ],
+    }));
+    setPreview((old) =>
+      old
+        ? {
+            ...old,
+            rows: old.rows.map((item) =>
+              item.row === rowNumber ? changed : item,
+            ),
+          }
+        : old,
+    );
+    invalidateReview();
+  };
+  const removeSelected = () => {
+    const selected = new Set(selectedRows);
+    setReview((old) => ({
+      edits: old.edits.filter((edit) => !selected.has(edit.row)),
+      excludedRows: [...old.excludedRows, ...selectedRows],
+    }));
+    setPreview((old) =>
+      old
+        ? {
+            ...old,
+            valid: false,
+            rows: old.rows.filter((row) => !selected.has(row.row)),
+          }
+        : old,
+    );
+    setSelectedRows([]);
+    invalidateReview();
+  };
+  const allSelected =
+    !!preview?.rows.length &&
+    preview.rows.every((row) => selectedRows.includes(row.row));
   const submit = async (mode: "preview" | "import") => {
-    if (!file || (mode === "import" && !preview?.valid)) return;
+    if (!file || (mode === "import" && (!preview?.valid || draftDirty))) return;
     setBusy(mode);
     setError(null);
     const form = new FormData();
     form.set("file", file);
     form.set("mode", mode);
     form.set("category", category);
+    form.set("review", JSON.stringify(review));
     if (mode === "import" && preview) {
       form.set("batchId", batchId);
       form.set("expectedDigest", preview.fileSha256);
+      form.set("expectedReviewDigest", preview.reviewSha256);
     }
     try {
       const response = await fetch("/api/chemicals/bulk", {
@@ -52,6 +135,8 @@ export function ChemicalsBulkUpload({
       else if (mode === "preview") {
         setPreview(body.preview);
         setResult(null);
+        setDraftDirty(false);
+        setSelectedRows([]);
       } else setResult(body.result);
     } catch {
       setError("failed");
@@ -74,7 +159,7 @@ export function ChemicalsBulkUpload({
   };
   return (
     <main
-      className="h-full min-h-0 flex flex-col bg-subtle overflow-hidden"
+      className="h-full min-h-0 flex flex-col bg-subtle overflow-auto sm:overflow-hidden"
       data-testid="chemicals-bulk"
     >
       <div className="px-4 sm:px-6 py-4 border-b border-line bg-surface shrink-0">
@@ -97,13 +182,10 @@ export function ChemicalsBulkUpload({
                 value={category}
                 categories={categories}
                 label={t("chemicals.category")}
-                disabled={!!busy}
+                disabled={!!busy || !!result}
                 onChange={(value) => {
                   setCategory(value);
-                  setPreview(null);
-                  setResult(null);
-                  setError(null);
-                  setBatchId(crypto.randomUUID());
+                  invalidateReview();
                 }}
                 onCreated={(value) =>
                   setCategories((old) => [
@@ -125,10 +207,7 @@ export function ChemicalsBulkUpload({
                 disabled={!!busy}
                 onChange={(event) => {
                   setFile(event.target.files?.[0] ?? null);
-                  setPreview(null);
-                  setResult(null);
-                  setError(null);
-                  setBatchId(crypto.randomUUID());
+                  resetReview();
                 }}
               />
             </label>
@@ -153,26 +232,89 @@ export function ChemicalsBulkUpload({
             </p>
           )}
         </section>
-        <section className="flex-1 min-h-0 flex flex-col border border-line rounded-[6px] bg-surface overflow-hidden">
+        <section className="flex-1 min-h-[20rem] sm:min-h-0 flex flex-col border border-line rounded-[6px] bg-surface overflow-hidden">
           <div className="px-4 py-3 border-b border-line shrink-0 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-semibold text-sm">
               {t("chemicals.bulk.review")}
               {preview ? ` · ${preview.rows.length}` : ""}
             </h2>
             {preview && !result && (
-              <button
-                className={
-                  button + " bg-charcoal text-white hover:bg-charcoal/90"
-                }
-                disabled={!preview.valid || !!busy}
-                onClick={() => void submit("import")}
-              >
-                {t(
-                  busy === "import"
-                    ? "chemicals.bulk.importing"
-                    : "chemicals.bulk.import",
+              <div className="flex flex-wrap items-center gap-2">
+                {draftDirty && (
+                  <button
+                    className={
+                      button + " bg-charcoal text-white hover:bg-charcoal/90"
+                    }
+                    disabled={!!busy || !preview.rows.length}
+                    onClick={() => void submit("preview")}
+                  >
+                    {t(
+                      busy === "preview"
+                        ? "chemicals.bulk.validating"
+                        : "chemicals.bulk.validateChanges",
+                    )}
+                  </button>
                 )}
-              </button>
+                <button
+                  className={
+                    button + " bg-charcoal text-white hover:bg-charcoal/90"
+                  }
+                  disabled={!preview.valid || draftDirty || !!busy}
+                  onClick={() => void submit("import")}
+                >
+                  {t(
+                    busy === "import"
+                      ? "chemicals.bulk.importing"
+                      : "chemicals.bulk.import",
+                  )}
+                </button>
+              </div>
+            )}
+            {preview && !result && (
+              <div className="w-full flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+                <label className="inline-flex items-center gap-2 min-h-11">
+                  <input
+                    type="checkbox"
+                    aria-label={t("chemicals.bulk.selectAll")}
+                    checked={allSelected}
+                    disabled={!!busy || !preview.rows.length}
+                    onChange={(event) =>
+                      setSelectedRows(
+                        event.target.checked
+                          ? preview.rows.map((row) => row.row)
+                          : [],
+                      )
+                    }
+                    className="size-4 accent-charcoal"
+                  />
+                  {t("chemicals.bulk.selectAll")}
+                </label>
+                <span>
+                  {selectedRows.length} {t("chemicals.bulk.selected")}
+                </span>
+                <button
+                  className={button}
+                  disabled={!!busy || !selectedRows.length}
+                  onClick={removeSelected}
+                >
+                  {t("chemicals.bulk.removeSelected")}
+                </button>
+                {(review.edits.length > 0 ||
+                  review.excludedRows.length > 0) && (
+                  <button
+                    className={button}
+                    disabled={!!busy}
+                    onClick={resetReview}
+                  >
+                    {t("chemicals.bulk.resetReview")}
+                  </button>
+                )}
+                {!!review.excludedRows.length && (
+                  <span className="text-muted">
+                    {review.excludedRows.length} {t("chemicals.bulk.excluded")}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div
@@ -211,14 +353,30 @@ export function ChemicalsBulkUpload({
                     </div>
                   </div>
                 )}
-                {!preview.valid && !result && (
+                {draftDirty && !result && (
                   <p
-                    role="alert"
-                    className="p-4 text-sm text-red-700 border-b border-line"
+                    role="status"
+                    className="p-4 text-sm text-muted border-b border-line"
                   >
-                    {t("chemicals.bulk.fix")}
+                    {t("chemicals.bulk.pendingValidation")}
                   </p>
                 )}
+                {!preview.rows.length && !result && (
+                  <p className="p-4 text-sm text-muted">
+                    {t("chemicals.bulk.noRows")}
+                  </p>
+                )}
+                {!preview.valid &&
+                  !draftDirty &&
+                  preview.rows.length > 0 &&
+                  !result && (
+                    <p
+                      role="alert"
+                      className="p-4 text-sm text-red-700 border-b border-line"
+                    >
+                      {t("chemicals.bulk.fix")}
+                    </p>
+                  )}
                 <table className="w-full text-sm block sm:table">
                   <thead className="hidden sm:table-header-group sticky top-0 z-10 bg-subtle text-xs text-muted">
                     <tr>
@@ -241,13 +399,59 @@ export function ChemicalsBulkUpload({
                         data-testid="bulk-row"
                       >
                         <td className="block sm:table-cell sm:p-3 text-muted text-xs">
-                          {t("chemicals.bulk.row")} {row.row}
+                          <label className="inline-flex items-center gap-2 min-h-11">
+                            {!result && (
+                              <input
+                                type="checkbox"
+                                className="size-4 accent-charcoal"
+                                aria-label={`${t("chemicals.bulk.selectRow")} ${row.row}`}
+                                disabled={!!busy}
+                                checked={selectedRows.includes(row.row)}
+                                onChange={(event) =>
+                                  setSelectedRows((old) =>
+                                    event.target.checked
+                                      ? [...old, row.row]
+                                      : old.filter(
+                                          (value) => value !== row.row,
+                                        ),
+                                  )
+                                }
+                              />
+                            )}
+                            {t("chemicals.bulk.row")} {row.row}
+                          </label>
                         </td>
                         <td className="block sm:table-cell py-2 sm:p-3 font-semibold break-words max-w-64">
-                          {row.name || "—"}
+                          <label className="block text-xs sm:hidden mb-1">
+                            {t("chemicals.name")}
+                          </label>
+                          <input
+                            type="text"
+                            aria-label={`${t("chemicals.name")} · ${t("chemicals.bulk.row")} ${row.row}`}
+                            value={row.name}
+                            maxLength={200}
+                            disabled={!!busy || !!result}
+                            onChange={(event) =>
+                              editRow(row.row, "name", event.target.value)
+                            }
+                            className="w-full min-w-0 min-h-11 p-2 border border-line rounded-[4px] bg-surface font-normal"
+                          />
                         </td>
                         <td className="block sm:table-cell py-2 sm:p-3 max-w-sm mono break-all text-xs">
-                          {row.smiles || "—"}
+                          <label className="block text-xs sm:hidden mb-1">
+                            SMILES
+                          </label>
+                          <textarea
+                            rows={2}
+                            aria-label={`SMILES · ${t("chemicals.bulk.row")} ${row.row}`}
+                            value={row.smiles}
+                            maxLength={4000}
+                            disabled={!!busy || !!result}
+                            onChange={(event) =>
+                              editRow(row.row, "smiles", event.target.value)
+                            }
+                            className="w-full min-w-0 min-h-11 p-2 border border-line rounded-[4px] bg-surface"
+                          />
                         </td>
                         <td className="block sm:table-cell py-2 sm:p-3">
                           {row.preview && (
@@ -260,7 +464,9 @@ export function ChemicalsBulkUpload({
                           )}
                         </td>
                         <td className="block sm:table-cell py-2 sm:p-3 text-xs max-w-xs">
-                          {row.issues.length ? (
+                          {draftDirty && !result ? (
+                            t("chemicals.bulk.needsValidation")
+                          ) : row.issues.length ? (
                             <ul className="space-y-1 text-red-700">
                               {row.issues.map((issue) => (
                                 <li key={issue}>

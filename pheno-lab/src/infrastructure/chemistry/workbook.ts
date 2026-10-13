@@ -5,8 +5,8 @@ import path from "node:path";
 import { unzipSync, strFromU8 } from "fflate";
 import { readSheet } from "read-excel-file/node";
 
-export const MAX_CHEMICAL_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_EXPANDED_BYTES = 8 * 1024 * 1024;
+export const MAX_CHEMICAL_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_EXPANDED_BYTES = 4 * MAX_CHEMICAL_FILE_BYTES;
 // Bound sparse-sheet allocation, independently of the number of material rows.
 const MAX_SHEET_CELLS = 2 * 1024 * 1024;
 export class ChemicalWorkbookError extends Error {
@@ -45,7 +45,7 @@ export async function readSamWorkbook(bytes: Uint8Array, filename: string) {
           file.name.includes("..") ||
           file.name.startsWith("/") ||
           names.size >= 200 ||
-          file.originalSize > 2 * 1024 * 1024 ||
+          file.originalSize > MAX_CHEMICAL_FILE_BYTES ||
           expanded > MAX_EXPANDED_BYTES
         )
           throw new ChemicalWorkbookError("limits");

@@ -9,6 +9,7 @@ import {
   importChemicalWorkbook,
   previewChemicalImport,
   MAX_CHEMICAL_FILE_BYTES,
+  MAX_CHEMICAL_REVIEW_BYTES,
 } from "@/modules/chemicals/bulk-service";
 
 const controlSchema = z.object({
@@ -16,6 +17,10 @@ const controlSchema = z.object({
   category: z.string().trim().min(1).max(100).default("SAM"),
   batchId: z.uuid().optional(),
   expectedDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
+  expectedReviewDigest: z
     .string()
     .regex(/^[a-f0-9]{64}$/)
     .optional(),
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
         { ok: false, error: "access" },
         { status: 403, headers },
       );
-    const maxBody = MAX_CHEMICAL_FILE_BYTES + 65536;
+    const maxBody = MAX_CHEMICAL_FILE_BYTES + MAX_CHEMICAL_REVIEW_BYTES + 65536;
     if (
       Number(request.headers.get("content-length")) > maxBody ||
       !request.headers.get("content-type")?.startsWith("multipart/form-data") ||
@@ -77,10 +82,26 @@ export async function POST(request: Request) {
       category: form.get("category") ?? undefined,
       batchId: form.get("batchId") ?? undefined,
       expectedDigest: form.get("expectedDigest") ?? undefined,
+      expectedReviewDigest: form.get("expectedReviewDigest") ?? undefined,
     });
+    const rawReview = form.get("review");
+    let review: unknown;
+    if (rawReview !== null) {
+      if (
+        typeof rawReview !== "string" ||
+        Buffer.byteLength(rawReview) > MAX_CHEMICAL_REVIEW_BYTES
+      )
+        throw new ChemicalWorkbookError("file");
+      try {
+        review = JSON.parse(rawReview);
+      } catch {
+        throw new ChemicalWorkbookError("file");
+      }
+    }
     const input = {
       filename: file.name,
       category: control.category,
+      review,
       bytes: new Uint8Array(await file.arrayBuffer()),
     };
     if (control.mode === "preview")
@@ -92,6 +113,7 @@ export async function POST(request: Request) {
       ...input,
       batchId: control.batchId,
       expectedDigest: control.expectedDigest,
+      expectedReviewDigest: control.expectedReviewDigest,
     });
     revalidatePath("/chemicals");
     revalidatePath("/library");
