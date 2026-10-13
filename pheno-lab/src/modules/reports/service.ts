@@ -42,7 +42,8 @@ export async function publishLabReport(raw: unknown) {
             throw new Error(
               "This publication already exists with different content.",
             );
-          return { id: existing.id, created: false, notifiedRecipients: 0 };
+          if (!input.requireExistingAccess)
+            return { id: existing.id, created: false, notifiedRecipients: 0 };
         }
         const org = await tx.organization.findFirst({
           where: { id: input.organizationId, status: "ACTIVE" },
@@ -65,6 +66,14 @@ export async function publishLabReport(raw: unknown) {
           throw new Error(
             "Every recipient must be an active manager in this organization.",
           );
+        if (
+          input.requireExistingAccess &&
+          recipients.some((recipient) => !recipient.reportAccess)
+        )
+          throw new Error("Every recipient must already have report access.");
+        // Recurring publications recheck access even for identical retries.
+        if (existing)
+          return { id: existing.id, created: false, notifiedRecipients: 0 };
         const id = crypto.randomUUID();
         const storedPath = `organizations/${org.id}/reports/${id}.html`;
         await storage.put({
@@ -89,7 +98,7 @@ export async function publishLabReport(raw: unknown) {
           },
         });
         for (const recipient of recipients) {
-          if (recipient.reportAccess) continue;
+          if (input.requireExistingAccess || recipient.reportAccess) continue;
           await tx.user.update({
             where: { id: recipient.id },
             data: { reportAccess: true },

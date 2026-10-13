@@ -19,5 +19,6 @@ export const publishReportSchema = z.object({
       "A complete HTML document is required.",
     ),
   recipientIds: z.array(reportIdSchema).min(1).max(20),
+  requireExistingAccess: z.boolean().default(false),
   authorizationReference: z.string().trim().min(1).max(500),
 });
