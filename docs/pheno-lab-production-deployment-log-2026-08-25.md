@@ -1589,13 +1589,13 @@ expand-only：上一版代码忽略该列，回滚后仍可运行；不回填、
 
 **执行**：严格按 `deploy/README.md` 第 4 节。
 
-| 步骤              | 结果                                                                                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| 4.1 只读预检      | 服务 active；`current` = `20260825-001`；source 工作区干净，fast-forward 到 `4abb21d`                      |
+| 步骤 | 结果 |
+| --- | --- |
+| 4.1 只读预检 | 服务 active；`current` = `20260825-001`；source 工作区干净，fast-forward 到 `4abb21d` |
 | 4.2 `APP_VERSION` | `20260825-001` → `20260826-001`，只改这一行；权限仍为 `root pheno 0640`；`validate-runtime-config.ts` 通过 |
-| 4.3 构建          | `build-release.sh` 首次失败（见下），修复后通过完整 `pnpm run verify`；artifact sha256 校验 OK             |
-| 4.4 发布          | `prisma migrate deploy` 应用 1 条 migration；脚本输出 `deployed 20260826-001`                              |
-| 4.5 验收          | 见下                                                                                                       |
+| 4.3 构建 | `build-release.sh` 首次失败（见下），修复后通过完整 `pnpm run verify`；artifact sha256 校验 OK |
+| 4.4 发布 | `prisma migrate deploy` 应用 1 条 migration；脚本输出 `deployed 20260826-001` |
+| 4.5 验收 | 见下 |
 
 **4.3 首次失败与根因**：`build-release.sh` 只执行
 `pnpm install --frozen-lockfile`。lockfile 未变时该命令是 no-op，pnpm 因此跳过 Prisma 的
@@ -1607,13 +1607,13 @@ postinstall，`node_modules` 中仍是上一版 schema 生成的 client，`pnpm 
 
 **数据前后对照**（同一生产库 `pheno_lab`）：
 
-| 指标                        | 迁移前 | 迁移后           |
-| --------------------------- | ------ | ---------------- |
-| `Attachment` 行数           | 45776  | 45776            |
-| `Equipment` 行数            | 19     | 19               |
-| `IngestItem` PENDING        | 1      | 1                |
+| 指标 | 迁移前 | 迁移后 |
+| --- | --- | --- |
+| `Attachment` 行数 | 45776 | 45776 |
+| `Equipment` 行数 | 19 | 19 |
+| `IngestItem` PENDING | 1 | 1 |
 | `Attachment.equipmentId` 列 | absent | `text`, nullable |
-| `equipmentId` 非空行数      | —      | 0                |
+| `equipmentId` 非空行数 | — | 0 |
 
 **验收证据**：`pheno-lab.service` active；`current` →
 `/srv/pheno-lab/releases/20260826-001`；3457 仅监听 `127.0.0.1`；
@@ -1654,13 +1654,13 @@ mtime 相差 1 秒，说明 003 确实已经生效，只是版本标签没跟上
 
 **数据前后对照**：
 
-| 指标                             | 迁移前 | 迁移后           |
-| -------------------------------- | ------ | ---------------- |
-| `LabEnvironment` 行数            | 7      | 7                |
-| `Attachment` 行数                | 45776  | 45776            |
-| `IngestItem` PENDING EQUIPMENT   | 20     | 20               |
-| `LabEnvironment.notes` 列        | absent | `text`, NOT NULL |
-| `notes` 非空行数                 | —      | 0                |
+| 指标 | 迁移前 | 迁移后 |
+| --- | --- | --- |
+| `LabEnvironment` 行数 | 7 | 7 |
+| `Attachment` 行数 | 45776 | 45776 |
+| `IngestItem` PENDING EQUIPMENT | 20 | 20 |
+| `LabEnvironment.notes` 列 | absent | `text`, NOT NULL |
+| `notes` 非空行数 | — | 0 |
 | `Attachment.labEnvironmentId` 列 | absent | `text`, nullable |
 
 **验收**：`current` → `20260826-004`；3457 仅监听 loopback；`/api/health/live` 与带 token 的
@@ -1691,13 +1691,13 @@ Remove 直接丢数据。另外重复检测只比对 title，因此对样品完�
 
 **数据前后对照**：
 
-| 指标                       | 合并前 | 合并后           |
-| -------------------------- | ------ | ---------------- |
-| `Experiment` 总数          | 954    | 954              |
-| Rose 小面积-22 的实验数    | 1      | 1                |
-| 该批次样品                 | `D1`   | `BrMe3, D1, Me1` |
-| 该批次 characterization 数 | 1      | 1                |
-| PENDING 队列               | 1      | 0                |
+| 指标 | 合并前 | 合并后 |
+| --- | --- | --- |
+| `Experiment` 总数 | 954 | 954 |
+| Rose 小面积-22 的实验数 | 1 | 1 |
+| 该批次样品 | `D1` | `BrMe3, D1, Me1` |
+| 该批次 characterization 数 | 1 | 1 |
+| PENDING 队列 | 1 | 0 |
 
 `D1` 原有的 10 个指标和 7 个文件未被改动；审计事件 `experiment.merged` 记录
 `samplesAdded=["Me1","BrMe3"]`。合并通过正常的 ingest gate 执行，不是手工 SQL。
@@ -1715,12 +1715,12 @@ Remove 直接丢数据。另外重复检测只比对 title，因此对样品完�
 一组件反向扫了三次、正向一次，文件里因此有三条同名 `0820-15-8-Rev` 轨迹。解析器把汇总表建成
 `Map<name, row>`，同名互相覆盖，三条反向曲线全部拿到最后一行的数值：
 
-| 曲线块   | 真实 Voc / PCE       | 入库为                 |
-| -------- | -------------------- | ---------------------- |
-| 1        | 11.4514 V / 19.774 % | 11.0771 / 19.365（错） |
-| 2        | 11.3547 V / 18.844 % | 11.0771 / 19.365（错） |
-| 3        | 11.0771 V / 19.365 % | 正确                   |
-| 4（For） | 10.6675 V / 18.501 % | 正确                   |
+| 曲线块 | 真实 Voc / PCE | 入库为 |
+| --- | --- | --- |
+| 1 | 11.4514 V / 19.774 % | 11.0771 / 19.365（错） |
+| 2 | 11.3547 V / 18.844 % | 11.0771 / 19.365（错） |
+| 3 | 11.0771 V / 19.365 % | 正确 |
+| 4（For） | 10.6675 V / 18.501 % | 正确 |
 
 两条真实测量被第三条的副本顶替，自身数值被丢弃，全程无报错、无告警。
 
@@ -1772,11 +1772,11 @@ owner。
 
 **数据前后对照**：
 
-| 指标                 | 迁移前 | 迁移后           |
-| -------------------- | ------ | ---------------- |
-| `JvMeasurement` 行数 | 90     | 90               |
-| `assignedToId` 列    | absent | `text`, nullable |
-| 有 owner 的行        | —      | 0                |
+| 指标 | 迁移前 | 迁移后 |
+| --- | --- | --- |
+| `JvMeasurement` 行数 | 90 | 90 |
+| `assignedToId` 列 | absent | `text`, nullable |
+| 有 owner 的行 | — | 0 |
 
 按新规则，当前 90 条的归属为：30 条挂在 sample 上（走实验规则），60 条为孤儿（仅
 manager/admin 可见）。
@@ -1787,6 +1787,7 @@ manager/admin 可见）。
 **待办**：仪器上实际写的 operator 名字目前不对应任何 active 账号（GiantForce 全部写
 "River"，但没有 River 账号），所以第二级匹配暂时不会命中。需要先给操作者开账号，并让账号
 名与他们在仪器上输入的名字一致。
+
 
 ### 17.6 release `20261005-001` (October 5, 2026)
 
@@ -1810,14 +1811,14 @@ The clean production source pulled main, then the existing build-release and dep
 
 Read-only inventories at 10:37 and 11:36 UTC matched record IDs and counts:
 
-| Record                 | Before | After  |
-| ---------------------- | ------ | ------ |
-| Experiment             | 1,073  | 1,073  |
-| Sample                 | 19,583 | 19,583 |
-| StepExecution          | 3,877  | 3,877  |
+| Record | Before | After |
+| --- | --- | --- |
+| Experiment | 1,073 | 1,073 |
+| Sample | 19,583 | 19,583 |
+| StepExecution | 3,877 | 3,877 |
 | CharacterizationResult | 24,263 | 24,263 |
-| Attachment             | 45,842 | 45,842 |
-| JvMeasurement          | 37,719 | 37,719 |
+| Attachment | 45,842 | 45,842 |
+| JvMeasurement | 37,719 | 37,719 |
 
 Sample identity fingerprints also matched. These checks establish identity/count preservation; they are not a full content checksum of every scientific field. No production scientific records were edited or backfilled for this release.
 
@@ -1858,6 +1859,7 @@ Public liveness, authenticated PostgreSQL/private COS readiness, active applicat
 **Rollback constraint:** older releases do not enforce the new restriction fields. Before rolling back to such code, deactivate affected restricted accounts with an audit event or obtain explicit approval for another isolation plan, as documented in the existing deployment manual. Do not treat additive DDL as safe authorization semantics for old code.
 
 Aggregate evidence is saved in [`release-evidence/20261009-jv-testing.json`](release-evidence/20261009-jv-testing.json), without passwords, session tokens, raw scientific records or complete internal identifiers.
+
 
 ### 17.10 release `20261012-003` (October 12, 2026)
 
@@ -1929,6 +1931,7 @@ Live checks completed13:11:41Z: ten approved English/Chinese desktop/tablet/phon
 
 Bruce's updated standalone seven-section guide and the blank Excel template are available in Downloads and match canonical artifacts. Eight offline bilingual guide viewports, embedded approved artwork, every print page and both template sheets were visually reviewed. Guide example is public2PACz, with no private laboratory definitions or credentials. Human acceptance is not reported. Aggregate evidence: [release-evidence/20261012-sam-bulk-upload.json](release-evidence/20261012-sam-bulk-upload.json).
 
+
 ### 17.15 release `20261012-008` (October 12, 2026)
 
 Michael requested fixing the4PACz shared-library-name conflict, registering chemistry against an existing material rather than creating a duplicate, removing the row atom button, and shared SAM/Additives/Solvents/custom categories. PR109 merged as3708fa42456c2f49dcc22996e6703eb201058dc5. PR/main CI38260451874/38261432835 passed, includingLinux artifact/checksum andGo Bridge; final main job status was verified through the GitHub connector after intermittent CLI network EOFs. Full local verification passed232unit,118guarded real-PostgreSQL integration and30browser tests. The production builder repeated full verification through the existing limited-account workflow.
@@ -1941,6 +1944,7 @@ The requested4PACz record was checked read-only before publication: exactly one 
 
 Ten approved English/Chinese desktop/tablet/phone cases, four denied-account cases and anonymous denial passed. Shared defaults/custom-add options rendered, no row atom selector remained,4PACz saved images loaded, and private template bytes matched the shipped workbook. Two additional owner/maintainer desktop cases waited for the larger inspector image after row focus. No outer overflow/page errors occurred. Short-lived session files and private temporary source snapshots were removed. Bilingual template instructions and the standalone Bruce guide were updated while retaining the compatible two-column worksheet. Aggregate evidence: [release-evidence/20261012-chemicals-library-link.json](release-evidence/20261012-chemicals-library-link.json). Human acceptance is not asserted.
 
+
 ### 17.16 化学 Excel 上传取消 100 行配额（2026-10-12，已上线）
 
 - Michael 要求移除化学上传的 100 行限制。PR #111 合并为 `6a8edac5e2a556404467ea46b9d0d66a7ef65070`；PR/main CI `38266414548` / `38267175021` 均通过。
@@ -1952,6 +1956,7 @@ Ten approved English/Chinese desktop/tablet/phone cases, four denied-account cas
 - 仅现有 APP_VERSION 从 008 增至 009；其余 env 字节和 ACL 保持一致。临时受保护 env 备份及短期浏览器 session 文件已移除。一次网络失败产生的本地检查日志已脱敏；临时验证 session 最迟于 2026-10-12 15:14:35 UTC 到期，没有修改真实账号密码或 sessionVersion。
 - authenticated readiness、公网版本 009、非 root `pheno`、loopback 3457、零自动重启及 HTTPS 跳转均通过。双语页面、模板说明及 Bruce 离线指南同步更新；现有两列模板保持兼容。
 - 聚合发布证据：`docs/release-evidence/20261012-chemicals-upload-row-quota.json`；测试说明：`docs/chemicals-feature-2026-10-12/upload-row-limit-qa.md`。不包含真实 SMILES、账号凭据或完整 COS key。人类使用验收尚未声称完成。
+
 
 ### 17.17 化学 Excel 预览行编辑与 5 MB 上传（2026-10-13，已上线）
 
