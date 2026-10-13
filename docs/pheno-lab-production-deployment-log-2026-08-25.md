@@ -1956,3 +1956,17 @@ Ten approved English/Chinese desktop/tablet/phone cases, four denied-account cas
 - 仅现有 APP_VERSION 从 008 增至 009；其余 env 字节和 ACL 保持一致。临时受保护 env 备份及短期浏览器 session 文件已移除。一次网络失败产生的本地检查日志已脱敏；临时验证 session 最迟于 2026-10-12 15:14:35 UTC 到期，没有修改真实账号密码或 sessionVersion。
 - authenticated readiness、公网版本 009、非 root `pheno`、loopback 3457、零自动重启及 HTTPS 跳转均通过。双语页面、模板说明及 Bruce 离线指南同步更新；现有两列模板保持兼容。
 - 聚合发布证据：`docs/release-evidence/20261012-chemicals-upload-row-quota.json`；测试说明：`docs/chemicals-feature-2026-10-12/upload-row-limit-qa.md`。不包含真实 SMILES、账号凭据或完整 COS key。人类使用验收尚未声称完成。
+
+
+### 17.17 化学 Excel 预览行编辑与 5 MB 上传（2026-10-13，已上线）
+
+- Michael 要求在上传预览中直接编辑名称/SMILES、选择并移除不需要的行，再确认导入，并将文件上限从 2 MB 提高到 5 MB。应用 PR #113 合并为 `1a2f8b2626c0bec9f8f027eb0a8ebf561bd98963`；PR/main CI `38335140684` / `38335557409` 均通过，包括完整浏览器套件、Linux 制品/checksum 和 Go Bridge。
+- 沿用受限 `deploy_pheno_lab` 和既有构建/发布脚本发布 `20261013-001`，readiness 于 `2026-10-13T02:16:05Z`（中国时间 10:16:05）通过。制品 SHA256：`0235489a891a35fc8516559761f0e110832c7fa2a8db637addb6b961a98e764f`。46 个既有 migration 无待应用项；没有 schema/data migration。
+- 预览提供行内名称/SMILES 编辑、逐行选择、全选、移除所选行和重置。编辑/移除/类别变化后必须重新验证，SMILES 变化立即清除旧图；全删后的空草稿不可导入。仅本次草稿被移除，数据库已有材料不会被删除。类别变化保留草稿；已确认导入的预览只读。
+- 原始 Excel 字节保持不变，私有不可变批次 manifest 记录原始行号、最终输入及单份编辑/排除计划。来源/类别/规范化 review digest 绑定确认及幂等重试；旧无编辑客户端/manifest 保持兼容。未知、重复、重叠行引用及非法字段被拒绝，审计只含数量/摘要，无 SMILES。
+- 文件上限为 5 MiB，界面显示 5 MB；对应 ZIP 单项/总展开保护增至 5/20 MiB，并保留工作表范围、稀疏分配、公式/宏/外部引用防护及无材料行配额。review JSON 单独有 5 MiB 边界；现有 Nginx 25m 请求上限足够，无代理配置更改。共享材料关联和原身份/实验引用规则保持。
+- 本地完整 verify 239 单元测试、121 真实受保护 PostgreSQL 集成测试、9 个受影响浏览器测试通过。覆盖大于 2 MB 文件、修正/移除后完整子集导入、原始文件下载、已有记录不变、关联不重复、未知/过期 review、旧批次 replay、审计回滚及中英文桌面/移动操作。空白 Excel 模板和 Bruce 离线双语指南同步更新，8 个指南视图通过，模板说明渲染检查通过；旧两列模板兼容。
+- 生产仅用合成只读预览：Bruce/Michael 的 10 个中英文桌面/平板/手机视图、4 个拒绝账号及匿名边界通过。大于 2 MB 文件预览、编辑/移除/类别保留/重新验证、首尾分子图、全选清空/重置、125 行无配额和大于 5 MiB 拒绝均通过；没有页面错误或外层溢出。模板下载与发布文件字节一致且 no-store。没有生产测试材料导入或新通知。
+- 前后完整 Material、私有结构证据、类别及权限摘要和计数一致：449 材料、4 条私有化学证据、1,086 实验、19,750 样品、3 个 testing request、145 通知、0 个 Excel 导入批次。没有科研记录修复、删除或回填；页面 presence 心跳不是科研数据修改。
+- 仅现有 APP_VERSION 从 `20261012-009` 增至 `20261013-001`；其他 env 字节、owner/mode/命名 ACL 一致，受保护临时备份和短期验证 session 文件已移除。public/private readiness、非 root `pheno`、loopback 3457、零自动重启、Nginx active 与 HTTP 301 均通过。未新增配置、账号、权限、服务、端口、云资源或长期凭据。
+- 聚合证据：[release-evidence/20261013-chemicals-editable-upload-review.json](release-evidence/20261013-chemicals-editable-upload-review.json)；测试说明：[chemicals-feature-2026-10-12/editable-upload-review-qa.md](chemicals-feature-2026-10-12/editable-upload-review-qa.md)。没有保存凭据、真实 SMILES 或完整 COS key。人类使用验收不作完成声明。
