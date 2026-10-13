@@ -138,6 +138,177 @@ describe("private reports on real PostgreSQL", () => {
           where: { organizationId: f.org.id, action: "report.published" },
         }),
       ).toBe(1);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "user.report_access.granted",
+          },
+        }),
+      ).toBe(4);
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("publishes recurring reports to four existing grantees without changing grants", async () => {
+    const f = await fixture();
+    try {
+      await db.user.updateMany({
+        where: { id: { in: f.input.recipientIds }, organizationId: f.org.id },
+        data: { reportAccess: true },
+      });
+      const input = { ...f.input, requireExistingAccess: true };
+      const put = vi.spyOn(objectStorage(), "put");
+      const result = await publishLabReport(input);
+      expect(result).toMatchObject({ created: true, notifiedRecipients: 4 });
+      expect(put).toHaveBeenCalledTimes(1);
+      expect(
+        await db.user.count({
+          where: { organizationId: f.org.id, reportAccess: true },
+        }),
+      ).toBe(4);
+      const notices = await db.notification.findMany({
+        where: { organizationId: f.org.id },
+      });
+      expect(notices).toHaveLength(4);
+      expect(notices.map((notice) => notice.userId).sort()).toEqual(
+        [...f.input.recipientIds].sort(),
+      );
+      expect(
+        notices.every(
+          (notice) =>
+            notice.readAt === null && notice.href === `/reports/${result.id}`,
+        ),
+      ).toBe(true);
+      expect(await publishLabReport(input)).toMatchObject({
+        id: result.id,
+        created: false,
+        notifiedRecipients: 0,
+      });
+      expect(put).toHaveBeenCalledTimes(1);
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(4);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "user.report_access.granted",
+          },
+        }),
+      ).toBe(0);
+      expect(
+        await db.auditEvent.count({
+          where: { organizationId: f.org.id, action: "report.published" },
+        }),
+      ).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("rejects a recurring publication with a revoked grant before writing storage, records or notices", async () => {
+    const f = await fixture();
+    try {
+      await db.user.updateMany({
+        where: { id: { in: f.input.recipientIds }, organizationId: f.org.id },
+        data: { reportAccess: true },
+      });
+      await db.user.update({
+        where: { id: f.managers[0].id },
+        data: { reportAccess: false },
+      });
+      const before = await db.user.findMany({
+        where: { organizationId: f.org.id },
+        select: { id: true, reportAccess: true },
+        orderBy: { id: "asc" },
+      });
+      const put = vi.spyOn(objectStorage(), "put");
+      const remove = vi.spyOn(objectStorage(), "delete");
+      await expect(
+        publishLabReport({ ...f.input, requireExistingAccess: true }),
+      ).rejects.toThrow("already have report access");
+      expect(put).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+      expect(
+        await db.user.findMany({
+          where: { organizationId: f.org.id },
+          select: { id: true, reportAccess: true },
+          orderBy: { id: "asc" },
+        }),
+      ).toEqual(before);
+      expect(
+        await db.labReport.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.auditEvent.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("rechecks current grants and restrictions before returning an identical recurring publication", async () => {
+    const f = await fixture();
+    try {
+      await db.user.updateMany({
+        where: { id: { in: f.input.recipientIds }, organizationId: f.org.id },
+        data: { reportAccess: true },
+      });
+      const input = { ...f.input, requireExistingAccess: true };
+      const published = await publishLabReport(input);
+      const put = vi.spyOn(objectStorage(), "put");
+      for (const change of [
+        { reportAccess: false },
+        { role: "TECHNICIAN" as const },
+        { mustChangePassword: true },
+        { pendingApproval: true },
+        { active: false },
+        { testingOnly: true },
+      ]) {
+        await db.user.update({ where: { id: f.admin.id }, data: change });
+        const before = await db.user.findUniqueOrThrow({
+          where: { id: f.admin.id },
+        });
+        await expect(publishLabReport(input)).rejects.toThrow(
+          "reportAccess" in change ? "report access" : "active manager",
+        );
+        expect(
+          await db.user.findUniqueOrThrow({ where: { id: f.admin.id } }),
+        ).toEqual(before);
+        await db.user.update({
+          where: { id: f.admin.id },
+          data: {
+            reportAccess: true,
+            role: "ADMIN",
+            mustChangePassword: false,
+            pendingApproval: false,
+            active: true,
+            testingOnly: false,
+          },
+        });
+      }
+      await db.organization.update({
+        where: { id: f.org.id },
+        data: { status: "SUSPENDED" },
+      });
+      await expect(publishLabReport(input)).rejects.toThrow(
+        "active organization",
+      );
+      expect(put).not.toHaveBeenCalled();
+      expect(
+        await db.labReport.findMany({
+          where: { organizationId: f.org.id },
+          select: { id: true },
+        }),
+      ).toEqual([{ id: published.id }]);
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(4);
+      expect(
+        await db.auditEvent.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1);
     } finally {
       await f.cleanup();
     }
