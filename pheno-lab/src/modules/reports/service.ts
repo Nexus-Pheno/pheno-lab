@@ -5,9 +5,14 @@ import { db } from "@/infrastructure/db/client";
 import { objectStorage } from "@/infrastructure/storage";
 import type { Actor } from "@/modules/authorization/actor";
 import { recordSystemAudit, recordUserAudit } from "@/modules/audit/writer";
+import { notify } from "@/modules/notifications/service";
 import { reportContentSecurityPolicy, reportDigest } from "./html";
 import { requireReportAccess } from "./query";
-import { publishReportSchema, reportIdSchema } from "./schema";
+import {
+  grantReportAccessSchema,
+  publishReportSchema,
+  reportIdSchema,
+} from "./schema";
 
 /** Approved operator publication only. There is no upload or publishing endpoint. */
 export async function publishLabReport(raw: unknown) {
@@ -58,13 +63,19 @@ export async function publishLabReport(raw: unknown) {
             pendingApproval: false,
             testingOnly: false,
             mustChangePassword: false,
-            role: { in: ["ADMIN", "MANAGER"] },
+            // Initial publication grants remain managerial. An explicitly
+            // pregranted full-access technician may receive recurring reports.
+            ...(!input.requireExistingAccess
+              ? { role: { in: ["ADMIN" as const, "MANAGER" as const] } }
+              : {}),
           },
           select: { id: true, reportAccess: true, language: true },
         });
         if (recipients.length !== recipientIds.length)
           throw new Error(
-            "Every recipient must be an active manager in this organization.",
+            input.requireExistingAccess
+              ? "Every recipient must be an eligible active account in this organization."
+              : "Every recipient must be an active manager in this organization.",
           );
         if (
           input.requireExistingAccess &&
@@ -155,6 +166,119 @@ export async function publishLabReport(raw: unknown) {
     }
     throw error;
   }
+}
+
+/** Operator-only explicit grant. There is no public permission endpoint. */
+export async function grantReportAccess(raw: unknown) {
+  const input = grantReportAccessSchema.parse(raw);
+  return db.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`report-access:${input.organizationId}:${input.recipientUserId}`}, 0))`;
+      await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${input.organizationId} FOR SHARE`;
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "organizationId" = ${input.organizationId} AND ("id" = ${input.senderUserId} OR "id" = ${input.recipientUserId}) ORDER BY "id" FOR UPDATE`;
+      const users = await tx.user.findMany({
+        where: {
+          id: { in: [input.senderUserId, input.recipientUserId] },
+          organizationId: input.organizationId,
+          active: true,
+          pendingApproval: false,
+          testingOnly: false,
+          mustChangePassword: false,
+          organization: { status: "ACTIVE" },
+        },
+        select: {
+          id: true,
+          role: true,
+          name: true,
+          language: true,
+          reportAccess: true,
+        },
+      });
+      const sender = users.find((user) => user.id === input.senderUserId);
+      const recipient = users.find((user) => user.id === input.recipientUserId);
+      if (sender?.role !== "ADMIN")
+        throw new Error(
+          "An active administrator in this organization is required.",
+        );
+      if (!recipient)
+        throw new Error(
+          "An eligible active recipient in this organization is required.",
+        );
+      const existing = await tx.auditEvent.findFirst({
+        where: {
+          organizationId: input.organizationId,
+          action: "report.access.announced",
+          entityType: "User",
+          entityId: recipient.id,
+          requestId: input.requestId,
+        },
+        select: { metadata: true },
+      });
+      if (existing) {
+        const metadata = existing.metadata as Record<string, unknown> | null;
+        if (
+          metadata?.senderUserId !== sender.id ||
+          metadata?.approvalReference !== input.authorizationReference
+        )
+          throw new Error(
+            "This report access request already exists with different input.",
+          );
+        if (!recipient.reportAccess)
+          throw new Error(
+            "This report access grant was revoked; a retry cannot restore it.",
+          );
+        return { created: false, granted: false, notifiedRecipients: 0 };
+      }
+      if (!recipient.reportAccess) {
+        await tx.user.update({
+          where: { id: recipient.id },
+          data: { reportAccess: true },
+        });
+        await recordSystemAudit(tx, {
+          organizationId: input.organizationId,
+          action: "user.report_access.granted",
+          entityType: "User",
+          entityId: recipient.id,
+          requestId: input.requestId,
+          changes: { reportAccess: { before: false, after: true } },
+          metadata: {
+            senderUserId: sender.id,
+            approvalReference: input.authorizationReference,
+          },
+        });
+      }
+      await notify(tx, {
+        organizationId: input.organizationId,
+        userId: recipient.id,
+        actorUserId: sender.id,
+        actorName: sender.name,
+        kind: "report_access_granted",
+        entityLabel:
+          recipient.language === "zh"
+            ? "Pheno Lab 研究报告"
+            : "Pheno Lab research reports",
+        href: "/reports",
+      });
+      await recordSystemAudit(tx, {
+        organizationId: input.organizationId,
+        action: "report.access.announced",
+        entityType: "User",
+        entityId: recipient.id,
+        requestId: input.requestId,
+        metadata: {
+          senderUserId: sender.id,
+          approvalReference: input.authorizationReference,
+          kind: "report_access_granted",
+        },
+      });
+      return {
+        created: true,
+        granted: !recipient.reportAccess,
+        notifiedRecipients: 1,
+      };
+    },
+    { isolationLevel: "Serializable" },
+  );
 }
 
 export async function readLabReportContent(actor: Actor, rawId: unknown) {
