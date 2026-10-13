@@ -458,9 +458,9 @@ export const en = {
   "nav.analysis": "Analysis",
   "reports.title": "Reports",
   "reports.intro":
-    "Research reports for designated managers. Open a report to read the complete bilingual analysis.",
+    "Research reports for approved readers. Open a report to read the complete bilingual analysis.",
   "reports.restricted":
-    "Report titles and dates are visible to the team. Full reports are restricted to designated managers.",
+    "Report titles and dates are visible to the team. Full reports require explicit report access.",
   "reports.reportTitle": "Report title",
   "reports.generated": "Generated",
   "reports.access": "Access",
@@ -471,6 +471,7 @@ export const en = {
   "reports.previous": "Previous",
   "reports.next": "Next",
   "notif.report_published": "published a research report",
+  "notif.report_access_granted": "granted you report access",
   "an.askTab": "Ask",
   "an.manualTab": "Compare one condition",
   "an.askSubtitle":
@@ -2062,9 +2063,9 @@ export const zh: Record<TKey, string> = {
   "nav.analysis": "分析",
   "reports.title": "报告",
   "reports.intro":
-    "供指定管理人员阅读的研究报告。打开报告可查看完整中英双语分析。",
+    "供已获报告访问权限的成员阅读的研究报告。打开报告可查看完整中英双语分析。",
   "reports.restricted":
-    "团队成员可查看报告标题与生成日期。完整报告仅限指定管理人员访问。",
+    "团队成员可查看报告标题与生成日期。完整报告需要单独授予报告访问权限。",
   "reports.reportTitle": "报告标题",
   "reports.generated": "生成时间",
   "reports.access": "访问权限",
@@ -2075,6 +2076,7 @@ export const zh: Record<TKey, string> = {
   "reports.previous": "上一页",
   "reports.next": "下一页",
   "notif.report_published": "已发布研究报告",
+  "notif.report_access_granted": "已为你开通报告访问权限",
   "an.askTab": "提问",
   "an.manualTab": "单条件对比",
   "an.askSubtitle":

@@ -10,6 +10,7 @@ import {
 } from "@/modules/reports/query";
 import {
   publishLabReport,
+  grantReportAccess,
   readLabReportContent,
 } from "@/modules/reports/service";
 import { canReadObject } from "@/modules/files/authorization";
@@ -46,6 +47,7 @@ async function fixture() {
     member("m3", "MANAGER"),
   ]);
   const ordinary = await member("ordinary", "MANAGER");
+  const reader = await member("reader", "TECHNICIAN", { language: "zh" });
   const tester = await member("tester", "TECHNICIAN", { testingOnly: true });
   const outside = await member("outside", "ADMIN", {
     organizationId: foreign.id,
@@ -76,6 +78,7 @@ async function fixture() {
     admin,
     managers,
     ordinary,
+    reader,
     tester,
     outside,
     actor,
@@ -261,7 +264,6 @@ describe("private reports on real PostgreSQL", () => {
       const put = vi.spyOn(objectStorage(), "put");
       for (const change of [
         { reportAccess: false },
-        { role: "TECHNICIAN" as const },
         { mustChangePassword: true },
         { pendingApproval: true },
         { active: false },
@@ -272,7 +274,9 @@ describe("private reports on real PostgreSQL", () => {
           where: { id: f.admin.id },
         });
         await expect(publishLabReport(input)).rejects.toThrow(
-          "reportAccess" in change ? "report access" : "active manager",
+          "reportAccess" in change
+            ? "report access"
+            : "eligible active account",
         );
         expect(
           await db.user.findUniqueOrThrow({ where: { id: f.admin.id } }),
@@ -369,7 +373,6 @@ describe("private reports on real PostgreSQL", () => {
       const result = await publishLabReport(f.input);
       for (const change of [
         { reportAccess: false },
-        { role: "TECHNICIAN" as const },
         { mustChangePassword: true },
         { pendingApproval: true },
         { active: false },
@@ -445,6 +448,326 @@ describe("private reports on real PostgreSQL", () => {
       expect(await objectStorage().exists(put.mock.calls[0][0].key)).toBe(
         false,
       );
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("grants a technician only report access, opens historical reports and notifies once", async () => {
+    const f = await fixture();
+    try {
+      const published = await publishLabReport(f.input);
+      const input = {
+        organizationId: f.org.id,
+        senderUserId: f.admin.id,
+        recipientUserId: f.reader.id,
+        requestId: "synthetic-technician-report-access-v1",
+        authorizationReference: "Synthetic explicit report access approval",
+      };
+      const before = await db.user.findUniqueOrThrow({
+        where: { id: f.reader.id },
+      });
+      const otherUsers = await db.user.findMany({
+        where: { organizationId: f.org.id, id: { not: f.reader.id } },
+        orderBy: { id: "asc" },
+      });
+      expect(await canOpenReports(f.actor(f.reader))).toBe(false);
+      expect(await grantReportAccess(input)).toEqual({
+        created: true,
+        granted: true,
+        notifiedRecipients: 1,
+      });
+      expect(
+        await db.user.findUniqueOrThrow({ where: { id: f.reader.id } }),
+      ).toEqual({ ...before, reportAccess: true });
+      expect(
+        await db.user.findMany({
+          where: { organizationId: f.org.id, id: { not: f.reader.id } },
+          orderBy: { id: "asc" },
+        }),
+      ).toEqual(otherUsers);
+      expect(await canOpenReports(f.actor(f.reader))).toBe(true);
+      expect((await listLabReports(f.actor(f.reader), {})).canOpen).toBe(true);
+      expect(
+        await getLabReportMetadata(f.actor(f.reader), published.id),
+      ).not.toBeNull();
+      const content = await readLabReportContent(
+        f.actor(f.reader),
+        published.id,
+      );
+      expect(Buffer.from(content!.body).toString()).toBe(f.html);
+      const original = await db.labReport.findUniqueOrThrow({
+        where: { id: published.id },
+      });
+      expect(original.recipientIds).toEqual([...f.input.recipientIds].sort());
+      expect(await canReadObject(f.actor(f.reader), original.storedPath)).toBe(
+        false,
+      );
+      expect(await grantReportAccess(input)).toEqual({
+        created: false,
+        granted: false,
+        notifiedRecipients: 0,
+      });
+      const notices = await db.notification.findMany({
+        where: { organizationId: f.org.id, userId: f.reader.id },
+      });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toMatchObject({
+        kind: "report_access_granted",
+        actorName: f.admin.name,
+        entityLabel: "Pheno Lab 研究报告",
+        href: "/reports",
+        readAt: null,
+      });
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            entityId: f.reader.id,
+            action: "user.report_access.granted",
+          },
+        }),
+      ).toBe(1);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            entityId: f.reader.id,
+            action: "report.access.announced",
+            requestId: input.requestId,
+          },
+        }),
+      ).toBe(1);
+      await expect(
+        grantReportAccess({
+          ...input,
+          authorizationReference: "Different approval",
+        }),
+      ).rejects.toThrow("different input");
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("publishes to five pregranted readers while legacy initial grants remain managerial", async () => {
+    const f = await fixture();
+    try {
+      await publishLabReport(f.input);
+      await expect(
+        publishLabReport({
+          ...f.input,
+          publicationKey: "synthetic-initial-technician-v1",
+          recipientIds: [f.reader.id],
+        }),
+      ).rejects.toThrow("active manager");
+      await grantReportAccess({
+        organizationId: f.org.id,
+        senderUserId: f.admin.id,
+        recipientUserId: f.reader.id,
+        requestId: "synthetic-five-recipient-grant-v1",
+        authorizationReference: "Synthetic explicit technician report approval",
+      });
+      const grantsBefore = await db.auditEvent.count({
+        where: {
+          organizationId: f.org.id,
+          action: "user.report_access.granted",
+        },
+      });
+      const input = {
+        ...f.input,
+        publicationKey: "synthetic-five-recipient-report-v1",
+        recipientIds: [...f.input.recipientIds, f.reader.id],
+        requireExistingAccess: true,
+      };
+      const result = await publishLabReport(input);
+      expect(result).toMatchObject({ created: true, notifiedRecipients: 5 });
+      const notices = await db.notification.findMany({
+        where: { organizationId: f.org.id, href: `/reports/${result.id}` },
+      });
+      expect(notices.map((notice) => notice.userId).sort()).toEqual(
+        [...input.recipientIds].sort(),
+      );
+      expect(notices.every((notice) => notice.readAt === null)).toBe(true);
+      expect(await publishLabReport(input)).toMatchObject({
+        created: false,
+        notifiedRecipients: 0,
+      });
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "user.report_access.granted",
+          },
+        }),
+      ).toBe(grantsBefore);
+      expect(
+        await db.user.findUniqueOrThrow({
+          where: { id: f.reader.id },
+          select: { role: true },
+        }),
+      ).toEqual({ role: "TECHNICIAN" });
+      await expect(
+        readLabReportContent(f.actor(f.ordinary), result.id),
+      ).rejects.toThrow();
+      expect(
+        await readLabReportContent(f.actor(f.outside), result.id),
+      ).toBeNull();
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("rejects foreign and restricted access targets and non-admin senders without writes", async () => {
+    const f = await fixture();
+    try {
+      const input = {
+        organizationId: f.org.id,
+        senderUserId: f.admin.id,
+        recipientUserId: f.reader.id,
+        requestId: "synthetic-restricted-report-grant-v1",
+        authorizationReference: "Synthetic scoped report access approval",
+      };
+      for (const recipientUserId of [f.outside.id, f.tester.id])
+        await expect(
+          grantReportAccess({ ...input, recipientUserId }),
+        ).rejects.toThrow("eligible active recipient");
+      for (const senderUserId of [f.ordinary.id, f.outside.id, f.tester.id])
+        await expect(
+          grantReportAccess({ ...input, senderUserId }),
+        ).rejects.toThrow("active administrator");
+      const restricted = [
+        { mustChangePassword: true },
+        { pendingApproval: true },
+        { active: false },
+        { testingOnly: true },
+      ];
+      for (const change of restricted) {
+        for (const id of [f.admin.id, f.reader.id]) {
+          await db.user.update({ where: { id }, data: change });
+          await expect(grantReportAccess(input)).rejects.toThrow(
+            id === f.admin.id
+              ? "active administrator"
+              : "eligible active recipient",
+          );
+          await db.user.update({
+            where: { id },
+            data: {
+              active: true,
+              pendingApproval: false,
+              testingOnly: false,
+              mustChangePassword: false,
+            },
+          });
+        }
+      }
+      await db.organization.update({
+        where: { id: f.org.id },
+        data: { status: "SUSPENDED" },
+      });
+      await expect(grantReportAccess(input)).rejects.toThrow(
+        "active administrator",
+      );
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.auditEvent.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.user.findUniqueOrThrow({
+          where: { id: f.reader.id },
+          select: { reportAccess: true, role: true },
+        }),
+      ).toEqual({ reportAccess: false, role: "TECHNICIAN" });
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("fails closed on grant retries after revocation or account restriction", async () => {
+    const f = await fixture();
+    try {
+      const input = {
+        organizationId: f.org.id,
+        senderUserId: f.admin.id,
+        recipientUserId: f.reader.id,
+        requestId: "synthetic-retry-report-grant-v1",
+        authorizationReference: "Synthetic explicit report access approval",
+      };
+      await grantReportAccess(input);
+      for (const change of [
+        { reportAccess: false },
+        { mustChangePassword: true },
+        { pendingApproval: true },
+        { active: false },
+        { testingOnly: true },
+      ]) {
+        await db.user.update({ where: { id: f.reader.id }, data: change });
+        const before = await db.user.findUniqueOrThrow({
+          where: { id: f.reader.id },
+        });
+        await expect(grantReportAccess(input)).rejects.toThrow(
+          "reportAccess" in change ? "revoked" : "eligible active recipient",
+        );
+        await expect(
+          readLabReportContent(f.actor(before), "synthetic-id"),
+        ).rejects.toThrow();
+        expect(
+          await db.user.findUniqueOrThrow({ where: { id: f.reader.id } }),
+        ).toEqual(before);
+        await db.user.update({
+          where: { id: f.reader.id },
+          data: {
+            reportAccess: true,
+            active: true,
+            pendingApproval: false,
+            testingOnly: false,
+            mustChangePassword: false,
+          },
+        });
+      }
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(1);
+      expect(
+        await db.auditEvent.count({ where: { organizationId: f.org.id } }),
+      ).toBe(2);
+    } finally {
+      await f.cleanup();
+    }
+  });
+  it("rolls back the grant, notice and audits when the announcement audit fails", async () => {
+    const f = await fixture();
+    try {
+      const input = {
+        organizationId: f.org.id,
+        senderUserId: f.admin.id,
+        recipientUserId: f.reader.id,
+        requestId: "synthetic-atomic-report-grant-v1",
+        authorizationReference: "Synthetic explicit report access approval",
+      };
+      const before = await db.user.findUniqueOrThrow({
+        where: { id: f.reader.id },
+      });
+      const record = audit.recordSystemAudit;
+      vi.spyOn(audit, "recordSystemAudit")
+        .mockImplementationOnce(record)
+        .mockRejectedValueOnce(
+          new Error("Synthetic announcement audit failure"),
+        );
+      await expect(grantReportAccess(input)).rejects.toThrow(
+        "Synthetic announcement audit failure",
+      );
+      expect(
+        await db.user.findUniqueOrThrow({ where: { id: f.reader.id } }),
+      ).toEqual(before);
+      expect(
+        await db.notification.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.auditEvent.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(await grantReportAccess(input)).toMatchObject({
+        created: true,
+        granted: true,
+        notifiedRecipients: 1,
+      });
     } finally {
       await f.cleanup();
     }

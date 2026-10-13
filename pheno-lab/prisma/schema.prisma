@@ -135,7 +135,7 @@ model User {
   recipeSteward              Boolean                  @default(false)
   deviceAdmin                Boolean                  @default(false) // shared tablets: register, hand out setup links, revoke
   memberAdmin                Boolean                  @default(false) // approve registrations and add new technicians
-  reportAccess               Boolean                  @default(false) // explicit managerial report grant; no implicit admin access
+  reportAccess               Boolean                  @default(false) // explicit report grant; independent of role, no implicit admin access
   chemicalAccess             Boolean                  @default(false) // explicit private chemistry grant; no implicit admin access
   testingOnly                Boolean                  @default(false) // read-only JV workspace, no preparation/research access
   mustChangePassword         Boolean                  @default(false)

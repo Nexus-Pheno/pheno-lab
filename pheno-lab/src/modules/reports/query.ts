@@ -27,7 +27,7 @@ async function freshReportUser(actor: Actor) {
       mustChangePassword: false,
       organization: { status: "ACTIVE" },
     },
-    select: { role: true, reportAccess: true },
+    select: { reportAccess: true },
   });
   if (!user) throw new AuthorizationError();
   return user;
@@ -35,9 +35,7 @@ async function freshReportUser(actor: Actor) {
 
 export async function canOpenReports(actor: Actor): Promise<boolean> {
   const user = await freshReportUser(actor);
-  return (
-    user.reportAccess && (user.role === "ADMIN" || user.role === "MANAGER")
-  );
+  return user.reportAccess;
 }
 
 export async function requireReportAccess(actor: Actor) {

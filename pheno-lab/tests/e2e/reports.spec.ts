@@ -17,9 +17,11 @@ const suffix = crypto.randomUUID();
 const password = "report-browser-test-password";
 const managerEmail = `reports-manager-${suffix}@example.test`;
 const ordinaryEmail = `reports-ordinary-${suffix}@example.test`;
+const readerEmail = `reports-reader-${suffix}@example.test`;
 let orgId = "",
   reportId = "",
-  filePath = "";
+  filePath = "",
+  readerId = "";
 const html =
   '<!DOCTYPE html><html><head><style>body{font-family:sans-serif}button{min-height:44px}</style></head><body><h1 id="title">Private materials analysis</h1><button id="zh">中文</button><p>COMPLETE PRIVATE REPORT BODY</p><script>document.getElementById("zh").addEventListener("click",()=>document.getElementById("title").textContent="材料分析报告");</script></body></html>';
 test.beforeAll(async () => {
@@ -49,6 +51,17 @@ test.beforeAll(async () => {
       passwordHash: await bcrypt.hash(password, 4),
     },
   });
+  const reader = await db.user.create({
+    data: {
+      organizationId: orgId,
+      name: "Report Reader",
+      email: readerEmail,
+      role: "TECHNICIAN",
+      reportAccess: true,
+      passwordHash: await bcrypt.hash(password, 4),
+    },
+  });
+  readerId = reader.id;
   reportId = crypto.randomUUID();
   const storedPath = `organizations/${orgId}/reports/${reportId}.html`;
   filePath = path.join("/tmp/pheno-lab-e2e-uploads", storedPath);
@@ -76,6 +89,16 @@ test.beforeAll(async () => {
       actorName: "Pheno Lab",
       entityLabel: "Materials research report",
       href: `/reports/${reportId}`,
+    },
+  });
+  await db.notification.create({
+    data: {
+      organizationId: orgId,
+      userId: readerId,
+      kind: "report_access_granted",
+      actorName: "Pheno Lab",
+      entityLabel: "Reports / 报告",
+      href: "/reports",
     },
   });
 });
@@ -161,4 +184,71 @@ test("regular users see locked titles/date in both languages at desktop and mobi
   await page.goto(`/reports/${reportId}`);
   await expect(page.locator("iframe")).toHaveCount(0);
   expect(await page.content()).not.toContain("COMPLETE PRIVATE REPORT BODY");
+});
+
+test("an explicitly granted technician receives the access notice and opens historical reports without staff privileges", async ({
+  page,
+  context,
+}) => {
+  await login(page, readerEmail);
+  for (const [lang, notification, granted, title] of [
+    [
+      "en",
+      "Notifications",
+      /granted you report access/,
+      "Materials research report",
+    ],
+    ["zh", "通知", /已为你开通报告访问权限/, "材料研究报告"],
+  ] as const) {
+    await context.addCookies([
+      { name: "pheno_lang", value: lang, url: "http://127.0.0.1:3467" },
+    ]);
+    await page.goto("/");
+    await page.getByRole("button", { name: notification, exact: true }).click();
+    await page.getByRole("link", { name: granted }).click();
+    await expect(page).toHaveURL("/reports");
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/reports");
+      await page.getByRole("link", { name: new RegExp(title) }).click();
+      await expect(
+        page.frameLocator("iframe").getByText("COMPLETE PRIVATE REPORT BODY"),
+      ).toBeVisible();
+      expect(
+        (await page.request.get(`/api/reports/${reportId}/content`)).status(),
+      ).toBe(200);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    }
+  }
+  expect(
+    await db.user.findUnique({
+      where: { id: readerId },
+      select: {
+        role: true,
+        reportAccess: true,
+        chemicalAccess: true,
+        memberAdmin: true,
+        recipeSteward: true,
+      },
+    }),
+  ).toEqual({
+    role: "TECHNICIAN",
+    reportAccess: true,
+    chemicalAccess: false,
+    memberAdmin: false,
+    recipeSteward: false,
+  });
+  await db.user.update({
+    where: { id: readerId },
+    data: { reportAccess: false },
+  });
+  expect(
+    (await page.request.get(`/api/reports/${reportId}/content`)).status(),
+  ).toBe(404);
+  await page.goto(`/reports/${reportId}`);
+  await expect(page.locator("iframe")).toHaveCount(0);
 });
