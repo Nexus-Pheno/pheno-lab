@@ -14,6 +14,19 @@ export const en = {
     "This material is archived. Restore it in the library first.",
   "chemicals.bulk.linkExisting": "Link existing library material; no duplicate",
 
+  "chemicals.bulk.validateChanges": "Validate changes",
+  "chemicals.bulk.selectAll": "Select all rows",
+  "chemicals.bulk.selectRow": "Select Excel row",
+  "chemicals.bulk.selected": "selected",
+  "chemicals.bulk.removeSelected": "Remove selected",
+  "chemicals.bulk.resetReview": "Reset review",
+  "chemicals.bulk.excluded": "removed from this upload",
+  "chemicals.bulk.needsValidation": "Needs validation",
+  "chemicals.bulk.pendingValidation":
+    "Your draft has changed. Validate changes before importing; saved database materials are unaffected.",
+  "chemicals.bulk.noRows":
+    "No rows remain to import. Reset the review to restore the original file rows.",
+
   "chemicals.bulk.link": "Bulk upload",
   "chemicals.bulk.title": "Bulk upload materials",
   "chemicals.bulk.back": "Back to Pheno Chemicals",
@@ -22,7 +35,7 @@ export const en = {
   "chemicals.bulk.template": "Download Excel template",
   "chemicals.bulk.file": "Excel file (.xlsx)",
   "chemicals.bulk.limits":
-    "No material row limit · 2 MB maximum. Choose the category above and use plain-text cells in the template.",
+    "No material row limit · 5 MB maximum. Choose the category above and use plain-text cells in the template.",
   "chemicals.bulk.validate": "Validate file",
   "chemicals.bulk.validating": "Validating…",
   "chemicals.bulk.review": "Review materials",
@@ -36,15 +49,15 @@ export const en = {
     "materials registered. Their names are available in the shared library.",
   "chemicals.bulk.replayed":
     "materials were already imported. No duplicates were created.",
-  "chemicals.bulk.source": "Download uploaded workbook",
+  "chemicals.bulk.source": "Download original workbook",
   "chemicals.bulk.fix":
-    "Correct the highlighted rows in Excel and upload the file again. Nothing has been imported.",
+    "Edit the highlighted cells or select and remove rows here, then validate again. Nothing has been imported.",
   "chemicals.bulk.error.access":
     "Private chemistry access is unavailable. Sign in with an authorized personal account.",
   "chemicals.bulk.error.file":
-    "Use a valid .xlsx workbook from the template, no larger than 2 MB. Keep the SAM Materials sheet name.",
+    "Use a valid .xlsx workbook from the template, no larger than 5 MB. Keep the SAM Materials sheet name.",
   "chemicals.bulk.error.limits":
-    "The workbook has excessive formatting or worksheet dimensions. Copy the name and SMILES values into a fresh template and keep the file within 2 MB.",
+    "The workbook has excessive formatting or worksheet dimensions. Copy the name and SMILES values into a fresh template and keep the file within 5 MB.",
   "chemicals.bulk.error.columns":
     "Keep the two template headers: Molecule name and SMILES. Remove extra populated columns.",
   "chemicals.bulk.error.formulas":
@@ -1640,6 +1653,19 @@ export const zh: Record<TKey, string> = {
   "chemicals.bulk.issue.archived": "该材料已归档，请先在材料库中恢复。",
   "chemicals.bulk.linkExisting": "关联共享材料库中的已有材料，不重复创建",
 
+  "chemicals.bulk.validateChanges": "验证修改",
+  "chemicals.bulk.selectAll": "全选材料行",
+  "chemicals.bulk.selectRow": "选择 Excel 行",
+  "chemicals.bulk.selected": "行已选中",
+  "chemicals.bulk.removeSelected": "移除所选行",
+  "chemicals.bulk.resetReview": "重置预览",
+  "chemicals.bulk.excluded": "行已从本次上传移除",
+  "chemicals.bulk.needsValidation": "待重新验证",
+  "chemicals.bulk.pendingValidation":
+    "草稿已修改，请验证修改后再导入。数据库中已保存的材料不受影响。",
+  "chemicals.bulk.noRows":
+    "没有可导入的材料行。可重置预览，恢复原始文件中的材料行。",
+
   "chemicals.bulk.link": "批量上传",
   "chemicals.bulk.title": "批量上传材料",
   "chemicals.bulk.back": "返回 Pheno Chemicals",
@@ -1648,7 +1674,7 @@ export const zh: Record<TKey, string> = {
   "chemicals.bulk.template": "下载 Excel 模板",
   "chemicals.bulk.file": "Excel 文件（.xlsx）",
   "chemicals.bulk.limits":
-    "材料行数不限，文件不超过 2 MB。请在上方选择类别，并在模板中填写纯文本。",
+    "材料行数不限，文件不超过 5 MB。请在上方选择类别，并在模板中填写纯文本。",
   "chemicals.bulk.validate": "验证文件",
   "chemicals.bulk.validating": "正在验证…",
   "chemicals.bulk.review": "核对材料",
@@ -1660,15 +1686,15 @@ export const zh: Record<TKey, string> = {
   "chemicals.bulk.ready": "可导入",
   "chemicals.bulk.success": "个材料已录入，名称可在共享材料库使用。",
   "chemicals.bulk.replayed": "个材料已在此前导入，本次没有新增重复记录。",
-  "chemicals.bulk.source": "下载已上传工作簿",
+  "chemicals.bulk.source": "下载原始工作簿",
   "chemicals.bulk.fix":
-    "请在 Excel 中修正标记的行，再重新上传。当前尚未导入任何材料。",
+    "请在此页修改标记的单元格，或勾选并移除相应行，再重新验证。当前尚未导入任何材料。",
   "chemicals.bulk.error.access":
     "当前无法访问私有化学数据。请使用已获授权的个人账号登录。",
   "chemicals.bulk.error.file":
-    "请使用模板填写有效的 .xlsx 工作簿，大小不超过 2 MB，并保留 SAM Materials 工作表名称。",
+    "请使用模板填写有效的 .xlsx 工作簿，大小不超过 5 MB，并保留 SAM Materials 工作表名称。",
   "chemicals.bulk.error.limits":
-    "工作簿的格式或工作表范围过大。请将名称和 SMILES 值复制到新模板，并将文件控制在 2 MB 以内。",
+    "工作簿的格式或工作表范围过大。请将名称和 SMILES 值复制到新模板，并将文件控制在 5 MB 以内。",
   "chemicals.bulk.error.columns":
     "请保留模板的两列标题 Molecule name 和 SMILES，并移除已填写的额外列。",
   "chemicals.bulk.error.formulas": "请填写纯文本，上传前移除 Excel 公式。",

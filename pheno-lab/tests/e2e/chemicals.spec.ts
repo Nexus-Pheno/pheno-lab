@@ -5,7 +5,10 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 import initRDKit from "@rdkit/rdkit";
-import { chemicalWorkbook } from "../helpers/chemical-workbook";
+import {
+  chemicalWorkbook,
+  largeChemicalWorkbook,
+} from "../helpers/chemical-workbook";
 import { assertSafeTestDatabaseUrl } from "../../src/infrastructure/db/test-database";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -475,7 +478,7 @@ test("Excel template, review, atomic import, private source and bilingual bulk v
     "2 materials registered",
   );
   const sourceHref = await page
-    .getByRole("link", { name: "Download uploaded workbook", exact: true })
+    .getByRole("link", { name: "Download original workbook", exact: true })
     .getAttribute("href");
   const source = await page.request.get(sourceHref!);
   expect(source.status()).toBe(200);
@@ -660,7 +663,7 @@ test("existing library rows link without duplication and category edits/custom a
   );
 });
 
-test("Excel category changes invalidate preview and a library match is linked on import", async ({
+test("Excel category changes require revalidation while preserving the draft and library identity", async ({
   page,
 }) => {
   const existing = await db.material.create({
@@ -702,7 +705,10 @@ test("Excel category changes invalidate preview and a library match is linked on
   await page
     .getByRole("combobox", { name: "Category", exact: true })
     .selectOption("ADDITIVE");
-  await expect(page.getByTestId("bulk-row")).toHaveCount(0);
+  await expect(page.getByTestId("bulk-row")).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "Import materials", exact: true }),
+  ).toBeDisabled();
   await page
     .getByRole("button", { name: "Validate file", exact: true })
     .click();
@@ -793,4 +799,206 @@ test("uploads more than 100 rows with bilingual review and imports the entire fi
     }),
   ).toBe(125);
   expect(errors).toEqual([]);
+});
+
+test("edits and removes draft rows in a file above 2 MB, revalidates before import and can reset the review", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await login(page, ownerEmail);
+  await page
+    .context()
+    .addCookies([
+      { name: "pheno_lang", value: "en", url: "http://127.0.0.1:3467" },
+    ]);
+  await page.goto("/chemicals");
+  await page
+    .getByRole("button", { name: "Add material row", exact: true })
+    .click();
+  const row = page.getByTestId("chemical-row").first();
+  const existingName = `Existing review reference ${suffix}`;
+  await row
+    .getByRole("textbox", { name: "Material name 1", exact: true })
+    .fill(existingName);
+  await row.getByRole("textbox", { name: "SMILES 1", exact: true }).fill("CCO");
+  await expect(row.getByTestId("row-molecule")).toBeVisible();
+  await row.getByRole("button", { name: "Save row", exact: true }).click();
+  await expect(row).toContainText("Saved");
+  const existing = await db.material.findFirstOrThrow({
+    where: { organizationId: orgId, name: existingName },
+    include: { chemistry: true },
+  });
+  const bytes = Buffer.from(
+    largeChemicalWorkbook([
+      [existingName, "CCO"],
+      [`Bad review ${suffix}`, "invalid-smiles"],
+      [`Keep review ${suffix}`, "CCO"],
+      [`Remove review ${suffix}`, "CCO"],
+    ]),
+  );
+  expect(bytes.byteLength).toBeGreaterThan(2 * 1024 * 1024);
+  await page.goto("/chemicals/bulk");
+  await expect(page.getByTestId("chemicals-bulk")).toContainText(
+    "5 MB maximum",
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "review.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: bytes,
+  });
+  await page
+    .getByRole("button", { name: "Validate file", exact: true })
+    .click();
+  await expect(page.getByTestId("bulk-row")).toHaveCount(4);
+  await expect(
+    page.getByRole("button", { name: "Import materials", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("checkbox", { name: "Select Excel row 2", exact: true })
+    .check();
+  await page
+    .getByRole("checkbox", { name: "Select Excel row 5", exact: true })
+    .check();
+  await page
+    .getByRole("button", { name: "Remove selected", exact: true })
+    .click();
+  await expect(page.getByTestId("bulk-row")).toHaveCount(2);
+  const correctedName = `Corrected review ${suffix}`;
+  await page
+    .getByRole("textbox", { name: "Material name · Excel row 3", exact: true })
+    .fill(correctedName);
+  await page
+    .getByRole("textbox", { name: "SMILES · Excel row 3", exact: true })
+    .fill("c1ccccc1");
+  await expect(page.getByTestId("bulk-row").first().locator("img")).toHaveCount(
+    0,
+  );
+  await page
+    .getByRole("combobox", { name: "Category", exact: true })
+    .selectOption("ADDITIVE");
+  await expect(
+    page.getByRole("textbox", {
+      name: "Material name · Excel row 3",
+      exact: true,
+    }),
+  ).toHaveValue(correctedName);
+  await page
+    .getByRole("button", { name: "Validate changes", exact: true })
+    .click();
+  await expect(
+    page.getByTestId("bulk-row").first().locator("img"),
+  ).toHaveJSProperty("naturalWidth", 560);
+  await expect(
+    page.getByRole("button", { name: "Import materials", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Import materials", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "2 materials registered",
+  );
+  await expect(
+    page.getByRole("textbox", {
+      name: "Material name · Excel row 3",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  const sourceHref = await page
+    .getByRole("link", { name: "Download original workbook", exact: true })
+    .getAttribute("href");
+  expect(await (await page.request.get(sourceHref!)).body()).toEqual(bytes);
+  expect(
+    await db.material.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: { chemistry: true },
+    }),
+  ).toEqual(existing);
+  expect(
+    await db.material.findFirstOrThrow({
+      where: { organizationId: orgId, name: correctedName },
+    }),
+  ).toMatchObject({ category: "ADDITIVE", smiles: "c1ccccc1" });
+  expect(
+    await db.material.count({
+      where: { organizationId: orgId, name: `Remove review ${suffix}` },
+    }),
+  ).toBe(0);
+
+  for (const lang of ["en", "zh"] as const) {
+    await page
+      .context()
+      .addCookies([
+        { name: "pheno_lang", value: lang, url: "http://127.0.0.1:3467" },
+      ]);
+    await page.goto("/chemicals/bulk");
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "reset.xlsx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      buffer: Buffer.from(
+        chemicalWorkbook([
+          ["Reset alpha", "CCO"],
+          ["Reset beta", "CCN"],
+        ]),
+      ),
+    });
+    await page
+      .getByRole("button", {
+        name: lang === "en" ? "Validate file" : "验证文件",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("checkbox", {
+        name: lang === "en" ? "Select all rows" : "全选材料行",
+        exact: true,
+      })
+      .check();
+    await page
+      .getByRole("button", {
+        name: lang === "en" ? "Remove selected" : "移除所选行",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByTestId("bulk-row")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: lang === "en" ? "Import materials" : "导入材料",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await page
+      .getByRole("button", {
+        name: lang === "en" ? "Reset review" : "重置预览",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: lang === "en" ? "Validate file" : "验证文件",
+        exact: true,
+      })
+      .click();
+    await expect(page.getByTestId("bulk-row")).toHaveCount(2);
+    for (const [width, height] of [
+      [1440, 900],
+      [1024, 768],
+      [390, 844],
+      [320, 700],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.getByTestId("bulk-row").last().scrollIntoViewIfNeeded();
+      await expect(
+        page.getByTestId("bulk-row").last().getByRole("textbox").first(),
+      ).toBeInViewport();
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth > innerWidth ||
+            document.documentElement.scrollHeight > innerHeight,
+        ),
+      ).toBe(false);
+    }
+  }
 });

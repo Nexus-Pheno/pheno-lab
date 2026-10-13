@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { readSamWorkbook } from "@/infrastructure/chemistry/workbook";
-import { chemicalWorkbook, changeWorkbook } from "./helpers/chemical-workbook";
+import {
+  chemicalWorkbook,
+  changeWorkbook,
+  largeChemicalWorkbook,
+} from "./helpers/chemical-workbook";
 
 describe("bounded SAM Excel workbook parser", () => {
+  it("accepts a valid workbook above 2 MB within the new 5 MB limit", async () => {
+    const bytes = largeChemicalWorkbook([["Larger fixture", "CCO"]]);
+    expect(bytes.byteLength).toBeGreaterThan(2 * 1024 * 1024);
+    expect(bytes.byteLength).toBeLessThan(5 * 1024 * 1024);
+    expect(await readSamWorkbook(bytes, "larger.xlsx")).toMatchObject([
+      { row: 2, cells: ["Larger fixture", "CCO"] },
+    ]);
+  });
   it("keeps the real download template blank and its public reference on the instructions sheet", async () => {
     const template = await readFile(
       "src/infrastructure/chemistry/assets/sam-upload-template.xlsx",
@@ -72,7 +84,7 @@ describe("bounded SAM Excel workbook parser", () => {
       await expect(readSamWorkbook(bytes, "input.xlsx")).rejects.toThrow();
     await expect(readSamWorkbook(file, "input.xls")).rejects.toThrow();
     await expect(
-      readSamWorkbook(new Uint8Array(2 * 1024 * 1024 + 1), "input.xlsx"),
+      readSamWorkbook(new Uint8Array(5 * 1024 * 1024 + 1), "input.xlsx"),
     ).rejects.toMatchObject({ code: "file" });
   });
 });

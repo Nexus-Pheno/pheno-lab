@@ -33,7 +33,10 @@ import {
   grantChemicalAccess,
   initializeSamRegistry,
 } from "@/modules/chemicals/operator-service";
-import { chemicalWorkbook } from "../helpers/chemical-workbook";
+import {
+  chemicalWorkbook,
+  largeChemicalWorkbook,
+} from "../helpers/chemical-workbook";
 import {
   importChemicalWorkbook,
   previewChemicalImport,
@@ -146,6 +149,253 @@ const card = {
 };
 
 describe("private chemical portal on real PostgreSQL", () => {
+  it("reviews edits/removals in a workbook above 2 MB, imports only validated rows and preserves original evidence", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const saved = await saveChemicalRow(actor, {
+        ...input(),
+        name: "Registered original",
+      });
+      const savedBefore = await db.material.findUniqueOrThrow({
+        where: { id: saved.row.id },
+        include: { chemistry: true },
+      });
+      const library = await db.material.create({
+        data: {
+          organizationId: f.org.id,
+          name: "Library original",
+          category: "SAM",
+          supplier: "Synthetic supplier",
+          lot: "Synthetic lot",
+        },
+      });
+      const file = {
+        filename: "review.xlsx",
+        category: "ADDITIVE",
+        bytes: largeChemicalWorkbook([
+          [savedBefore.name, "CCO"],
+          ["Original new name", "invalid-smiles"],
+          [library.name, "CCO"],
+          ["Omitted fixture", "CCO"],
+        ]),
+      };
+      expect(file.bytes.byteLength).toBeGreaterThan(2 * 1024 * 1024);
+      const original = await previewChemicalImport(actor, file);
+      expect(original.valid).toBe(false);
+      expect(original.rows[0].issues).toContain("exists");
+      const review = {
+        edits: [
+          { row: 3, name: "Reviewed new name", smiles: "c1ccccc1" },
+          { row: 4, smiles: "CCN" },
+        ],
+        excludedRows: [2, 5],
+      };
+      const draft = { ...file, review };
+      const preview = await previewChemicalImport(actor, draft);
+      expect(preview.valid).toBe(true);
+      expect(preview.rows.map((row) => row.row)).toEqual([3, 4]);
+      expect(preview.rows[0].preview?.atomCount).toBe(6);
+      expect(preview.rows[1].linksExisting).toBe(true);
+      expect(
+        await db.chemicalImportBatch.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+      const commit = {
+        ...draft,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+        expectedReviewDigest: preview.reviewSha256,
+      };
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...commit,
+          expectedReviewDigest: undefined,
+        }),
+      ).rejects.toThrow("review changed");
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...commit,
+          review: { ...review, excludedRows: [2] },
+        }),
+      ).rejects.toThrow("review changed");
+      expect(await importChemicalWorkbook(actor, commit)).toMatchObject({
+        created: 1,
+        linked: 1,
+        total: 2,
+        replayed: false,
+      });
+      expect(await importChemicalWorkbook(actor, commit)).toMatchObject({
+        created: 0,
+        total: 2,
+        replayed: true,
+      });
+      expect(
+        await db.material.findUniqueOrThrow({
+          where: { id: saved.row.id },
+          include: { chemistry: true },
+        }),
+      ).toEqual(savedBefore);
+      expect(
+        await db.material.findUniqueOrThrow({ where: { id: library.id } }),
+      ).toMatchObject({
+        supplier: library.supplier,
+        lot: library.lot,
+        category: "ADDITIVE",
+        smiles: "CCN",
+      });
+      expect(
+        await db.material.count({
+          where: {
+            organizationId: f.org.id,
+            name: { in: ["Original new name", "Omitted fixture"] },
+          },
+        }),
+      ).toBe(0);
+      const batch = await db.chemicalImportBatch.findUniqueOrThrow({
+        where: { id: commit.batchId },
+      });
+      expect(batch.rowCount).toBe(2);
+      expect(batch.manifest).toMatchObject([
+        {
+          row: 3,
+          inputName: "Reviewed new name",
+          inputSmiles: "c1ccccc1",
+          review: {
+            sha256: preview.reviewSha256,
+            edits: review.edits,
+            excludedRows: [2, 5],
+          },
+        },
+        { row: 4, materialId: library.id, inputSmiles: "CCN" },
+      ]);
+      expect(
+        Buffer.from((await readImportedWorkbook(actor, batch.id))!),
+      ).toEqual(Buffer.from(file.bytes));
+      const changed = {
+        ...draft,
+        review: {
+          ...review,
+          edits: [
+            { row: 3, name: "Another name", smiles: "CCO" },
+            review.edits[1],
+          ],
+        },
+      };
+      const changedPreview = await previewChemicalImport(actor, changed);
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...commit,
+          ...changed,
+          expectedReviewDigest: changedPreview.reviewSha256,
+        }),
+      ).rejects.toThrow("different workbook");
+      for (const user of [f.admin, f.ordinary, f.technician, f.restricted])
+        await expect(
+          previewChemicalImport(f.actor(user), draft),
+        ).rejects.toThrow();
+      expect(
+        JSON.stringify(
+          await db.auditEvent.findMany({ where: { organizationId: f.org.id } }),
+        ),
+      ).not.toContain("CCN");
+    } finally {
+      await f.cleanup();
+    }
+  }, 30_000);
+
+  it("rejects forged source rows and empty drafts; failed edited imports roll back all records and replay legacy batches", async () => {
+    const f = await fixture();
+    try {
+      const actor = f.actor(f.owners[0]);
+      const file = {
+        filename: "review.xlsx",
+        bytes: chemicalWorkbook([
+          ["Original name", "CCO"],
+          ["Omitted name", "CCO"],
+        ]),
+      };
+      await expect(
+        previewChemicalImport(actor, {
+          ...file,
+          review: { edits: [{ row: 99, name: "Forged" }], excludedRows: [] },
+        }),
+      ).rejects.toThrow("different workbook row");
+      const empty = { ...file, review: { edits: [], excludedRows: [2, 3] } };
+      const none = await previewChemicalImport(actor, empty);
+      expect(none.rows).toEqual([]);
+      expect(none.valid).toBe(false);
+      await expect(
+        importChemicalWorkbook(actor, {
+          ...empty,
+          batchId: crypto.randomUUID(),
+          expectedDigest: none.fileSha256,
+          expectedReviewDigest: none.reviewSha256,
+        }),
+      ).rejects.toThrow("Review workbook errors");
+      const draft = {
+        ...file,
+        review: {
+          edits: [{ row: 2, name: "Reviewed name", smiles: "CCN" }],
+          excludedRows: [3],
+        },
+      };
+      const preview = await previewChemicalImport(actor, draft);
+      const commit = {
+        ...draft,
+        batchId: crypto.randomUUID(),
+        expectedDigest: preview.fileSha256,
+        expectedReviewDigest: preview.reviewSha256,
+      };
+      const audit = vi
+        .spyOn(auditWriter, "recordUserAudit")
+        .mockRejectedValueOnce(new Error("Synthetic audit failure"));
+      await expect(importChemicalWorkbook(actor, commit)).rejects.toThrow(
+        "Synthetic audit failure",
+      );
+      audit.mockRestore();
+      expect(
+        await db.material.count({ where: { organizationId: f.org.id } }),
+      ).toBe(0);
+      expect(
+        await db.chemicalImportBatch.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+      expect(
+        await db.materialCategoryDef.count({
+          where: { organizationId: f.org.id },
+        }),
+      ).toBe(0);
+      const legacyPreview = await previewChemicalImport(actor, file);
+      const legacyCommit = {
+        ...file,
+        batchId: crypto.randomUUID(),
+        expectedDigest: legacyPreview.fileSha256,
+      };
+      await importChemicalWorkbook(actor, legacyCommit);
+      const batch = await db.chemicalImportBatch.findUniqueOrThrow({
+        where: { id: legacyCommit.batchId },
+      });
+      const manifest = (batch.manifest as Record<string, unknown>[]).map(
+        ({ review: _review, inputName: _name, inputSmiles: _smiles, ...row }) =>
+          row,
+      );
+      await db.chemicalImportBatch.update({
+        where: { id: batch.id },
+        data: { manifest: JSON.parse(JSON.stringify(manifest)) },
+      });
+      expect(await importChemicalWorkbook(actor, legacyCommit)).toMatchObject({
+        replayed: true,
+        total: 2,
+        created: 0,
+      });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it("imports 1001 rows across lookup/write chunks, links the original identity and replays once", async () => {
     const f = await fixture();
     try {

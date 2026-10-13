@@ -25,12 +25,24 @@ import {
 import { chemicalRowDigest } from "./query";
 import { ensureChemicalCategory } from "./category-service";
 import type { ChemicalImportPreview, ChemicalImportRow } from "./bulk-types";
+import {
+  ChemicalImportConflict,
+  chemicalImportReviewSchema,
+  applyChemicalImportReview,
+  chemicalReviewDigest,
+  storedChemicalReviewDigest,
+} from "./bulk-review";
 
 export { ChemicalWorkbookError } from "@/infrastructure/chemistry/workbook";
 export { MAX_CHEMICAL_FILE_BYTES } from "@/infrastructure/chemistry/workbook";
+export {
+  ChemicalImportConflict,
+  MAX_CHEMICAL_REVIEW_BYTES,
+} from "./bulk-review";
 const fileSchema = z.object({
   filename: z.string().min(1).max(255),
   category: z.string().trim().min(1).max(100).default("SAM"),
+  review: chemicalImportReviewSchema.default({ edits: [], excludedRows: [] }),
   bytes: z
     .instanceof(Uint8Array)
     .refine(
@@ -40,8 +52,11 @@ const fileSchema = z.object({
 const commitSchema = fileSchema.extend({
   batchId: z.uuid(),
   expectedDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  expectedReviewDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
 });
-export class ChemicalImportConflict extends Error {}
 const digest = (bytes: Uint8Array | string) =>
   crypto.createHash("sha256").update(bytes).digest("hex");
 
@@ -94,7 +109,10 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
     throw new ChemicalImportConflict(
       "Choose a category from this organization.",
     );
-  const entries = await readSamWorkbook(input.bytes, input.filename);
+  const entries = applyChemicalImportReview(
+    await readSamWorkbook(input.bytes, input.filename),
+    input.review,
+  );
   const rows: ChemicalImportRow[] = [];
   const molecules: Awaited<ReturnType<typeof renderMolecule>>[] = [];
   const rendered = new Map<
@@ -166,8 +184,13 @@ async function prepare(actor: Actor, input: z.infer<typeof fileSchema>) {
     preview: {
       rows,
       fileSha256: digest(input.bytes),
+      reviewSha256: chemicalReviewDigest(
+        digest(input.bytes),
+        input.category,
+        input.review,
+      ),
       category: input.category,
-      valid: rows.every((row) => row.issues.length === 0),
+      valid: rows.length > 0 && rows.every((row) => row.issues.length === 0),
     } satisfies ChemicalImportPreview,
     molecules,
     targets,
@@ -223,15 +246,32 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
   await requireChemicalAccess(actor);
   const input = commitSchema.parse(raw);
   const fileSha256 = digest(input.bytes);
+  const reviewSha256 = chemicalReviewDigest(
+    fileSha256,
+    input.category,
+    input.review,
+  );
   if (fileSha256 !== input.expectedDigest)
     throw new ChemicalImportConflict("Workbook changed. Validate it again.");
+  if (
+    (input.expectedReviewDigest &&
+      input.expectedReviewDigest !== reviewSha256) ||
+    (!input.expectedReviewDigest &&
+      (input.review.edits.length || input.review.excludedRows.length))
+  )
+    throw new ChemicalImportConflict("The review changed. Validate it again.");
   const previous = await db.chemicalImportBatch.findFirst({
     where: { id: input.batchId, organizationId: actor.org },
   });
   if (previous) {
     if (
       previous.sourceSha256 !== fileSha256 ||
-      batchCategory(previous.manifest) !== input.category
+      batchCategory(previous.manifest) !== input.category ||
+      storedChemicalReviewDigest(
+        previous.manifest,
+        fileSha256,
+        input.category,
+      ) !== reviewSha256
     )
       throw new ChemicalImportConflict("Batch contains a different workbook.");
     return {
@@ -282,7 +322,12 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
         if (repeated) {
           if (
             repeated.sourceSha256 !== fileSha256 ||
-            batchCategory(repeated.manifest) !== input.category
+            batchCategory(repeated.manifest) !== input.category ||
+            storedChemicalReviewDigest(
+              repeated.manifest,
+              fileSha256,
+              input.category,
+            ) !== reviewSha256
           )
             throw new ChemicalImportConflict(
               "Batch contains a different workbook.",
@@ -340,6 +385,17 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
               category: input.category,
               inputSha256: molecules[index].inputSha256,
               structureSha256: molecules[index].structureSha256,
+              inputName: row.name,
+              inputSmiles: row.smiles,
+              ...(index === 0
+                ? {
+                    review: {
+                      version: 1,
+                      sha256: reviewSha256,
+                      ...input.review,
+                    },
+                  }
+                : {}),
             })),
           },
         });
@@ -413,6 +469,8 @@ export async function importChemicalWorkbook(actor: Actor, raw: unknown) {
             created: preview.rows.length - linked,
             linked,
             category: input.category,
+            edited: input.review.edits.length,
+            excluded: input.review.excludedRows.length,
           },
           metadata: { fileSha256, sourceBytes: input.bytes.byteLength },
         });

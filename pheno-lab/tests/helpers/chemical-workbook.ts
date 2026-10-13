@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { unzipSync, zipSync, strFromU8, strToU8 } from "fflate";
 
 const xml = (value: string) =>
@@ -48,5 +49,16 @@ export function changeWorkbook(
 ) {
   const files = unzipSync(bytes);
   files[key] = strToU8(change(strFromU8(files[key] ?? new Uint8Array())));
+  return zipSync(files);
+}
+
+/** A valid, larger XLSX: incompressible synthetic text on the non-imported sheet. */
+export function largeChemicalWorkbook(rows: (string | number | null)[][]) {
+  const files = unzipSync(chemicalWorkbook(rows));
+  const padding = randomBytes(5 * 512 * 1024).toString("base64");
+  const chunks = padding.match(/.{1,30000}/g)!;
+  files["xl/worksheets/sheet2.xml"] = strToU8(
+    `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${chunks.map((text, index) => `<row r="${index + 1}"><c r="A${index + 1}" t="inlineStr"><is><t>${text}</t></is></c></row>`).join("")}</sheetData></worksheet>`,
+  );
   return zipSync(files);
 }

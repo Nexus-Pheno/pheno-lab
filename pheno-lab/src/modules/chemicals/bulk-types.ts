@@ -20,7 +20,18 @@ export type ChemicalImportRow = {
 };
 export type ChemicalImportPreview = {
   fileSha256: string;
+  reviewSha256: string;
   category: string;
   rows: ChemicalImportRow[];
   valid: boolean;
+};
+
+export type ChemicalImportEdit = {
+  row: number;
+  name?: string;
+  smiles?: string;
+};
+export type ChemicalImportReview = {
+  edits: ChemicalImportEdit[];
+  excludedRows: number[];
 };
