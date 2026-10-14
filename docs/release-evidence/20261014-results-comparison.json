@@ -1,0 +1,94 @@
+{
+  "releaseId": "20261014-001",
+  "previousReleaseId": "20261013-003",
+  "applicationCommit": "ea9e3dc59e43db1806a0dcdeb025893036550a3b",
+  "pullRequest": "https://github.com/Nexus-Pheno/pheno-lab/pull/119",
+  "ci": {
+    "pullRequestRun": 38517394692,
+    "mainRun": 38517902339,
+    "conclusion": "success",
+    "unitTests": 239,
+    "integrationTests": 130,
+    "browserTests": 37,
+    "bridge": "passed",
+    "linuxVerify": "passed",
+    "linuxArtifactAndChecksum": "passed"
+  },
+  "deployment": {
+    "workflow": "git pull -> build-release.sh -> deploy-release.sh",
+    "artifactSha256": "cfb56aed715eb1be48360d7ecdee8103c2439841afe7d8aa701850b70e6e3264",
+    "artifactDirectory": "/var/tmp",
+    "scriptExitCode": 0,
+    "readinessVerifiedAt": "2026-10-14T05:50:03.597Z",
+    "databaseReady": true,
+    "cosReady": true,
+    "publicHttpsLiveness": true,
+    "httpToHttpsStatus": 301,
+    "serviceUser": "pheno",
+    "loopbackPort": 3457,
+    "automaticRestarts": 0,
+    "nginxActive": true,
+    "existingMigrations": 46,
+    "pendingMigrations": 0,
+    "legacyCredentialsEncrypted": 0,
+    "releaseDirectoriesRetained": 5,
+    "prunedReleaseId": "20261012-008",
+    "onlyEnvironmentValueChanged": "APP_VERSION",
+    "otherEnvironmentBytesUnchanged": true,
+    "environmentOwnerModeInodeAclUnchanged": true,
+    "temporaryEnvironmentBackupRemoved": true,
+    "journalLinesReviewed": 200,
+    "criticalErrorsSinceStartup": 0
+  },
+  "productionBrowserSmoke": {
+    "browser": "Microsoft Edge",
+    "verifiedAt": "2026-10-14T05:51:04.133Z",
+    "comparisonCount": 1,
+    "variableCount": 19,
+    "measuredRows": 12,
+    "anonymousRedirect": true,
+    "checks": [
+      {
+        "width": 1600,
+        "lang": "en",
+        "dataMatched": true,
+        "outerOverflow": false,
+        "horizontalDrag": "passed",
+        "pageErrors": 0,
+        "chartCount": 4
+      },
+      {
+        "width": 1600,
+        "lang": "zh",
+        "dataMatched": true,
+        "outerOverflow": false,
+        "horizontalDrag": "passed",
+        "pageErrors": 0,
+        "chartCount": 4
+      },
+      {
+        "width": 390,
+        "lang": "en",
+        "dataMatched": true,
+        "outerOverflow": false,
+        "horizontalDrag": "passed",
+        "pageErrors": 0,
+        "chartCount": 4
+      },
+      {
+        "width": 390,
+        "lang": "zh",
+        "dataMatched": true,
+        "outerOverflow": false,
+        "horizontalDrag": "passed",
+        "pageErrors": 0,
+        "chartCount": 4
+      }
+    ],
+    "temporarySessionFileRemoved": true,
+    "scientificRecordsWritten": false,
+    "newNotificationsSent": false,
+    "presenceHeartbeatMayUpdateLastSeenAt": true,
+    "rawResearchDataOrCredentialsSavedInEvidence": false
+  }
+}
