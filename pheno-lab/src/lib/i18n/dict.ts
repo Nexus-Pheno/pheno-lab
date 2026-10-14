@@ -1303,6 +1303,9 @@ export const en = {
   "res.noResults":
     "No results captured yet — record them in the capture portal.",
   "res.variables": "Tested variables",
+  "res.sampleId": "Substrate ID",
+  "res.scrollHint":
+    "Drag horizontally or use the scroll bar to view all columns and groups.",
   "res.samples": "Samples",
   "di.title": "AI data analysis — ask the whole experiment history",
   "di.hint":
@@ -2850,6 +2853,8 @@ export const zh: Record<TKey, string> = {
   "res.mean": "平均",
   "res.noResults": "暂无测量结果——请在采集页面录入。",
   "res.variables": "被测变量",
+  "res.sampleId": "基片 ID",
+  "res.scrollHint": "横向拖动或使用滚动条查看全部列和分组。",
   "res.samples": "样品",
   "di.title": "AI 数据分析 — 基于全部实验历史提问",
   "di.hint":

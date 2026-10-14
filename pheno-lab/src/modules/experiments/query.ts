@@ -304,9 +304,13 @@ export async function getResultsExperiment(actor: Actor, rawId: unknown) {
         },
       },
       steps: {
+        orderBy: { position: "asc" },
         include: {
           process: true,
-          parameters: { include: { variations: true } },
+          parameters: {
+            orderBy: { position: "asc" },
+            include: { variations: true },
+          },
         },
       },
     },

@@ -1,9 +1,10 @@
 import { Icon } from "@/components/ui";
+import { HorizontalScroll } from "./HorizontalScroll";
 
 // Per-group box plots of measured metrics — the picture the technicians build
 // by hand in spreadsheets today (box = quartiles, whiskers = full range,
 // triangle = mean, dots = individual samples). Server-rendered SVG: the data
-// is small and there is nothing to interact with beyond hover titles.
+// is small. A client scroll viewport adds dragging without changing the SVG data.
 
 export type MetricPlot = {
   metric: string;
@@ -49,119 +50,142 @@ function BoxPlot({ plot }: { plot: MetricPlot }) {
   const ticks = [0, 1, 2, 3].map((i) => lo + ((hi - lo) * (i + 0.5)) / 4);
 
   return (
-    <div className="min-w-0 overflow-x-auto">
+    <div className="min-w-0">
       <div className="text-[11px] font-bold text-charcoal mb-0.5">
         {plot.metric}
       </div>
-      <svg
-        width={width}
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label={plot.metric}
-      >
-        {ticks.map((tv, i) => (
-          <g key={i}>
-            <line
-              x1={LEFT}
-              x2={width - 6}
-              y1={y(tv)}
-              y2={y(tv)}
-              stroke="var(--color-line)"
-              strokeDasharray="2 3"
-            />
-            <text
-              x={LEFT - 4}
-              y={y(tv) + 3}
-              textAnchor="end"
-              fontSize="8.5"
-              fill="var(--color-muted)"
-              className="mono"
-            >
-              {short(tv)}
-            </text>
-          </g>
-        ))}
-        {groups.map((g, gi) => {
-          const cx = LEFT + gi * GW + GW / 2;
-          const sorted = g.values.map((v) => v.value).sort((a, b) => a - b);
-          const q1 = quantile(sorted, 0.25);
-          const med = quantile(sorted, 0.5);
-          const q3 = quantile(sorted, 0.75);
-          const min = sorted[0];
-          const max = sorted[sorted.length - 1];
-          const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
-          const half = 22;
-          return (
-            <g key={g.label}>
-              {/* whiskers over the full range */}
-              <line x1={cx} x2={cx} y1={y(min)} y2={y(max)} stroke="var(--color-charcoal)" strokeWidth="1" />
-              <line x1={cx - 8} x2={cx + 8} y1={y(min)} y2={y(min)} stroke="var(--color-charcoal)" strokeWidth="1" />
-              <line x1={cx - 8} x2={cx + 8} y1={y(max)} y2={y(max)} stroke="var(--color-charcoal)" strokeWidth="1" />
-              {/* interquartile box */}
-              <rect
-                x={cx - half}
-                y={y(q3)}
-                width={half * 2}
-                height={Math.max(1, y(q1) - y(q3))}
-                fill="var(--color-brand-soft)"
-                stroke="var(--color-brand-deep)"
-                strokeWidth="1"
-                rx="1.5"
-              />
+      <HorizontalScroll label={plot.metric}>
+        <svg
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={plot.metric}
+        >
+          {ticks.map((tv, i) => (
+            <g key={i}>
               <line
-                x1={cx - half}
-                x2={cx + half}
-                y1={y(med)}
-                y2={y(med)}
-                stroke="var(--color-charcoal)"
-                strokeWidth="1.75"
+                x1={LEFT}
+                x2={width - 6}
+                y1={y(tv)}
+                y2={y(tv)}
+                stroke="var(--color-line)"
+                strokeDasharray="2 3"
               />
-              {/* mean triangle */}
-              <path
-                d={`M ${cx - 4} ${y(mean) + 3.5} L ${cx + 4} ${y(mean) + 3.5} L ${cx} ${y(mean) - 4} Z`}
-                fill="none"
-                stroke="var(--color-ink)"
-                strokeWidth="1.25"
-              />
-              {/* individual samples, nudged alternately to stay readable */}
-              {g.values.map((v, vi) => (
-                <circle
-                  key={vi}
-                  cx={cx + (vi % 2 === 0 ? -13 : 13)}
-                  cy={y(v.value)}
-                  r="2.4"
-                  fill="var(--color-brand-deep)"
-                  opacity="0.75"
-                >
-                  <title>{`${v.code}: ${short(v.value)}`}</title>
-                </circle>
-              ))}
               <text
-                x={cx}
-                y={TOP + PLOT_H + 13}
-                textAnchor="middle"
-                fontSize="9.5"
-                fontWeight="bold"
-                fill="var(--color-charcoal)"
-                className="mono"
-              >
-                {g.label}
-              </text>
-              <text
-                x={cx}
-                y={TOP + PLOT_H + 24}
-                textAnchor="middle"
+                x={LEFT - 4}
+                y={y(tv) + 3}
+                textAnchor="end"
                 fontSize="8.5"
                 fill="var(--color-muted)"
                 className="mono"
               >
-                {`x̄ ${short(mean)} · n=${sorted.length}`}
+                {short(tv)}
               </text>
             </g>
-          );
-        })}
-      </svg>
+          ))}
+          {groups.map((g, gi) => {
+            const cx = LEFT + gi * GW + GW / 2;
+            const sorted = g.values.map((v) => v.value).sort((a, b) => a - b);
+            const q1 = quantile(sorted, 0.25);
+            const med = quantile(sorted, 0.5);
+            const q3 = quantile(sorted, 0.75);
+            const min = sorted[0];
+            const max = sorted[sorted.length - 1];
+            const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
+            const half = 22;
+            return (
+              <g key={g.label}>
+                {/* whiskers over the full range */}
+                <line
+                  x1={cx}
+                  x2={cx}
+                  y1={y(min)}
+                  y2={y(max)}
+                  stroke="var(--color-charcoal)"
+                  strokeWidth="1"
+                />
+                <line
+                  x1={cx - 8}
+                  x2={cx + 8}
+                  y1={y(min)}
+                  y2={y(min)}
+                  stroke="var(--color-charcoal)"
+                  strokeWidth="1"
+                />
+                <line
+                  x1={cx - 8}
+                  x2={cx + 8}
+                  y1={y(max)}
+                  y2={y(max)}
+                  stroke="var(--color-charcoal)"
+                  strokeWidth="1"
+                />
+                {/* interquartile box */}
+                <rect
+                  x={cx - half}
+                  y={y(q3)}
+                  width={half * 2}
+                  height={Math.max(1, y(q1) - y(q3))}
+                  fill="var(--color-brand-soft)"
+                  stroke="var(--color-brand-deep)"
+                  strokeWidth="1"
+                  rx="1.5"
+                />
+                <line
+                  x1={cx - half}
+                  x2={cx + half}
+                  y1={y(med)}
+                  y2={y(med)}
+                  stroke="var(--color-charcoal)"
+                  strokeWidth="1.75"
+                />
+                {/* mean triangle */}
+                <path
+                  d={`M ${cx - 4} ${y(mean) + 3.5} L ${cx + 4} ${y(mean) + 3.5} L ${cx} ${y(mean) - 4} Z`}
+                  fill="none"
+                  stroke="var(--color-ink)"
+                  strokeWidth="1.25"
+                />
+                {/* individual samples, nudged alternately to stay readable */}
+                {g.values.map((v, vi) => (
+                  <circle
+                    key={vi}
+                    cx={cx + (vi % 2 === 0 ? -13 : 13)}
+                    cy={y(v.value)}
+                    r="2.4"
+                    fill="var(--color-brand-deep)"
+                    opacity="0.75"
+                  >
+                    <title>{`${v.code}: ${short(v.value)}`}</title>
+                  </circle>
+                ))}
+                <text
+                  x={cx}
+                  y={TOP + PLOT_H + 13}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  fontWeight="bold"
+                  fill="var(--color-charcoal)"
+                  className="mono"
+                >
+                  {g.label}
+                </text>
+                <text
+                  x={cx}
+                  y={TOP + PLOT_H + 24}
+                  textAnchor="middle"
+                  fontSize="8.5"
+                  fill="var(--color-muted)"
+                  className="mono"
+                >
+                  {`x̄ ${short(mean)} · n=${sorted.length}`}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </HorizontalScroll>
     </div>
   );
 }
@@ -179,13 +203,25 @@ export function GroupBoxPlots({
     (p) => p.groups.filter((g) => g.values.length >= 2).length >= 2,
   );
   if (!usable.length) return null;
+  const plotWidth = Math.max(
+    480,
+    ...usable.map(
+      (plot) =>
+        54 + plot.groups.filter((group) => group.values.length > 0).length * 84,
+    ),
+  );
   return (
     <section className="bg-surface border border-line rounded-[6px] p-3.5">
       <h2 className="text-[12.5px] font-bold flex items-center gap-1.5">
         <Icon name="BarChart3" size={14} className="text-charcoal" /> {title}
       </h2>
       <p className="text-[10.5px] text-muted mb-2">{hint}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+      <div
+        className="grid gap-x-4 gap-y-3"
+        style={{
+          gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${plotWidth}px), 1fr))`,
+        }}
+      >
         {usable.map((p) => (
           <BoxPlot key={p.metric} plot={p} />
         ))}

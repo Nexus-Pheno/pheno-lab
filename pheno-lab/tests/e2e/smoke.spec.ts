@@ -437,9 +437,9 @@ test("capture controls keep chips dense, select Trash, confirm photo deletion, a
     const emptyGroupRows = page.locator(
       '[data-result-group="B"][data-empty-group="true"]',
     );
-    await expect(emptyGroupRows).toHaveCount(2);
+    await expect(emptyGroupRows).toHaveCount(1);
     await expect(emptyGroupRows.first()).toContainText("—");
-    await expect(emptyGroupRows.nth(1)).toContainText("—");
+    await expect(page.locator("[data-result-comparison]")).toHaveCount(1);
     await expect(page.getByText("ERROR", { exact: true })).toHaveCount(0);
 
     await page.goto(`/experiments/${experiment.id}/capture?run=${run2.id}`);

@@ -10,6 +10,7 @@ import {
   GroupBoxPlots,
   type MetricPlot,
 } from "@/components/results/GroupBoxPlots";
+import { HorizontalScroll } from "@/components/results/HorizontalScroll";
 import { getResultsExperiment } from "@/modules/experiments/query";
 
 // Results comparison: measured metrics side by side across variation groups,
@@ -40,9 +41,10 @@ export default async function ResultsPage({
     st.parameters
       .filter((p) => p.variations.length > 0)
       .map((p) => ({
+        id: p.id,
         name: p.name,
         unit: p.unit,
-        process: st.process.name,
+        process: st.name || st.process.name,
         values: Object.fromEntries(
           p.variations.map((v) => [v.variationGroup, v.value]),
         ),
@@ -68,9 +70,9 @@ export default async function ResultsPage({
       : "";
 
   return (
-    <main className="h-full overflow-y-auto bg-subtle">
-      <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-5">
-        <div className="flex items-center gap-2.5">
+    <main className="h-full overflow-y-auto overflow-x-hidden bg-subtle">
+      <div className="w-full min-w-0 p-4 sm:p-6 space-y-5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Icon name="BarChart3" size={17} className="text-brand-deep" />
           <div className="flex-1 min-w-0">
             <h1 className="text-[16px] font-bold">
@@ -86,72 +88,77 @@ export default async function ResultsPage({
           </Link>
           <SmartBack fallback={`/experiments/${exp.id}`} />
         </div>
+        <p className="text-[11px] text-muted">{t("res.scrollHint")}</p>
 
-        {/* Tested variables per group */}
-        {variables.length > 0 && groups.length > 0 && (
-          <section className="bg-surface border border-line rounded-[6px] p-3.5 overflow-x-auto">
+        {/* Keep the plan visible before any measurements have been captured. */}
+        {!hasAnyResult && variables.length > 0 && groups.length > 0 && (
+          <section className="bg-surface border border-line rounded-[6px] p-3.5 min-w-0">
             <h2 className="text-[11px] font-bold uppercase text-muted mb-2">
               {t("res.variables")}
             </h2>
-            <table className="text-[12.5px] min-w-full">
-              <thead>
-                <tr className="text-left text-[10px] uppercase text-muted">
-                  <th className="pr-4 pb-1 font-bold">{t("res.group")}</th>
-                  {variables.map((v, i) => (
-                    <th key={i} className="pr-4 pb-1 font-bold">
-                      {tt(v.name)}
-                      {v.unit ? ` (${v.unit})` : ""}{" "}
-                      <span className="font-normal normal-case">
-                        · {tt(v.process)}
-                      </span>
-                    </th>
-                  ))}
-                  <th className="pb-1 font-bold text-right">
-                    {t("res.samples")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((g) => {
-                  const sampleCount = exp.samples.filter(
-                    (sample) => sample.variationGroup === g,
-                  ).length;
-                  return (
-                    <tr
-                      key={g}
-                      className="border-t border-line"
-                      data-result-group={g}
-                      data-empty-group={sampleCount === 0 ? "true" : undefined}
-                    >
-                      <td className="pr-4 py-1.5">
-                        <span
-                          className={
-                            "mono font-bold " +
-                            (g === controlGroup ? "" : "text-brand-deep")
-                          }
-                        >
-                          {g}
+            <HorizontalScroll label={t("res.variables")}>
+              <table className="text-[12.5px] min-w-full">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase text-muted">
+                    <th className="pr-4 pb-1 font-bold">{t("res.group")}</th>
+                    {variables.map((v) => (
+                      <th key={v.id} className="pr-4 pb-1 font-bold">
+                        {tt(v.name)}
+                        {v.unit ? ` (${v.unit})` : ""}{" "}
+                        <span className="font-normal normal-case">
+                          · {tt(v.process)}
                         </span>
-                        {g === controlGroup && (
-                          <span className="text-[10px] text-muted">
-                            {" "}
-                            ({t("plan.controlWord")})
+                      </th>
+                    ))}
+                    <th className="pb-1 font-bold text-right">
+                      {t("res.samples")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((g) => {
+                    const sampleCount = exp.samples.filter(
+                      (sample) => sample.variationGroup === g,
+                    ).length;
+                    return (
+                      <tr
+                        key={g}
+                        className="border-t border-line"
+                        data-result-group={g}
+                        data-empty-group={
+                          sampleCount === 0 ? "true" : undefined
+                        }
+                      >
+                        <td className="pr-4 py-1.5">
+                          <span
+                            className={
+                              "mono font-bold " +
+                              (g === controlGroup ? "" : "text-brand-deep")
+                            }
+                          >
+                            {g}
                           </span>
-                        )}
-                      </td>
-                      {variables.map((v, i) => (
-                        <td key={i} className="pr-4 py-1.5 mono">
-                          {sampleCount > 0 ? (v.values[g] ?? "—") : "—"}
+                          {g === controlGroup && (
+                            <span className="text-[10px] text-muted">
+                              {" "}
+                              ({t("plan.controlWord")})
+                            </span>
+                          )}
                         </td>
-                      ))}
-                      <td className="py-1.5 mono text-right">
-                        {sampleCount > 0 ? sampleCount : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        {variables.map((v) => (
+                          <td key={v.id} className="pr-4 py-1.5 mono">
+                            {sampleCount > 0 ? (v.values[g] ?? "—") : "—"}
+                          </td>
+                        ))}
+                        <td className="py-1.5 mono text-right">
+                          {sampleCount > 0 ? sampleCount : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </HorizontalScroll>
           </section>
         )}
 
@@ -204,117 +211,187 @@ export default async function ResultsPage({
 
           return (
             <div key={c.id} className="space-y-5">
+              <section
+                className="bg-surface border border-line rounded-[6px] p-3.5 min-w-0"
+                data-result-comparison={c.id}
+              >
+                <h2 className="text-[12.5px] font-bold flex items-center gap-1.5 mb-2">
+                  <Icon
+                    name={c.process.icon}
+                    size={14}
+                    className="text-charcoal"
+                  />
+                  {tt(c.name)}
+                </h2>
+                <HorizontalScroll
+                  label={`${tt(c.name)} · ${t("res.variables")}`}
+                >
+                  <table className="text-[12.5px] min-w-full">
+                    <thead>
+                      <tr className="text-left text-[10px] uppercase text-muted">
+                        <th className="sticky left-0 z-10 bg-surface min-w-24 pr-4 pb-1 font-bold border-r border-line">
+                          {t("res.sampleId")}
+                        </th>
+                        <th className="min-w-20 whitespace-nowrap pr-4 pb-1 font-bold">
+                          {t("res.group")}
+                        </th>
+                        {variables.map((variable) => (
+                          <th
+                            key={variable.id}
+                            className="min-w-40 max-w-64 pr-4 pb-1 font-bold"
+                            data-result-variable={variable.id}
+                          >
+                            <span className="block font-normal normal-case text-muted">
+                              {tt(variable.process)}
+                            </span>
+                            {tt(variable.name)}
+                            {variable.unit ? ` (${variable.unit})` : ""}
+                          </th>
+                        ))}
+                        {metricNames.map((m) => (
+                          <th
+                            key={m}
+                            className="pr-4 pb-1 font-bold text-right"
+                          >
+                            {m}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(groups.length > 0 ? groups : [null]).map((g) => {
+                        const samples = exp.samples.filter((s) =>
+                          g === null
+                            ? isScientificSample(s)
+                            : s.variationGroup === g,
+                        );
+                        if (g !== null && samples.length === 0) {
+                          return (
+                            <tr
+                              key={`${g}-empty`}
+                              className="border-t border-line"
+                              data-result-group={g}
+                              data-empty-group="true"
+                            >
+                              <td className="sticky left-0 bg-surface pr-4 py-1.5 mono border-r border-line">
+                                —
+                              </td>
+                              <td className="min-w-20 whitespace-nowrap pr-4 py-1.5 mono">
+                                {g}
+                              </td>
+                              {variables.map((variable) => (
+                                <td
+                                  key={variable.id}
+                                  className="pr-4 py-1.5 mono"
+                                >
+                                  —
+                                </td>
+                              ))}
+                              {metricNames.map((metric) => (
+                                <td
+                                  key={metric}
+                                  className="pr-4 py-1.5 mono text-right"
+                                >
+                                  —
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        }
+                        const withData = samples.filter((s) =>
+                          metricNames.some(
+                            (m) => (resultFor(s.id)[m] ?? "") !== "",
+                          ),
+                        );
+                        if (withData.length === 0) return null;
+                        return [
+                          ...withData.map((s) => (
+                            <tr
+                              key={s.id}
+                              className="border-t border-line"
+                              data-result-sample={s.code}
+                            >
+                              <td className="sticky left-0 bg-surface min-w-24 pr-4 py-1.5 mono border-r border-line">
+                                <span className="block font-bold">
+                                  {s.code}
+                                </span>
+                                {s.simCode && (
+                                  <span className="block text-[10px] text-muted">
+                                    {s.simCode}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="min-w-20 whitespace-nowrap pr-4 py-1.5 mono">
+                                {s.variationGroup ?? "—"}
+                                {s.variationGroup === controlGroup && (
+                                  <span className="text-[10px] text-muted">
+                                    {" "}
+                                    ({t("plan.controlWord")})
+                                  </span>
+                                )}
+                              </td>
+                              {variables.map((variable) => (
+                                <td
+                                  key={variable.id}
+                                  className="min-w-40 max-w-64 break-words pr-4 py-1.5 mono"
+                                  data-result-variable={variable.id}
+                                >
+                                  {s.variationGroup
+                                    ? (variable.values[s.variationGroup] ?? "—")
+                                    : "—"}
+                                </td>
+                              ))}
+                              {metricNames.map((m) => (
+                                <td
+                                  key={m}
+                                  className="pr-4 py-1.5 mono text-right"
+                                >
+                                  {resultFor(s.id)[m] ?? ""}
+                                </td>
+                              ))}
+                            </tr>
+                          )),
+                          g !== null && withData.length > 1 ? (
+                            <tr
+                              key={g + "-mean"}
+                              className="border-t border-line bg-brand-soft/40"
+                            >
+                              <td
+                                className="pr-4 py-1.5 text-[11px] font-bold text-brand-deep"
+                                colSpan={variables.length + 2}
+                              >
+                                <span className="sticky left-0 inline-block">
+                                  {g} {t("res.mean")}
+                                </span>
+                              </td>
+                              {metricNames.map((m) => {
+                                const nums = withData
+                                  .map((s) =>
+                                    parseFloat(resultFor(s.id)[m] ?? ""),
+                                  )
+                                  .filter((n) => !isNaN(n));
+                                return (
+                                  <td
+                                    key={m}
+                                    className="pr-4 py-1.5 mono text-right font-bold text-brand-deep"
+                                  >
+                                    {mean(nums)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ) : null,
+                        ];
+                      })}
+                    </tbody>
+                  </table>
+                </HorizontalScroll>
+              </section>
               <GroupBoxPlots
                 plots={plots}
                 title={`${tt(c.name)} · ${t("res.dist")}`}
                 hint={t("res.distHint")}
               />
-              <section className="bg-surface border border-line rounded-[6px] p-3.5 overflow-x-auto">
-              <h2 className="text-[12.5px] font-bold flex items-center gap-1.5 mb-2">
-                <Icon
-                  name={c.process.icon}
-                  size={14}
-                  className="text-charcoal"
-                />
-                {tt(c.name)}
-              </h2>
-              <table className="text-[12.5px] min-w-full">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase text-muted">
-                    <th className="pr-4 pb-1 font-bold">{t("cap.sample")}</th>
-                    <th className="pr-4 pb-1 font-bold">{t("res.group")}</th>
-                    {metricNames.map((m) => (
-                      <th key={m} className="pr-4 pb-1 font-bold text-right">
-                        {m}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(groups.length > 0 ? groups : [null]).map((g) => {
-                    const samples = exp.samples.filter((s) =>
-                      g === null
-                        ? isScientificSample(s)
-                        : s.variationGroup === g,
-                    );
-                    if (g !== null && samples.length === 0) {
-                      return (
-                        <tr
-                          key={`${g}-empty`}
-                          className="border-t border-line"
-                          data-result-group={g}
-                          data-empty-group="true"
-                        >
-                          <td className="pr-4 py-1.5 mono">—</td>
-                          <td className="pr-4 py-1.5 mono">{g}</td>
-                          {metricNames.map((metric) => (
-                            <td
-                              key={metric}
-                              className="pr-4 py-1.5 mono text-right"
-                            >
-                              —
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    }
-                    const withData = samples.filter((s) =>
-                      metricNames.some(
-                        (m) => (resultFor(s.id)[m] ?? "") !== "",
-                      ),
-                    );
-                    if (withData.length === 0) return null;
-                    return [
-                      ...withData.map((s) => (
-                        <tr key={s.id} className="border-t border-line">
-                          <td className="pr-4 py-1.5 mono">{s.code}</td>
-                          <td className="pr-4 py-1.5 mono">
-                            {s.variationGroup ?? "—"}
-                            {s.variationGroup === controlGroup && (
-                              <span className="text-[10px] text-muted">
-                                {" "}
-                                ({t("plan.controlWord")})
-                              </span>
-                            )}
-                          </td>
-                          {metricNames.map((m) => (
-                            <td key={m} className="pr-4 py-1.5 mono text-right">
-                              {resultFor(s.id)[m] ?? ""}
-                            </td>
-                          ))}
-                        </tr>
-                      )),
-                      g !== null && withData.length > 1 ? (
-                        <tr
-                          key={g + "-mean"}
-                          className="border-t border-line bg-brand-soft/40"
-                        >
-                          <td
-                            className="pr-4 py-1.5 text-[11px] font-bold text-brand-deep"
-                            colSpan={2}
-                          >
-                            {g} {t("res.mean")}
-                          </td>
-                          {metricNames.map((m) => {
-                            const nums = withData
-                              .map((s) => parseFloat(resultFor(s.id)[m] ?? ""))
-                              .filter((n) => !isNaN(n));
-                            return (
-                              <td
-                                key={m}
-                                className="pr-4 py-1.5 mono text-right font-bold text-brand-deep"
-                              >
-                                {mean(nums)}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ) : null,
-                    ];
-                  })}
-                </tbody>
-              </table>
-              </section>
             </div>
           );
         })}
