@@ -121,6 +121,11 @@ pnpm run e2e
   -> 现有 deploy-release.sh 迁移、切换 current、重启、readiness
 ```
 
+每次服务器代码更新必须先将本地改动 commit 并 push 到 GitHub，再由服务器从 GitHub 拉取；
+不得以直接复制或在服务器手改代码替代这条链路。每次交付提供部署应用对应的 **完整 Git commit SHA**、
+GitHub commit 链接及 release ID，并在现有部署实录中记录三者映射；补充部署文档的 commit 与实际
+应用代码 commit 应分别说明。回溯以明确的 commit/release 为准，代码回滚不代表数据库和 COS 数据回滚。
+
 未经 Louis 明确批准，部署 agent 不得：
 
 - 新建 `.env.production`、`.env.local`、第二份 env、secret 文件或新的 `/etc` 配置路径；

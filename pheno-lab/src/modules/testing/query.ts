@@ -76,8 +76,30 @@ const requestSelect = {
   sampleIds: true,
   note: true,
   createdAt: true,
+  requestedBy: { select: { id: true, name: true, organizationId: true } },
   run: { select: { runNo: true } },
 } as const;
+
+function summarizeRequests(
+  organizationId: string,
+  requests: {
+    sampleIds: string[];
+    requestedBy: { id: string; name: string; organizationId: string };
+  }[],
+  samples: { id: string; code: string; simCode: string | null }[],
+) {
+  const sampleIds = new Set(requests.flatMap((request) => request.sampleIds));
+  const requesters = new Map<string, string>();
+  for (const request of requests) {
+    if (request.requestedBy.organizationId === organizationId)
+      requesters.set(request.requestedBy.id, request.requestedBy.name);
+  }
+  return {
+    requesters: [...requesters.values()],
+    samples: samples.filter((sample) => sampleIds.has(sample.id)),
+    submissionCount: requests.length,
+  };
+}
 
 export async function listTestingExperiments(actor: Actor, raw: unknown) {
   const input = testingSearchSchema.parse(raw);
@@ -128,7 +150,7 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
     ],
   };
   const scanWhere = { organizationId: actor.org, status: { not: "IGNORED" } };
-  const [total, rows, recentRequests] = await Promise.all([
+  const [total, rows, recentGroups] = await Promise.all([
     db.experiment.count({ where }),
     db.experiment.findMany({
       where,
@@ -153,31 +175,64 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
         },
       },
     }),
-    db.testingRequest.findMany({
+    // Apply the limit to experiments, so repeated submissions cannot crowd
+    // other experiments out of the recent testing queue.
+    db.testingRequest.groupBy({
+      by: ["experimentId"],
       where: { organizationId: actor.org, experiment: scope },
-      orderBy: { createdAt: "desc" },
+      _max: { createdAt: true },
+      orderBy: [{ _max: { createdAt: "desc" } }, { experimentId: "asc" }],
       take: 20,
-      select: {
-        id: true,
-        createdAt: true,
-        sampleIds: true,
-        experiment: {
-          select: { id: true, code: true, samples: { select: samplesSelect } },
-        },
-      },
     }),
   ]);
+  const recentExperiments = recentGroups.length
+    ? await db.experiment.findMany({
+        where: {
+          AND: [
+            scope,
+            { id: { in: recentGroups.map((group) => group.experimentId) } },
+          ],
+        },
+        select: {
+          id: true,
+          code: true,
+          samples: { select: samplesSelect, orderBy: { code: "asc" } },
+          testingRequests: {
+            where: { organizationId: actor.org },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: {
+              id: true,
+              createdAt: true,
+              sampleIds: true,
+              requestedBy: requestSelect.requestedBy,
+            },
+          },
+        },
+      })
+    : [];
+  const recentById = new Map(recentExperiments.map((row) => [row.id, row]));
   return {
     total,
     page: input.page,
     q: input.q,
-    recentRequests: recentRequests.map((r) => ({
-      id: r.id,
-      experimentId: r.experiment.id,
-      code: r.experiment.code,
-      createdAt: r.createdAt.toISOString(),
-      samples: r.experiment.samples.filter((s) => r.sampleIds.includes(s.id)),
-    })),
+    recentRequests: recentGroups.flatMap((group) => {
+      const experiment = recentById.get(group.experimentId);
+      const latest = experiment?.testingRequests[0];
+      if (!experiment || !latest) return [];
+      return [
+        {
+          id: latest.id,
+          experimentId: experiment.id,
+          code: experiment.code,
+          createdAt: latest.createdAt.toISOString(),
+          ...summarizeRequests(
+            actor.org,
+            experiment.testingRequests,
+            experiment.samples,
+          ),
+        },
+      ];
+    }),
     rows: rows.map((row) => ({
       id: row.id,
       code: row.code,
@@ -210,8 +265,7 @@ export async function getTestingExperiment(actor: Actor, id: string) {
       testingRequests: {
         where: { organizationId: actor.org },
         select: requestSelect,
-        orderBy: { createdAt: "desc" },
-        take: 50,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       },
       jvMeasurements: {
         where: { organizationId: actor.org, status: { not: "IGNORED" } },
@@ -256,11 +310,18 @@ export async function getTestingExperiment(actor: Actor, id: string) {
     code: row.code,
     samples: row.samples,
     stages,
+    requestSummary: summarizeRequests(
+      actor.org,
+      row.testingRequests,
+      row.samples,
+    ),
     requests: row.testingRequests.map((r) => ({
       id: r.id,
       note: r.note,
       createdAt: r.createdAt.toISOString(),
       runNo: r.run.runNo,
+      requestedByName:
+        r.requestedBy.organizationId === actor.org ? r.requestedBy.name : null,
       samples: row.samples.filter((s) => r.sampleIds.includes(s.id)),
     })),
     measurements: row.jvMeasurements.map((m) => ({

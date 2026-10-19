@@ -45,45 +45,70 @@ export default async function TestingDetailPage({
         </section>
         <section>
           <h2 className="font-bold mb-3">{t("testing.requests")}</h2>
-          <div className="space-y-3">
-            {row.requests.map((request) => (
-              <article
-                id={`request-${request.id}`}
-                key={request.id}
-                className="bg-surface border border-line rounded-lg p-4 scroll-mt-4"
-              >
-                <p className="text-xs text-muted mb-2">
-                  {fmtBeijing(new Date(request.createdAt))} · {t("testing.run")}{" "}
-                  {request.runNo}
-                </p>
-                <p className="font-mono text-sm break-words">
-                  {request.samples
-                    .map((s) => s.simCode || `${row.code}-${s.code}`)
-                    .join(" · ")}
-                </p>
-                {request.note && (
-                  <p className="text-sm whitespace-pre-wrap mt-2">
-                    {request.note}
-                  </p>
-                )}
-                <a
-                  href={`/api/testing/photos/${request.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block mt-3"
-                >
-                  <Image
-                    unoptimized
-                    width={640}
-                    height={480}
-                    src={`/api/testing/photos/${request.id}`}
-                    alt={t("testing.photo")}
-                    className="max-h-64 max-w-full rounded border border-line object-contain"
-                  />
-                </a>
-              </article>
-            ))}
-          </div>
+          {row.requests.length > 0 && (
+            <article
+              className="bg-surface border border-line rounded-lg p-4"
+              data-testing-request-experiment={row.id}
+            >
+              <p className="text-sm break-words">
+                <b>{t("testing.requestedBy")}: </b>
+                {row.requestSummary.requesters.join(" · ") ||
+                  t("testing.unknownRequester")}
+              </p>
+              <p className="font-mono text-sm break-words mt-2">
+                {row.requestSummary.samples
+                  .map((s) => s.simCode || `${row.code}-${s.code}`)
+                  .join(" · ")}
+              </p>
+              <h3 className="text-sm font-semibold mt-4 mb-2">
+                {t("testing.submissionHistory")} ·{" "}
+                {row.requestSummary.submissionCount}
+              </h3>
+              <ol className="space-y-4">
+                {row.requests.map((request) => (
+                  <li
+                    id={`request-${request.id}`}
+                    key={request.id}
+                    className="border-t border-line pt-3 scroll-mt-4"
+                  >
+                    <p className="text-sm break-words mb-1">
+                      {t("testing.requestedBy")}:{" "}
+                      {request.requestedByName || t("testing.unknownRequester")}
+                    </p>
+                    <p className="text-xs text-muted mb-2">
+                      {fmtBeijing(new Date(request.createdAt))} ·{" "}
+                      {t("testing.run")} {request.runNo}
+                    </p>
+                    <p className="font-mono text-sm break-words">
+                      {request.samples
+                        .map((s) => s.simCode || `${row.code}-${s.code}`)
+                        .join(" · ")}
+                    </p>
+                    {request.note && (
+                      <p className="text-sm whitespace-pre-wrap mt-2">
+                        {request.note}
+                      </p>
+                    )}
+                    <a
+                      href={`/api/testing/photos/${request.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block mt-3"
+                    >
+                      <Image
+                        unoptimized
+                        width={640}
+                        height={480}
+                        src={`/api/testing/photos/${request.id}`}
+                        alt={t("testing.photo")}
+                        className="max-h-64 max-w-full rounded border border-line object-contain"
+                      />
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </article>
+          )}
           {!row.requests.length && (
             <p className="text-sm text-muted">{t("testing.noRequests")}</p>
           )}

@@ -680,6 +680,12 @@ git log -1 --oneline
 `git status --short` 必须为空。发现生产 source 有本地修改、未知文件、非 `main` commit 或无法
 fast-forward 时立即停止，问 Louis；禁止 `reset --hard`、stash 后强行部署或在服务器修代码。
 
+每次服务器更新前必须先把本地改动提交并推送到 GitHub，再由服务器按本节拉取；禁止用直接复制或
+在服务器手改代码替代 GitHub。发布时记录 `git rev-parse HEAD` 的完整应用代码 commit SHA、
+对应 GitHub commit 链接及本次 release ID，在现有部署实录中保存映射，并把这些版本信息交给 Louis。
+发布后补充文档的 commit 与实际部署的应用 commit 分别记录。按版本回溯代码不代表 PostgreSQL/COS
+数据也会回到相同时间点；数据库兼容性及权限限制仍按第 5 节核对。
+
 ### 4.2 选择 release ID，并只增量修改现有 APP_VERSION
 
 先列出现有 release，再选择未使用的 ID：
