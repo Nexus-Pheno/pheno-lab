@@ -33,17 +33,25 @@ export default async function TestingPage({
             <div className="space-y-2">
               {data.recentRequests.map((request) => (
                 <Link
-                  key={request.id}
+                  key={request.experimentId}
                   href={`/testing/${request.experimentId}#request-${request.id}`}
+                  data-testing-request-experiment={request.experimentId}
                   className="block border-b border-line last:border-0 py-2"
                 >
                   <b className="text-sm font-mono">{request.code}</b>
+                  <p className="text-sm break-words mt-1">
+                    {t("testing.requestedBy")}:{" "}
+                    {request.requesters.join(" · ") ||
+                      t("testing.unknownRequester")}
+                  </p>
                   <p className="text-xs font-mono break-words mt-1">
                     {request.samples
                       .map((s) => s.simCode || s.code)
                       .join(" · ")}
                   </p>
                   <p className="text-xs text-muted mt-1">
+                    {t("testing.submissions")}: {request.submissionCount} ·{" "}
+                    {t("testing.latestSubmission")}:{" "}
                     {fmtBeijing(new Date(request.createdAt))}
                   </p>
                 </Link>
@@ -78,7 +86,7 @@ export default async function TestingPage({
                 <h2 className="font-mono font-bold">{row.code}</h2>
                 <span className="text-xs text-muted">
                   {t("testing.scans")}: {row.measurements} ·{" "}
-                  {t("testing.requests")}: {row.requests}
+                  {t("testing.submissions")}: {row.requests}
                 </span>
               </div>
               <p className="text-sm mt-2 break-words">
