@@ -1,0 +1,132 @@
+{
+  "releaseId": "20261019-001",
+  "previousReleaseId": "20261014-001",
+  "applicationCommit": "cca1aa17f9d5d0c8ec64b6a82cf6fb5e337fb55a",
+  "applicationCommitUrl": "https://github.com/Nexus-Pheno/pheno-lab/commit/cca1aa17f9d5d0c8ec64b6a82cf6fb5e337fb55a",
+  "pullRequest": "https://github.com/Nexus-Pheno/pheno-lab/pull/120",
+  "ci": {
+    "pullRequestRun": 39192078344,
+    "mainRun": 39192599279,
+    "conclusion": "success",
+    "unitTests": 239,
+    "integrationTests": 131,
+    "browserTests": 41,
+    "bridge": "passed",
+    "linuxVerify": "passed",
+    "linuxArtifactAndChecksum": "passed",
+    "localAffectedEdgeTests": 6,
+    "localWindowsFullVerifyLimit": "/bin/bash unavailable for deploy:check; remaining checks ran separately; full verify passed in Linux CI and production build"
+  },
+  "deployment": {
+    "workflow": "local commit/push to GitHub -> server git pull -> build-release.sh -> deploy-release.sh",
+    "sourceCleanAtBuildAndAfterDeployment": true,
+    "artifactSha256": "9fbc89858a134a875064dbc77d1341970f3a727807e84bb2fb3e2faf4c0a26cd",
+    "artifactDirectory": "/var/tmp",
+    "scriptExitCode": 0,
+    "readinessVerifiedAt": "2026-10-19T03:11:27.869Z",
+    "databaseReady": true,
+    "cosReady": true,
+    "publicHttpsLiveness": true,
+    "httpToHttpsStatus": 301,
+    "serviceUser": "pheno",
+    "loopbackPort": 3457,
+    "automaticRestarts": 0,
+    "nginxActive": true,
+    "existingMigrations": 46,
+    "pendingMigrations": 0,
+    "legacyCredentialsEncrypted": 0,
+    "schemaOrDataMigration": false,
+    "releaseDirectoriesRetained": 5,
+    "prunedReleaseId": "20261012-009",
+    "onlyEnvironmentValueChanged": "APP_VERSION",
+    "otherEnvironmentBytesUnchanged": true,
+    "environmentOwnerGroupModeInodeAclUnchanged": true,
+    "temporaryEnvironmentBackupRemoved": true,
+    "journalReview": {
+      "journalLinesReviewed": 200,
+      "startupMarkerInWindow": true,
+      "currentStartupLines": 65,
+      "errorLinesSinceStartup": 14,
+      "serverActionVersionMismatch": 14,
+      "serverActionIdentifierLengths": {
+        "42": 14
+      },
+      "otherCriticalErrorsSinceStartup": 0,
+      "distinctMismatchedActions": 1,
+      "mismatchedActionsKnownToPreviousReleaseOnly": 14,
+      "mismatchedActionsKnownToCurrentRelease": 0,
+      "mismatchedActionsUnknownToBoth": 0
+    },
+    "journalInterpretation": "All observed errors referenced one Server Action present only in the previous release manifest. Old clients require refresh; fresh Edge sessions passed every view. No other critical errors were observed in the reviewed startup window."
+  },
+  "productionBrowserSmoke": {
+    "browser": "Microsoft Edge",
+    "queueExperimentCount": 11,
+    "submissionCount": 2,
+    "requesterCount": 1,
+    "sampleCount": 13,
+    "checks": [
+      {
+        "width": 1600,
+        "lang": "en",
+        "oneEntryPerExperiment": true,
+        "queueDataMatched": true,
+        "allSubmissionDataMatched": true,
+        "oldAndNewAnchors": true,
+        "photoAuthorized": true,
+        "preparationDenied": true,
+        "outerOverflow": false,
+        "pageErrors": 0
+      },
+      {
+        "width": 1600,
+        "lang": "zh",
+        "oneEntryPerExperiment": true,
+        "queueDataMatched": true,
+        "allSubmissionDataMatched": true,
+        "oldAndNewAnchors": true,
+        "photoAuthorized": true,
+        "preparationDenied": true,
+        "outerOverflow": false,
+        "pageErrors": 0
+      },
+      {
+        "width": 390,
+        "lang": "en",
+        "oneEntryPerExperiment": true,
+        "queueDataMatched": true,
+        "allSubmissionDataMatched": true,
+        "oldAndNewAnchors": true,
+        "photoAuthorized": true,
+        "preparationDenied": true,
+        "outerOverflow": false,
+        "pageErrors": 0
+      },
+      {
+        "width": 390,
+        "lang": "zh",
+        "oneEntryPerExperiment": true,
+        "queueDataMatched": true,
+        "allSubmissionDataMatched": true,
+        "oldAndNewAnchors": true,
+        "photoAuthorized": true,
+        "preparationDenied": true,
+        "outerOverflow": false,
+        "pageErrors": 0
+      }
+    ],
+    "anonymousDenied": true,
+    "verifiedAt": "2026-10-19T03:14:44.344Z",
+    "temporarySessionFileRemoved": true,
+    "scientificRecordsWritten": false,
+    "newNotificationsSent": false,
+    "permissionsChanged": false,
+    "presenceHeartbeatMayUpdateLastSeenAt": true,
+    "rawResearchDataOrCredentialsSavedInEvidence": false
+  },
+  "provenance": {
+    "applicationCommitAndReleaseAreTheRollbackReferences": true,
+    "postDeploymentDocumentationCommitIsSeparate": true,
+    "codeRollbackDoesNotRestoreDatabaseOrCosData": true
+  }
+}
