@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { listTestingExperiments } from "@/modules/testing/query";
 import { TestingRefresh } from "@/components/testing/TestingRefresh";
+import { TestingCompletion } from "@/components/testing/TestingCompletion";
 import { fmtBeijing } from "@/lib/datetime";
 
 export default async function TestingPage({
@@ -36,9 +37,17 @@ export default async function TestingPage({
                   key={request.experimentId}
                   href={`/testing/${request.experimentId}#request-${request.id}`}
                   data-testing-request-experiment={request.experimentId}
-                  className="block border-b border-line last:border-0 py-2"
+                  className={
+                    "block rounded-lg border p-3 " +
+                    (request.complete
+                      ? "border-emerald-200 bg-emerald-50/60"
+                      : "border-line")
+                  }
                 >
-                  <b className="text-sm font-mono">{request.code}</b>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <b className="text-sm font-mono">{request.code}</b>
+                    <TestingCompletion complete={request.complete} t={t} />
+                  </div>
                   <p className="text-sm break-words mt-1">
                     {t("testing.requestedBy")}:{" "}
                     {request.requesters.join(" · ") ||
@@ -88,6 +97,9 @@ export default async function TestingPage({
                   {t("testing.scans")}: {row.measurements} ·{" "}
                   {t("testing.submissions")}: {row.requests}
                 </span>
+                {row.requests > 0 && (
+                  <TestingCompletion complete={row.complete} t={t} />
+                )}
               </div>
               <p className="text-sm mt-2 break-words">
                 {row.samples
@@ -101,7 +113,7 @@ export default async function TestingPage({
               <p className="text-xs text-muted mt-2">
                 {row.updatedAt
                   ? `${t("testing.lastUpdate")}: ${fmtBeijing(new Date(row.updatedAt))}`
-                  : t("testing.waiting")}
+                  : t(row.complete ? "testing.noScans" : "testing.waiting")}
               </p>
             </Link>
           ))}

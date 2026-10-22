@@ -7,6 +7,10 @@ import { captureFieldKind } from "@/lib/capture-fields";
 import type { Actor } from "@/modules/authorization/actor";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import { recordUserAudit } from "@/modules/audit/writer";
+import {
+  lockTestingCompletion,
+  notifyTestingCompletion,
+} from "@/modules/testing/completion-service";
 import type {
   characterizationResultSchema,
   executionBatchSchema,
@@ -511,6 +515,11 @@ export async function saveCharacterizationResultService(
   );
 
   return db.$transaction(async (transaction) => {
+    await lockTestingCompletion(
+      transaction,
+      actor.org,
+      characterization.experimentId,
+    );
     const existing = await transaction.characterizationResult.findFirst({
       where: {
         characterizationId: input.characterizationId,
@@ -524,6 +533,8 @@ export async function saveCharacterizationResultService(
           data: {
             metrics: input.metrics as Prisma.InputJsonValue,
             note: input.note,
+            source: "MANUAL",
+            sourceMeasurementId: null,
             capturedAt: new Date(),
           },
         })
@@ -548,6 +559,11 @@ export async function saveCharacterizationResultService(
         metrics: input.metrics,
       },
     });
+    await notifyTestingCompletion(
+      transaction,
+      actor.org,
+      characterization.experimentId,
+    );
     return result;
   });
 }
@@ -571,6 +587,7 @@ export async function regroupSampleService(
   await requireExperimentPermission(actor, sample.experimentId, "capture");
   const clean = zone.trim();
   await db.$transaction(async (transaction) => {
+    await lockTestingCompletion(transaction, actor.org, sample.experimentId);
     // Same lock order as plan reconciliation. Concurrent moves must not
     // overwrite another substrate's assignment or its updated group count.
     await transaction.organization.update({
@@ -658,5 +675,6 @@ export async function regroupSampleService(
         ...(note?.trim() ? { note: note.trim() } : {}),
       },
     });
+    await notifyTestingCompletion(transaction, actor.org, sample.experimentId);
   });
 }

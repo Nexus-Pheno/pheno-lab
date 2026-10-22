@@ -10,6 +10,10 @@ import { notify } from "@/modules/notifications/service";
 import { sendGroupNotice } from "@/modules/notifications/group-service";
 import { isJvTesting, testingRequestSchema } from "./schema";
 import { testingExperimentScope } from "./query";
+import {
+  lockTestingCompletion,
+  notifyTestingCompletion,
+} from "./completion-service";
 
 export async function requestTesting(actor: Actor, raw: unknown) {
   const input = testingRequestSchema.parse(raw);
@@ -32,6 +36,7 @@ export async function requestTesting(actor: Actor, raw: unknown) {
   const sampleIds = [...new Set(input.sampleIds)].sort();
   const result = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`testing-request:${actor.org}:${input.requestKey}`}, 0))`;
+    await lockTestingCompletion(tx, actor.org, characterization.experimentId);
     const experiment = await tx.experiment.findFirst({
       where: {
         id: characterization.experimentId,
@@ -122,6 +127,7 @@ export async function requestTesting(actor: Actor, raw: unknown) {
         notifiedRecipients: testers.length,
       },
     });
+    await notifyTestingCompletion(tx, actor.org, experiment.id);
     return { id: row.id, created: true, isTest: experiment.isTest };
   });
   const groupSent =

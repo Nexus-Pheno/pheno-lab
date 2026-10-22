@@ -133,6 +133,9 @@ export const en = {
   "chemicals.solvent": "Solvents",
   "chemicals.other": "Other",
   "testing.title": "JV testing",
+  "testing.completed": "Testing completed",
+  "testing.inProgress": "Testing in progress",
+  "testing.noScans": "No instrument scans recorded.",
   "testing.permission": "JV testing only · read-only",
   "testing.readOnlyHint":
     "Read-only testing workspace. View substrate codes, testing requests and JV data. Refreshes every minute.",
@@ -187,6 +190,7 @@ export const en = {
   "testing.handoffUnavailable":
     "Temporary credentials are no longer available. The account has been set up, the login has expired, or access was revoked.",
   "notif.testing_requested": "sent a JV testing request",
+  "notif.testing_completed": "Testing completed",
   "notif.chemicals_ready": "enabled your private material-entry portal",
   "notif.account_setup_ready": "prepared a private account login",
   // App chrome
@@ -1772,6 +1776,9 @@ export const zh: Record<TKey, string> = {
   "chemicals.solvent": "溶剂",
   "chemicals.other": "其他",
   "testing.title": "JV 测试",
+  "testing.completed": "已完成测试",
+  "testing.inProgress": "测试中",
+  "testing.noScans": "暂无仪器扫描数据。",
   "testing.permission": "仅 JV 测试 · 只读",
   "testing.readOnlyHint":
     "只读测试工作台：查看基底编码、测试需求及 JV 数据。每分钟自动刷新。",
@@ -1824,6 +1831,7 @@ export const zh: Record<TKey, string> = {
   "testing.handoffUnavailable":
     "临时登录信息已不可用：账号已完成设置、临时登录已过期或权限已撤销。",
   "notif.testing_requested": "发送了 JV 测试需求",
+  "notif.testing_completed": "已完成测试",
   "notif.chemicals_ready": "已为你开通私有材料录入入口",
   "notif.account_setup_ready": "已准备好私密账号登录信息",
   "app.name": "实验数据平台",

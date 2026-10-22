@@ -32,6 +32,7 @@ export type NotificationKind =
   | "draft_idle_warning"
   | "draft_idle_archived"
   | "testing_requested"
+  | "testing_completed"
   | "account_setup_ready"
   | "report_published"
   | "report_access_granted"

@@ -5,6 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { getTestingExperiment } from "@/modules/testing/query";
 import { TestingRefresh } from "@/components/testing/TestingRefresh";
+import { TestingCompletion } from "@/components/testing/TestingCompletion";
 import { fmtBeijing } from "@/lib/datetime";
 
 function metricsText(value: unknown) {
@@ -47,9 +48,17 @@ export default async function TestingDetailPage({
           <h2 className="font-bold mb-3">{t("testing.requests")}</h2>
           {row.requests.length > 0 && (
             <article
-              className="bg-surface border border-line rounded-lg p-4"
+              className={
+                "border rounded-lg p-4 " +
+                (row.complete
+                  ? "border-emerald-200 bg-emerald-50/60"
+                  : "bg-surface border-line")
+              }
               data-testing-request-experiment={row.id}
             >
+              <div className="mb-3">
+                <TestingCompletion complete={row.complete} t={t} />
+              </div>
               <p className="text-sm break-words">
                 <b>{t("testing.requestedBy")}: </b>
                 {row.requestSummary.requesters.join(" · ") ||
@@ -79,6 +88,9 @@ export default async function TestingDetailPage({
                       {fmtBeijing(new Date(request.createdAt))} ·{" "}
                       {t("testing.run")} {request.runNo}
                     </p>
+                    <div className="mb-2">
+                      <TestingCompletion complete={request.complete} t={t} />
+                    </div>
                     <p className="font-mono text-sm break-words">
                       {request.samples
                         .map((s) => s.simCode || `${row.code}-${s.code}`)
@@ -161,7 +173,9 @@ export default async function TestingDetailPage({
             ))}
           </div>
           {!row.measurements.length && (
-            <p className="text-sm text-muted">{t("testing.waiting")}</p>
+            <p className="text-sm text-muted">
+              {t(row.complete ? "testing.noScans" : "testing.waiting")}
+            </p>
           )}
         </section>
       </div>

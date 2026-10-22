@@ -76,7 +76,26 @@ export async function ingestInstrumentUpload(
     where: { instrumentId_sha256: { instrumentId: instrument.id, sha256 } },
     select: { id: true },
   });
-  if (seen) return result(409, "duplicate", "Already received this file");
+  if (seen) {
+    // Raw uploads commit before derived results. A retry must also recover a
+    // result/notification transaction that failed after the file was stored.
+    const linked = await db.jvMeasurement.findMany({
+      where: {
+        uploadId: seen.id,
+        instrumentId: instrument.id,
+        organizationId: instrument.organizationId,
+        status: "MATCHED",
+        sampleId: { not: null },
+      },
+      distinct: ["sampleId"],
+      select: { sampleId: true },
+    });
+    for (const measurement of linked) {
+      if (measurement.sampleId)
+        await refreshSampleJvResult(measurement.sampleId);
+    }
+    return result(409, "duplicate", "Already received this file");
+  }
 
   const prefix = datedObjectPrefix(instrument);
 
