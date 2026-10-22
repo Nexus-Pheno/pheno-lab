@@ -16,6 +16,7 @@ const KIND_ICON: Record<string, string> = {
   report_published: "FileText",
   report_access_granted: "FileText",
   testing_requested: "FlaskConical",
+  testing_completed: "CheckCircle2",
   account_setup_ready: "KeyRound",
   access_requested: "UserPlus",
   access_approved: "CheckCircle2",

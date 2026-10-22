@@ -4,6 +4,11 @@ import { db as prisma } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import { requireExperimentPermission } from "@/modules/authorization/service";
 import {
+  lockTestingCompletion,
+  notifyTestingCompletion,
+} from "@/modules/testing/completion-service";
+import { recordSystemAudit } from "@/modules/audit/writer";
+import {
   canonicalSerialKey,
   normalizeSerial,
 } from "@/lib/instruments/normalize";
@@ -400,6 +405,7 @@ export async function refreshSampleJvResult(
     where: { sampleId, status: "MATCHED" },
     select: {
       id: true,
+      organizationId: true,
       serial: true,
       direction: true,
       metrics: true,
@@ -417,49 +423,61 @@ export async function refreshSampleJvResult(
 
   scored.sort((a, b) => b.pce - a.pce);
   const best = scored[0].m;
-  if (!best.experimentId) return "no-data";
+  const experimentId = best.experimentId;
+  if (!experimentId) return "no-data";
 
-  const characterizationId = await findJvCharacterization(best.experimentId);
+  const characterizationId = await findJvCharacterization(experimentId);
   if (!characterizationId) return "no-card";
 
-  const existing = await prisma.characterizationResult.findFirst({
-    where: { characterizationId, sampleId, runId: best.runId },
-    select: { id: true, source: true, metrics: true, metricPolicy: true },
+  return prisma.$transaction(async (tx) => {
+    await lockTestingCompletion(tx, best.organizationId, experimentId);
+    const existing = await tx.characterizationResult.findFirst({
+      where: { characterizationId, sampleId, runId: best.runId },
+      select: { id: true, source: true, metrics: true, metricPolicy: true },
+    });
+    if (
+      existing &&
+      existing.source === "MANUAL" &&
+      Object.keys(existing.metrics ?? {}).length > 0
+    ) {
+      await notifyTestingCompletion(tx, best.organizationId, experimentId);
+      return "kept-manual";
+    }
+
+    const policy = (existing?.metricPolicy ?? "BEST") as JvMetricPolicy;
+    const picked = pickByPolicy(scored, policy);
+    const scanCount = measurements.length;
+    const policyLabel = policy === "BEST" ? "best" : policy.toLowerCase();
+    const note =
+      `Auto-filled from ${best.instrument.name}: ${policyLabel} of ${scanCount} scan${scanCount === 1 ? "" : "s"} ` +
+      `(${best.serial}${best.direction ? `, ${best.direction.toLowerCase()}` : ""}).`;
+    const data = {
+      metrics: picked.metrics,
+      note,
+      source: "INSTRUMENT",
+      sourceMeasurementId: picked.sourceMeasurementId,
+      capturedAt: best.measuredAt ?? new Date(),
+    };
+
+    const saved = existing
+      ? await tx.characterizationResult.update({
+          where: { id: existing.id },
+          data,
+        })
+      : await tx.characterizationResult.create({
+          data: { ...data, characterizationId, sampleId, runId: best.runId },
+        });
+    await recordSystemAudit(tx, {
+      organizationId: best.organizationId,
+      action: "instrument.result.refreshed",
+      entityType: "CharacterizationResult",
+      entityId: saved.id,
+      changes: { source: "INSTRUMENT", metricPolicy: policy },
+      metadata: { sampleId, scanCount },
+    });
+    await notifyTestingCompletion(tx, best.organizationId, experimentId);
+    return "written";
   });
-  if (
-    existing &&
-    existing.source === "MANUAL" &&
-    Object.keys(existing.metrics ?? {}).length > 0
-  ) {
-    return "kept-manual";
-  }
-
-  const policy = (existing?.metricPolicy ?? "BEST") as JvMetricPolicy;
-  const picked = pickByPolicy(scored, policy);
-  const scanCount = measurements.length;
-  const policyLabel = policy === "BEST" ? "best" : policy.toLowerCase();
-  const note =
-    `Auto-filled from ${best.instrument.name}: ${policyLabel} of ${scanCount} scan${scanCount === 1 ? "" : "s"} ` +
-    `(${best.serial}${best.direction ? `, ${best.direction.toLowerCase()}` : ""}).`;
-  const data = {
-    metrics: picked.metrics,
-    note,
-    source: "INSTRUMENT",
-    sourceMeasurementId: picked.sourceMeasurementId,
-    capturedAt: best.measuredAt ?? new Date(),
-  };
-
-  if (existing) {
-    await prisma.characterizationResult.update({
-      where: { id: existing.id },
-      data,
-    });
-  } else {
-    await prisma.characterizationResult.create({
-      data: { ...data, characterizationId, sampleId, runId: best.runId },
-    });
-  }
-  return "written";
 }
 
 const POLICIES: JvMetricPolicy[] = ["BEST", "MIN", "AVERAGE", "MEDIAN"];

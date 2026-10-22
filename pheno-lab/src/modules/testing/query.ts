@@ -5,6 +5,7 @@ import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 import { isJvTesting, testingSearchSchema } from "./schema";
+import { getTestingCompletions } from "./completion-query";
 
 /** Fresh database restriction checks; a testing grant never expands general experiment scope. */
 export async function testingExperimentScope(
@@ -211,6 +212,9 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
       })
     : [];
   const recentById = new Map(recentExperiments.map((row) => [row.id, row]));
+  const completions = await getTestingCompletions(db, actor.org, [
+    ...new Set([...rows, ...recentExperiments].map((row) => row.id)),
+  ]);
   return {
     total,
     page: input.page,
@@ -225,6 +229,7 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
           experimentId: experiment.id,
           code: experiment.code,
           createdAt: latest.createdAt.toISOString(),
+          complete: completions.get(experiment.id)?.complete ?? false,
           ...summarizeRequests(
             actor.org,
             experiment.testingRequests,
@@ -239,6 +244,7 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
       samples: row.samples,
       measurements: row._count.jvMeasurements,
       requests: row._count.testingRequests,
+      complete: completions.get(row.id)?.complete ?? false,
       updatedAt: row.jvMeasurements[0]?.createdAt.toISOString() ?? null,
     })),
   };
@@ -305,9 +311,11 @@ export async function getTestingExperiment(actor: Actor, id: string) {
     !row.testingRequests.length
   )
     return null;
+  const completion = (await getTestingCompletions(db, actor.org, [id])).get(id);
   return {
     id: row.id,
     code: row.code,
+    complete: completion?.complete ?? false,
     samples: row.samples,
     stages,
     requestSummary: summarizeRequests(
@@ -317,6 +325,7 @@ export async function getTestingExperiment(actor: Actor, id: string) {
     ),
     requests: row.testingRequests.map((r) => ({
       id: r.id,
+      complete: completion?.requests[r.id] ?? false,
       note: r.note,
       createdAt: r.createdAt.toISOString(),
       runNo: r.run.runNo,

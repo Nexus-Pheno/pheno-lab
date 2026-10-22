@@ -10,6 +10,10 @@ import { experimentInclude } from "@/lib/types";
 import type { Actor } from "@/modules/authorization/actor";
 import { recordUserAudit } from "@/modules/audit/writer";
 import {
+  lockTestingCompletion,
+  notifyTestingCompletion,
+} from "@/modules/testing/completion-service";
+import {
   refreshExperimentSerials,
   syncSampleSerials,
 } from "@/modules/instruments/sample-serial-service";
@@ -569,6 +573,7 @@ export async function applyTestPlan(
     ?.testPlan;
 
   await db.$transaction(async (tx) => {
+    await lockTestingCompletion(tx, actor.org, experimentId);
     // 1. Remove variations wired by the previous plan that are no longer part
     //    of the new plan (e.g. the tested process was changed).
     for (const old of oldPlan?.variables ?? []) {
@@ -750,6 +755,7 @@ export async function applyTestPlan(
         })),
       },
     });
+    await notifyTestingCompletion(tx, actor.org, experimentId);
   });
 
   await syncAutoLabels(experimentId);
