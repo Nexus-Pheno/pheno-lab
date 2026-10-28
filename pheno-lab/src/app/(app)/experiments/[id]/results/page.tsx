@@ -10,7 +10,16 @@ import {
   type MetricPlot,
 } from "@/components/results/GroupBoxPlots";
 import { ResultAnalysis } from "@/components/results/ResultAnalysis";
-import { describeResultConditions } from "@/modules/experiments/results-analysis";
+import {
+  buildExperimentEvidence,
+  selectRepresentativeResults,
+  inferenceResultMetrics,
+  evidenceNumber,
+} from "@/modules/experiments/result-evidence";
+import { canManageExperiment } from "@/modules/authorization/policy";
+import { AiResultAnalysis } from "@/components/results/AiResultAnalysis";
+import { z } from "zod";
+import { metricKeyOf } from "@/lib/analysis-metrics";
 import { HorizontalScroll } from "@/components/results/HorizontalScroll";
 import { getResultsExperiment } from "@/modules/experiments/query";
 
@@ -19,8 +28,10 @@ import { getResultsExperiment } from "@/modules/experiments/query";
 // a glance.
 export default async function ResultsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ reference?: string }>;
 }) {
   const { id } = await params;
   const session = await requireSession();
@@ -31,9 +42,29 @@ export default async function ResultsPage({
   if (!exp) notFound();
 
   const plan = (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan;
-  const groups = resultGroupLabels(plan?.groups, exp.samples);
-  const conditions = describeResultConditions(exp.steps, plan, exp.layers);
-  const controlGroup = plan?.groups.find((g) => g.isControl)?.label;
+  const query = await searchParams;
+  const parsedReference = z
+    .string()
+    .min(1)
+    .max(100)
+    .optional()
+    .safeParse(query.reference);
+  const evidence = buildExperimentEvidence(exp, {
+    referenceGroup: parsedReference.success ? parsedReference.data : undefined,
+  });
+  const conditions = evidence.conditions;
+  const controlGroup = evidence.reference.selectedGroup ?? undefined;
+  const groups = [
+    ...new Set([
+      ...resultGroupLabels(
+        Array.isArray(plan?.groups) ? plan.groups : undefined,
+        exp.samples,
+      ),
+      ...evidence.characterizations.flatMap((item) =>
+        item.groups.map((group) => group.label),
+      ),
+    ]),
+  ];
   const scientificSampleIds = new Set(
     exp.samples.filter(isScientificSample).map((sample) => sample.id),
   );
@@ -84,7 +115,64 @@ export default async function ResultsPage({
           </div>
           <SmartBack fallback={`/experiments/${exp.id}`} />
         </div>
+        <p className="text-[12px] font-semibold">{exp.title}</p>
+        <p className="text-[11px] text-muted">{t("res.evidence.policy")}</p>
+        <form
+          method="get"
+          className="flex flex-wrap items-center gap-2 text-[12px]"
+        >
+          <label htmlFor="analysis-reference">
+            {t("res.evidence.reference")}
+          </label>
+          <select
+            id="analysis-reference"
+            name="reference"
+            defaultValue={controlGroup ?? ""}
+            className="min-h-10 border border-line rounded px-3 bg-surface"
+          >
+            {!controlGroup && <option value="">—</option>}
+            {groups.map((group) => (
+              <option key={group} value={group}>
+                {group}
+              </option>
+            ))}
+          </select>
+          <button className="min-h-10 px-3 border border-line rounded bg-surface font-semibold">
+            {t("res.evidence.apply")}
+          </button>
+          {evidence.reference.declaredGroup && (
+            <span className="text-muted">
+              {t("res.evidence.planReference", {
+                group: evidence.reference.declaredGroup,
+              })}
+            </span>
+          )}
+          {evidence.reference.basis === "EXPLICIT_UNTREATED_REFERENCE" &&
+            controlGroup && (
+              <span className="text-brand-deep">
+                {t("res.evidence.untreated", { group: controlGroup })}
+              </span>
+            )}
+        </form>
+        {evidence.reference.warning && (
+          <p data-reference-warning className="text-[12px] text-warn">
+            {t(
+              evidence.reference.warning === "MULTIPLE_UNTREATED_REFERENCES"
+                ? "res.evidence.multipleReferences"
+                : "res.evidence.referenceWarning",
+            )}
+          </p>
+        )}
         <p className="text-[11px] text-muted">{t("res.scrollHint")}</p>
+        {evidence.evaluationFocus.requiresNonJvEvidence && (
+          <p className="text-[12px] text-warn">{t("res.evidence.nonJv")}</p>
+        )}
+        <AiResultAnalysis
+          key={`${exp.id}:${controlGroup ?? "default"}`}
+          experimentId={exp.id}
+          canAnalyze={canManageExperiment(session, exp)}
+          referenceGroup={controlGroup}
+        />
 
         {/* Keep the plan visible before any measurements have been captured. */}
         {!hasAnyResult && variables.length > 0 && groups.length > 0 && (
@@ -165,7 +253,17 @@ export default async function ResultsPage({
         )}
 
         {/* Per-characterization comparison */}
-        {exp.characterizations.map((c) => {
+        {exp.characterizations.map((characterization) => {
+          const c = {
+            ...characterization,
+            results: selectRepresentativeResults(
+              characterization.results,
+              exp.samples,
+            ),
+          };
+          const characterizationEvidence = evidence.characterizations.find(
+            (item) => item.id === c.id,
+          );
           const metricNames = [
             ...new Set(
               c.results
@@ -186,6 +284,16 @@ export default async function ResultsPage({
             (c.results.find((r) => r.sampleId === sampleId)?.metrics ??
               {}) as Record<string, string>;
 
+          const numericFor = (
+            sampleId: string,
+            metric: string,
+          ): number | null => {
+            const key = metricKeyOf(metric);
+            return key
+              ? (inferenceResultMetrics(resultFor(sampleId))[key] ?? null)
+              : evidenceNumber(resultFor(sampleId)[metric]);
+          };
+
           // Box-plot data: per metric, each group's numeric values with the
           // sample they came from.
           const plots: MetricPlot[] = metricNames.map((m) => ({
@@ -198,10 +306,13 @@ export default async function ResultsPage({
                     s.variationGroup === g && scientificSampleIds.has(s.id),
                 )
                 .map((s) => ({
-                  value: parseFloat(resultFor(s.id)[m] ?? ""),
+                  value: numericFor(s.id, m),
                   code: s.code,
                 }))
-                .filter((v) => Number.isFinite(v.value)),
+                .filter(
+                  (v): v is { value: number; code: string } =>
+                    v.value !== null && Number.isFinite(v.value),
+                ),
             })),
           }));
 
@@ -362,10 +473,10 @@ export default async function ResultsPage({
                               </td>
                               {metricNames.map((m) => {
                                 const nums = withData
-                                  .map((s) =>
-                                    parseFloat(resultFor(s.id)[m] ?? ""),
-                                  )
-                                  .filter((n) => !isNaN(n));
+                                  .map((sample) => numericFor(sample.id, m))
+                                  .filter(
+                                    (value): value is number => value !== null,
+                                  );
                                 return (
                                   <td
                                     key={m}
@@ -390,6 +501,7 @@ export default async function ResultsPage({
               />
               <ResultAnalysis
                 plots={plots}
+                evidence={characterizationEvidence}
                 conditions={conditions}
                 controlGroup={controlGroup}
                 t={t}

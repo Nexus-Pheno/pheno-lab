@@ -1,8 +1,7 @@
+import type { ExperimentEvidence } from "@/modules/experiments/result-evidence";
+import { metricKeyOf } from "@/lib/analysis-metrics";
 import type { TKey } from "@/lib/i18n/dict";
-import {
-  analyzeResultPlots,
-  type ResultCondition,
-} from "@/modules/experiments/results-analysis";
+import { analyzeResultPlots } from "@/modules/experiments/results-analysis";
 import type { MetricPlot } from "./GroupBoxPlots";
 
 const number = (value: number) => Number(value.toPrecision(4)).toString();
@@ -10,13 +9,15 @@ const difference = (value: number) => `${value > 0 ? "+" : ""}${number(value)}`;
 
 export function ResultAnalysis({
   plots,
+  evidence,
   conditions,
   controlGroup,
   t,
   tt,
 }: {
   plots: MetricPlot[];
-  conditions: ResultCondition[];
+  evidence?: ExperimentEvidence["characterizations"][number];
+  conditions: ExperimentEvidence["conditions"];
   controlGroup: string | undefined;
   t: (key: TKey, vars?: Record<string, string>) => string;
   tt: (value: string) => string;
@@ -41,10 +42,23 @@ export function ResultAnalysis({
       <div>
         <h2 className="text-[14px] font-bold">{t("res.analysis.title")}</h2>
         <p className="text-[11.5px] text-muted mt-1">
-          {t("res.analysis.source")}
+          {t("res.evidence.policy")}
         </p>
       </div>
 
+      <p className="text-[11px] text-muted">{t("res.evidence.rule")}</p>
+      {evidence?.comparabilityWarnings.some(
+        (warning) => warning !== "INDEPENDENT_BATCHES_NOT_VERIFIED",
+      ) && (
+        <p className="text-[11px] text-warn">{t("res.evidence.protocol")}</p>
+      )}
+      {evidence && evidence.nInvalidMetricVectors > 0 && (
+        <p className="text-[11px] text-warn">
+          {t("res.evidence.invalid", {
+            n: String(evidence.nInvalidMetricVectors),
+          })}
+        </p>
+      )}
       <div className="grid sm:grid-cols-2 gap-3">
         {analysis.map((metric) => (
           <div
@@ -166,8 +180,51 @@ export function ResultAnalysis({
             >
               <h3 className="font-bold mono">
                 {group}
-                {group === controlGroup ? ` · ${t("plan.controlWord")}` : ""}
+                {group === controlGroup
+                  ? ` · ${t("res.evidence.reference")}`
+                  : ""}
               </h3>
+              <p className="mt-1 text-[11.5px] break-words">
+                {conditions
+                  .filter((item) =>
+                    /material|材料|sam|浓度|溶剂|工艺/i.test(item.name),
+                  )
+                  .map(
+                    (item) =>
+                      `${tt(item.name)}: ${item.values[group] || "—"}${item.unit ? ` ${item.unit}` : ""}`,
+                  )
+                  .join(" · ")}
+              </p>
+              {evidence?.groups.find((item) => item.label === group) &&
+                (() => {
+                  const item = evidence.groups.find(
+                    (item) => item.label === group,
+                  )!;
+                  return (
+                    <div
+                      data-screening-judgment={item.judgment}
+                      className="mt-2 border-l-2 border-brand pl-2 space-y-1 text-[12px]"
+                    >
+                      <p>
+                        <strong>{t("res.evidence.value")}: </strong>
+                        {t(`res.evidence.${item.judgment}` as TKey)}
+                      </p>
+                      <p className="text-[11px] text-muted">
+                        <strong>{t("res.evidence.confidence")}: </strong>
+                        {t(`res.evidence.${item.evidenceConfidence}` as TKey)}
+                      </p>
+                      {item.deltaBest.pce !== undefined &&
+                        group !== controlGroup && (
+                          <p>
+                            {t("res.evidence.bestDelta", {
+                              group: controlGroup ?? "—",
+                              value: difference(item.deltaBest.pce),
+                            })}
+                          </p>
+                        )}
+                    </div>
+                  );
+                })()}
               <details className="mt-2" open={conditions.length <= 3}>
                 <summary className="text-[11px] font-semibold cursor-pointer">
                   {t("res.analysis.groupConditions")}
@@ -183,6 +240,19 @@ export function ResultAnalysis({
                       {condition.plannedOnly
                         ? ` (${t("res.analysis.design")})`
                         : ""}
+                      {condition.actualByGroup[group] && (
+                        <span className="block text-muted">
+                          {t("res.evidence.recorded")}:{" "}
+                          {condition.actualByGroup[group].values.join(" / ") ||
+                            "—"}{" "}
+                          (
+                          {t(
+                            `res.evidence.${condition.actualByGroup[group].status}` as TKey,
+                          )}
+                          ; {condition.actualByGroup[group].nRecordedSamples}/
+                          {condition.actualByGroup[group].nPlannedSamples})
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -230,6 +300,22 @@ export function ResultAnalysis({
                             })}
                           </span>
                         )}
+                        {(() => {
+                          const key = metricKeyOf(metric.metric);
+                          const stats = key
+                            ? evidence?.groups.find(
+                                (item) => item.label === group,
+                              )?.metrics[key]
+                            : null;
+                          return stats ? (
+                            <span className="block">
+                              {t("res.evidence.spread", {
+                                sd: stats.sd === null ? "—" : number(stats.sd),
+                                iqr: number(stats.iqr),
+                              })}
+                            </span>
+                          ) : null;
+                        })()}
                         {outcome.summary?.n === 1 && (
                           <span className="block">
                             {t("res.analysis.single")}

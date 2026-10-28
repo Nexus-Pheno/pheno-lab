@@ -1,4 +1,5 @@
 import "server-only";
+import { queueAutomaticAiSummary } from "@/modules/experiments/summary-service";
 
 import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
@@ -514,7 +515,7 @@ export async function saveCharacterizationResultService(
     "capture",
   );
 
-  return db.$transaction(async (transaction) => {
+  const saved = await db.$transaction(async (transaction) => {
     await lockTestingCompletion(
       transaction,
       actor.org,
@@ -566,6 +567,10 @@ export async function saveCharacterizationResultService(
     );
     return result;
   });
+  await queueAutomaticAiSummary(actor.org, characterization.experimentId).catch(
+    () => {},
+  );
+  return saved;
 }
 
 /**

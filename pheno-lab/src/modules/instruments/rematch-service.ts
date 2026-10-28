@@ -1,4 +1,5 @@
 import "server-only";
+import { drainPendingAiSummaries } from "@/modules/experiments/summary-service";
 
 import crypto from "node:crypto";
 import { serverConfig } from "@/infrastructure/config/server";
@@ -18,5 +19,8 @@ export function authorizeRematch(
 }
 
 export async function rematchEveryOrganization() {
-  return rematchAllOrganizations();
+  const result = await rematchAllOrganizations();
+  // Resume only bounded advisory work; provider failures never fail rematching.
+  await drainPendingAiSummaries(2).catch(() => {});
+  return result;
 }

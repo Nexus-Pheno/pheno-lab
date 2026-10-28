@@ -30,10 +30,22 @@ export async function activeProvider(orgId: string) {
 export async function chat(
   orgId: string,
   messages: ChatMessage[],
-  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
+  opts: {
+    maxTokens?: number;
+    temperature?: number;
+    timeoutMs?: number;
+    expectedProvider?: { id: string; model: string; baseUrl: string };
+  } = {},
 ): Promise<string | null> {
   const p = await activeProvider(orgId);
   if (!p) return null;
+  if (
+    opts.expectedProvider &&
+    (p.id !== opts.expectedProvider.id ||
+      p.model !== opts.expectedProvider.model ||
+      p.baseUrl !== opts.expectedProvider.baseUrl)
+  )
+    return null;
   try {
     const apiKey = decryptCredential(p.apiKey);
     const res = await fetch(`${p.baseUrl}/chat/completions`, {
