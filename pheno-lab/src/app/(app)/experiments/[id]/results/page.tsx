@@ -156,7 +156,11 @@ export default async function ResultsPage({
         </form>
         {evidence.reference.warning && (
           <p data-reference-warning className="text-[12px] text-warn">
-            {t("res.evidence.referenceWarning")}
+            {t(
+              evidence.reference.warning === "MULTIPLE_UNTREATED_REFERENCES"
+                ? "res.evidence.multipleReferences"
+                : "res.evidence.referenceWarning",
+            )}
           </p>
         )}
         <p className="text-[11px] text-muted">{t("res.scrollHint")}</p>

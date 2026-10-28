@@ -33,8 +33,8 @@ test.beforeAll(async () => {
         testPlan: {
           groups: [
             { label: "A", isControl: true },
-            { label: "C" },
-            { label: "H" },
+            { label: "C", isControl: false },
+            { label: "H", isControl: false },
           ],
           variables: [
             {
@@ -147,66 +147,68 @@ test.afterAll(async () => {
   if (processId) await db.process.delete({ where: { id: processId } });
   await db?.$disconnect();
 });
-for (const lang of ["en", "zh"] as const) {
-  test(`readable conditions, shared samples and interim AI at mobile ${lang}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    const errors: string[] = [];
-    page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("/login");
-    await page.locator("#email").fill(E2E_MANAGER_EMAIL);
-    await page.locator("#password").fill(E2E_PASSWORD);
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/$/);
-    await page
-      .context()
-      .addCookies([
-        { name: "pheno_lang", value: lang, domain: "127.0.0.1", path: "/" },
-      ]);
-    await page.goto(`/experiments/${experimentId}/results`);
-    await expect(page.locator("#analysis-reference")).toHaveValue("H");
-    await expect(page.locator("[data-reference-warning]")).toBeVisible();
-    const group = page.locator('[data-analysis-group="C"]');
-    await expect(group).toContainText("Candidate X");
-    await expect(group).toContainText("0.4 mg/mL");
-    await expect(
-      group.locator('[data-screening-judgment="PROMISING_VARIABLE"]'),
-    ).toBeVisible();
-    await expect(group).toContainText("19.85");
-    await expect(group).toContainText("+1.6");
-    const table = page.locator("[data-result-comparison]");
-    await expect(table.locator("[data-result-sample]")).toHaveCount(5);
-    await expect(table.locator('[data-result-sample="S1"]')).toContainText(
-      "19.1",
-    );
-    const ai = page.locator("[data-ai-result-analysis]");
-    await expect(ai).toBeVisible();
-    await expect(ai.locator("[data-ai-stale]")).toBeVisible();
-    await expect(
-      ai.getByRole("button", {
-        name: lang === "en" ? "Regenerate analysis" : "重新生成分析",
-        exact: true,
-      }),
-    ).toBeEnabled();
-    await page.locator("#analysis-reference").selectOption("A");
-    await page
-      .getByRole("button", {
-        name: lang === "en" ? "Compare" : "比较",
-        exact: true,
-      })
-      .click();
-    await expect(page).toHaveURL(/reference=A/);
-    await expect(page.locator("#analysis-reference")).toHaveValue("A");
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-    expect(errors).toEqual([]);
-    await page.screenshot({
-      path: `test-results/result-interpretation-${lang}-390.png`,
-      fullPage: true,
+for (const width of [390, 1440]) {
+  for (const lang of ["en", "zh"] as const) {
+    test(`readable conditions, shared samples and interim AI at ${width}px ${lang}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      const errors: string[] = [];
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto("/login");
+      await page.locator("#email").fill(E2E_MANAGER_EMAIL);
+      await page.locator("#password").fill(E2E_PASSWORD);
+      await page.locator('button[type="submit"]').click();
+      await expect(page).toHaveURL(/\/$/);
+      await page
+        .context()
+        .addCookies([
+          { name: "pheno_lang", value: lang, domain: "127.0.0.1", path: "/" },
+        ]);
+      await page.goto(`/experiments/${experimentId}/results`);
+      await expect(page.locator("#analysis-reference")).toHaveValue("H");
+      await expect(page.locator("[data-reference-warning]")).toBeVisible();
+      const group = page.locator('[data-analysis-group="C"]');
+      await expect(group).toContainText("Candidate X");
+      await expect(group).toContainText("0.4 mg/mL");
+      await expect(
+        group.locator('[data-screening-judgment="PROMISING_VARIABLE"]'),
+      ).toBeVisible();
+      await expect(group).toContainText("19.85");
+      await expect(group).toContainText("+1.6");
+      const table = page.locator("[data-result-comparison]");
+      await expect(table.locator("[data-result-sample]")).toHaveCount(5);
+      await expect(table.locator('[data-result-sample="S1"]')).toContainText(
+        "19.1",
+      );
+      const ai = page.locator("[data-ai-result-analysis]");
+      await expect(ai).toBeVisible();
+      await expect(ai.locator("[data-ai-stale]")).toBeVisible();
+      await expect(
+        ai.getByRole("button", {
+          name: lang === "en" ? "Regenerate analysis" : "重新生成分析",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await page.locator("#analysis-reference").selectOption("A");
+      await page
+        .getByRole("button", {
+          name: lang === "en" ? "Compare" : "比较",
+          exact: true,
+        })
+        .click();
+      await expect(page).toHaveURL(/reference=A/);
+      await expect(page.locator("#analysis-reference")).toHaveValue("A");
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      expect(errors).toEqual([]);
+      await page.screenshot({
+        path: `test-results/result-interpretation-${lang}-${width}.png`,
+        fullPage: true,
+      });
     });
-  });
+  }
 }

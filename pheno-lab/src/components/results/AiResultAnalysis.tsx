@@ -37,6 +37,7 @@ export function AiResultAnalysis({
       characterizationId,
     });
     setState(current);
+    setError(false);
     setLoading(false);
     return current;
   }, [experimentId, referenceGroup, characterizationId]);

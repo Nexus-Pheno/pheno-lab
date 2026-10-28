@@ -15,6 +15,8 @@ export const en = {
   "res.evidence.reference": "Comparison reference",
   "res.evidence.apply": "Compare",
   "res.evidence.planReference": "Plan control: {group}",
+  "res.evidence.multipleReferences":
+    "Several groups are explicitly untreated. Confirm the appropriate reference for this comparison.",
   "res.evidence.referenceWarning":
     "This comparison reference differs from the plan control. Only the analysis changes; the experiment plan stays as recorded.",
   "res.evidence.untreated": "Untreated reference: {group}",
@@ -1804,6 +1806,8 @@ export const zh: Record<TKey, string> = {
   "res.evidence.reference": "比较参照",
   "res.evidence.apply": "比较",
   "res.evidence.planReference": "方案对照：{group}",
+  "res.evidence.multipleReferences":
+    "多个组明确记录为未处理，请确认本次比较应采用哪个参照。",
   "res.evidence.referenceWarning":
     "此比较参照与方案对照不同；仅改变分析对象，实验方案保持原记录。",
   "res.evidence.untreated": "未处理参照：{group}",
