@@ -2037,3 +2037,18 @@ Storage readback matches the local HTML hash and byte count. Exactly four corres
 - 上线后 8 项 Microsoft Edge 桌面/手机中英文 smoke 通过：测试队列/提交历史/照片鉴权和状态与授权查询摘要一致，手动状态控件与原因必填存在，测试专员制备访问仍拒绝；结果分析的当前均值、样本数、组数和旧报告跳转正确，无页面错误或外层溢出。短期 QA session 仅在进程内存传递，不写凭据文件；未用真实需求试改状态、未发送验收通知、未创建测试科研记录或修改权限，普通 presence 心跳可能更新 lastSeenAt。
 - 发布前后 1,107 个实验、20,204 个样品、6,578 个工艺执行、24,600 个表征结果、45,846 个附件、41,810 个 JV 记录及 21 个测试需求数量一致。这是有界数量检查，不是全部科研内容 checksum。29 个用户的访问摘要差异已只读核对为构建期间一次正常 `user.registration.approved`（发生于新 release 切换前）；按该用户 active/pendingApproval 的前态重算后精确匹配发布前摘要，role/organization/testingOnly/mustChangePassword 等字段未改变，部署不回退这次业务审批。200 行服务日志中当前启动以来关键错误和 Server Action 版本不匹配均为 0。
 - 聚合证据：[release-evidence/20261028-results-status.json](release-evidence/20261028-results-status.json)，不保存账号身份、实验/样品内部标识、科研值、截图、凭据或 action ID。人类使用验收未作完成声明。本节和证据为上线后的独立文档补记，其 commit 与上述已部署应用 commit 分开，不再次更新服务器应用。
+
+
+### 17.24 2026-10-28：实验结果分析、周报统一证据与未处理参照修正（002／003）
+
+Michael 明确批准按技术员反馈实现全部报告优化、提交 GitHub 并生产上线，随后要求继续。初版应用 PR [#123](https://github.com/Nexus-Pheno/pheno-lab/pull/123) 合并为 [`9fc684e331ea194ae8ffe1e074f20fb882e4ce66`](https://github.com/Nexus-Pheno/pheno-lab/commit/9fc684e331ea194ae8ffe1e074f20fb882e4ce66)，规范发布为 **20261028-002**（2026-10-28T11:39:09Z）。制品 SHA256：`ef1f40c664371d1f8c7fe38f65aaecde1f781f73af0db2ff53002ab96a7c6286`。PR／main CI 40679330064、40680256451 全绿。
+
+- Results、AI 解释及只读周报导出共用逐器件完整代表结果、统计和来源指纹。具名分组条件、计划／记录实际／事后补录／缺失状态、可显式切换且不改源计划的比较参照、探索性 0.5 个绝对 PCE 百分点参考及潜力／重复性分离判断已上线。Results 与 Designer 共用双语阶段性 AI 面板；现有结果回调与 rematch sweep 合并自动草稿任务，来源／规则版本、重新核权和 generation token 防止旧响应覆盖新数据。科学结论保持独立；计划事务读取最新 metadata，保留并发 AI 状态。输入投影限制私有结构和完整配方外发。
+- 002 线上只读验收发现：另一未使用的钝化步骤为所有组记录“无”，原来的并集判断把已处理组也列为未处理。PR [#124](https://github.com/Nexus-Pheno/pheno-lab/pull/124) 要求所有适用材料步骤都明确未处理；仅涉及未来组的计划变量不影响当前组，缺失值不推断为未处理。增加四个回归场景，并将 AI 规则升为 v2，使旧解释需重新核对。没有修改实验计划或实际科研记录。
+- 最终应用 commit 为 [`1355b921b93704f5bf9a14bffcad95dd6ed05908`](https://github.com/Nexus-Pheno/pheno-lab/commit/1355b921b93704f5bf9a14bffcad95dd6ed05908)，对应 **20261028-003**。PR／main CI 40682243947、40683192096 全绿；最终验证含 283 单元、159 受保护真实 PostgreSQL 集成、57 浏览器测试、TypeScript、架构／部署检查与 production build。既有 10 条 lint warning、0 error。另有 216 个本地报告流程测试及正式 skill 校验通过。
+- 受限部署账户从 GitHub fast-forward 拉取 main，沿用 build-release.sh／deploy-release.sh；003 制品 SHA256 为 `224c159b1241930a0cd6e2d37430ae7c91531f092c44ad8bf799b0152c2e1dfc`。脚本退出 0，输出 `deployed 20261028-003`，于 2026-10-28T12:01:30Z 完成；服务 20:01:24 中国时间启动，12:01:57Z 再次验证公网及 PostgreSQL／私有 COS readiness。20 个制品源文件逐一匹配最终应用 commit。47 个 migration 无待应用项，0 个旧凭据需要加密。
+- 两次发布均只增量修改既有 APP_VERSION，其他 env 字节、owner/group/mode/inode/ACL 一致，受保护临时备份已移除。现有非 root pheno 服务 active、loopback 3457、零自动重启；Nginx active、HTTP 301。审阅 200 行既有 journal，无所查关键错误。003 标准 retention 裁剪旧 20261014-001，保留五个 release；002 仍可作经批准的代码回滚目标。代码回滚不代表 PostgreSQL／COS 数据回滚。
+- 新只读导出在新鲜既有账户／组织／报告权限检查后成功，实际多步骤参照及两个分组的逐器件均值、最高值、计数和差值独立复核。未增加角色、报告／化学权限、服务、变量、长期凭据或云资源；没有科研导入、修复、回填、状态／科学结论修改。一次已授权 AI 草稿生成尝试被既有提供方 HTTP 402 余额不足拒绝；失败状态诚实保留，没有生成可接受摘要。提供方恢复后仍需验证真实模型输出。用户已授权 in-app browser，但生产登录验收仍等待用户正常登录，未制造验证 session，也不宣称人类／科研验收完成。
+- 同一 Saturday 09:00 Asia/Shanghai 本地 heartbeat 已通过 app 工具更新并读回核对，原 thread、五位既有收件人和 requireExistingAccess:true 契约不变；首个按新方法的计划周期为 2026-10-31。完整旧台账及历史报告保留，本次没有另发科研报告或五人通知。新旧统计口径、当前来源版本与已核对 AI 复用条件由新流程明确区分。
+
+聚合证据：[release-evidence/20261028-reporting-analysis.json](release-evidence/20261028-reporting-analysis.json)。不保存科研原值、内部实验／样品标识、账号身份、截图、凭据或原始日志。本节与证据为上线后的独立文档补记，其 commit 与最终应用 commit 分开，不再把文档 commit 当作已部署应用版本。
