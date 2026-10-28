@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "status": "DEPLOYED_WITH_EXTERNAL_VALIDATION_BLOCKERS",
+  "finalApplication": {
+    "commit": "1355b921b93704f5bf9a14bffcad95dd6ed05908",
+    "commitUrl": "https://github.com/Nexus-Pheno/pheno-lab/commit/1355b921b93704f5bf9a14bffcad95dd6ed05908",
+    "releaseId": "20261028-003",
+    "deployedAt": "2026-10-28T12:01:30Z",
+    "artifactSha256": "224c159b1241930a0cd6e2d37430ae7c91531f092c44ad8bf799b0152c2e1dfc",
+    "pullRequest": 124,
+    "ciRuns": [
+      40682243947,
+      40683192096
+    ]
+  },
+  "initialApplication": {
+    "commit": "9fc684e331ea194ae8ffe1e074f20fb882e4ce66",
+    "commitUrl": "https://github.com/Nexus-Pheno/pheno-lab/commit/9fc684e331ea194ae8ffe1e074f20fb882e4ce66",
+    "releaseId": "20261028-002",
+    "deployedAt": "2026-10-28T11:39:09Z",
+    "artifactSha256": "ef1f40c664371d1f8c7fe38f65aaecde1f781f73af0db2ff53002ab96a7c6286",
+    "pullRequest": 123,
+    "ciRuns": [
+      40679330064,
+      40680256451
+    ]
+  },
+  "verification": {
+    "localAndProductionVerify": true,
+    "unitTests": 283,
+    "guardedPostgreSqlTests": 159,
+    "browserTests": 57,
+    "workflowPythonTests": 216,
+    "skillValidation": true,
+    "lintErrors": 0,
+    "existingLintWarnings": 10,
+    "publicLiveness": true,
+    "authenticatedDatabaseCosReadiness": true,
+    "runtimeUser": "pheno",
+    "loopbackOnlyPort": 3457,
+    "automaticRestarts": 0,
+    "nginxActive": true,
+    "httpRedirect": 301,
+    "runtimeSourceFilesMatched": 20,
+    "journalLinesReviewed": 200,
+    "criticalErrorMatches": 0,
+    "readOnlyEvidenceExportAndIndependentNumericalReconciliation": true,
+    "untreatedReferenceAcrossApplicableStepsReconciled": true,
+    "freshExistingReaderScopeChecked": true,
+    "pendingMigrations": 0,
+    "legacyCredentialEncryptions": 0,
+    "onlyAppVersionEnvironmentBytesChanged": true,
+    "environmentMetadataAndAclPreserved": true
+  },
+  "workflow": {
+    "automationId": "pheno-lab-weekly-material-analysis",
+    "scheduleUnchanged": "Saturday09:00Asia/Shanghai",
+    "threadUnchanged": true,
+    "approvedRecipientCountUnchanged": 5,
+    "promptReadbackVerified": true,
+    "savedPromptSha256": "83308a9c872d83ad06066c686bfec3c9fd0e51ef7cac7c40826eb6c2630c7218",
+    "newScientificReportPublished": false,
+    "newReportNotices": 0
+  },
+  "openAcceptance": {
+    "liveInAppAiGeneration": "BLOCKED_EXISTING_PROVIDER_HTTP402_INSUFFICIENT_BALANCE",
+    "authenticatedProductionBrowserSmoke": "AWAITING_USER_SIGN_IN",
+    "scientificAndHumanReadingAcceptance": "NOT_ASSERTED"
+  },
+  "scope": {
+    "scientificDataRepairsImportsOrBackfills": false,
+    "experimentStatusOrScientistConclusionChanges": false,
+    "grantsRolesOrChemistryAccessChanges": false,
+    "newProvidersServicesEnvironmentVariablesOrCloudResources": false,
+    "productionAdvisoryWrites": "One requested source-bound generation attempt failed safely; no accepted AI summary was created."
+  },
+  "documentationCommit": "This evidence and the deployment log are a later documentation-only commit, not the deployed application commit."
+}
