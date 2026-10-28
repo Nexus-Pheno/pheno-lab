@@ -283,7 +283,7 @@ export async function getCaptureRunData(
 
 export async function getResultsExperiment(actor: Actor, rawId: unknown) {
   const id = experimentIdSchema.parse(rawId);
-  return db.experiment.findFirst({
+  const experiment = await db.experiment.findFirst({
     where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
     include: {
       members: { select: { userId: true } },
@@ -307,6 +307,11 @@ export async function getResultsExperiment(actor: Actor, rawId: unknown) {
         orderBy: { position: "asc" },
         include: {
           process: true,
+          equipment: { select: { name: true, nickname: true } },
+          materials: {
+            orderBy: { position: "asc" },
+            select: { amount: true, material: { select: { name: true } } },
+          },
           parameters: {
             orderBy: { position: "asc" },
             include: { variations: true },
@@ -315,6 +320,13 @@ export async function getResultsExperiment(actor: Actor, rawId: unknown) {
       },
     },
   });
+  if (!experiment) return null;
+  const layers = await db.deviceLayer.findMany({
+    where: { organizationId: actor.org },
+    select: { code: true, name: true },
+    orderBy: { position: "asc" },
+  });
+  return { ...experiment, layers };
 }
 
 export async function getReportExperiment(actor: Actor, rawId: unknown) {

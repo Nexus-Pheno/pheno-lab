@@ -5,6 +5,8 @@ import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { getTestingExperiment } from "@/modules/testing/query";
 import { TestingRefresh } from "@/components/testing/TestingRefresh";
+import { TestingStatusEditor } from "@/components/testing/TestingStatusEditor";
+import { TestingStatusNote } from "@/components/testing/TestingStatusNote";
 import { TestingCompletion } from "@/components/testing/TestingCompletion";
 import { fmtBeijing } from "@/lib/datetime";
 
@@ -35,7 +37,13 @@ export default async function TestingDetailPage({
           <h1 className="text-xl font-bold font-mono break-all">{row.code}</h1>
           <TestingRefresh />
         </div>
-        <p className="text-sm text-muted">{t("testing.readOnlyHint")}</p>
+        <p className="text-sm text-muted">
+          {t(
+            row.canSetStatus
+              ? "testing.status.workspaceHint"
+              : "testing.readOnlyHint",
+          )}
+        </p>
         <section className="bg-surface border border-line rounded-lg p-4">
           <h2 className="font-bold mb-2">{t("testing.substrates")}</h2>
           <p className="text-sm font-mono break-words">
@@ -58,6 +66,18 @@ export default async function TestingDetailPage({
             >
               <div className="mb-3">
                 <TestingCompletion complete={row.complete} t={t} />
+                <TestingStatusNote
+                  manual={row.manual}
+                  automaticComplete={row.automaticComplete}
+                  t={t}
+                />
+                {row.canSetStatus && (
+                  <TestingStatusEditor
+                    key={row.requestSetKey}
+                    experimentId={row.id}
+                    requestSetKey={row.requestSetKey}
+                  />
+                )}
               </div>
               <p className="text-sm break-words">
                 <b>{t("testing.requestedBy")}: </b>
@@ -73,6 +93,9 @@ export default async function TestingDetailPage({
                 {t("testing.submissionHistory")} ·{" "}
                 {row.requestSummary.submissionCount}
               </h3>
+              <p className="text-xs text-muted mb-3">
+                {t("testing.status.historyHint")}
+              </p>
               <ol className="space-y-4">
                 {row.requests.map((request) => (
                   <li

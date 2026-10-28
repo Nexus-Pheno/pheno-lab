@@ -17,7 +17,7 @@ also requires its backing matched scan to still belong to the same sample/run;
 ignored or reassigned scans do not leave a falsely completed request. Saving an
 edited result manually sets its provenance to `MANUAL` and clears its scan source.
 
-Status is derived on read rather than persisted, so clearing a result, adding an
+Automatic status is derived on read, so clearing a result, adding an
 allocated substrate or changing group membership updates the label on refresh.
 Reading the list/detail does not write notifications, audits or scientific data.
 
@@ -40,8 +40,31 @@ Duplicate instrument uploads keep the existing 409 response and recover any
 derived result transaction that failed after the raw upload was stored.
 
 Historical completed requests show their live status on read without sending a
-notification backfill. No new scheduled job, external group notice, migration or
-production data change is required by this code.
+notification backfill. No new scheduled job or external group notice is used.
+
+## Manual request-status correction
+
+Only a fresh active, approved `testingOnly` user in the same organization, with
+password setup complete, may correct status. Ordinary experiment creators,
+assignees, members, managers and admins do not acquire this capability. The
+separate `TestingStatusOverride` table stores completed/in-progress status, the
+required 1–500 character reason, actor and update time; restoring automatic status
+removes the override. The expand-only migration creates this optional table and
+enum, leaving scientific tables unchanged and previous application code compatible.
+
+Manual state applies to the overall experiment request, while historical submission
+badges keep their automatic status. The UI labels the source, reason, update time
+and underlying automatic result explicitly. No scientific records, assignments,
+experiment metadata or results are changed. Read DTOs expose no extra preparation
+content. Normal scientific read/write authorization remains unchanged.
+
+The override and notifications share the existing completion advisory lock and
+request-set hash. A new submitted request invalidates the old override immediately;
+a stale browser carrying the earlier hash cannot mark the new batch complete.
+Result updates cannot erase a valid manual correction. Manual completion and
+restoring a completed automatic state use the existing recipient and receipt
+rules; reapplying status to the same batch never sends another completion notice.
+The correction, audit and any completion delivery commit or roll back together.
 
 Tests cover the pure policy, real PostgreSQL scopes and regrouping, and bilingual
 desktop/mobile browser states. All fixtures use synthetic data.

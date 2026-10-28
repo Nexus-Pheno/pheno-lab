@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { getT, getTerm } from "@/lib/i18n/server";
@@ -10,6 +9,8 @@ import {
   GroupBoxPlots,
   type MetricPlot,
 } from "@/components/results/GroupBoxPlots";
+import { ResultAnalysis } from "@/components/results/ResultAnalysis";
+import { describeResultConditions } from "@/modules/experiments/results-analysis";
 import { HorizontalScroll } from "@/components/results/HorizontalScroll";
 import { getResultsExperiment } from "@/modules/experiments/query";
 
@@ -31,6 +32,7 @@ export default async function ResultsPage({
 
   const plan = (exp.metadata as { testPlan?: TestPlan } | null)?.testPlan;
   const groups = resultGroupLabels(plan?.groups, exp.samples);
+  const conditions = describeResultConditions(exp.steps, plan, exp.layers);
   const controlGroup = plan?.groups.find((g) => g.isControl)?.label;
   const scientificSampleIds = new Set(
     exp.samples.filter(isScientificSample).map((sample) => sample.id),
@@ -80,12 +82,6 @@ export default async function ResultsPage({
             </h1>
             <p className="text-[11.5px] text-muted">{t("res.subtitle")}</p>
           </div>
-          <Link
-            href={`/experiments/${exp.id}/report`}
-            className="h-8 flex items-center px-2.5 text-[12px] font-semibold text-charcoal border border-line rounded-[4px] hover:bg-subtle"
-          >
-            {t("rep.title")}
-          </Link>
           <SmartBack fallback={`/experiments/${exp.id}`} />
         </div>
         <p className="text-[11px] text-muted">{t("res.scrollHint")}</p>
@@ -205,7 +201,7 @@ export default async function ResultsPage({
                   value: parseFloat(resultFor(s.id)[m] ?? ""),
                   code: s.code,
                 }))
-                .filter((v) => !isNaN(v.value)),
+                .filter((v) => Number.isFinite(v.value)),
             })),
           }));
 
@@ -391,6 +387,13 @@ export default async function ResultsPage({
                 plots={plots}
                 title={`${tt(c.name)} · ${t("res.dist")}`}
                 hint={t("res.distHint")}
+              />
+              <ResultAnalysis
+                plots={plots}
+                conditions={conditions}
+                controlGroup={controlGroup}
+                t={t}
+                tt={tt}
               />
             </div>
           );

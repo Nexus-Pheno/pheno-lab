@@ -2,6 +2,62 @@
 // materials-science lab audience (工艺/表征 terminology), not machine-translated.
 
 export const en = {
+  "testing.status.edit": "Edit request status",
+  "testing.status.hint":
+    "A correction applies to the current request batch. New submissions restore automatic status. It does not change test results.",
+  "testing.status.reason": "Reason for correction",
+  "testing.status.markComplete": "Mark completed",
+  "testing.status.markInProgress": "Mark in progress",
+  "testing.status.restore": "Restore automatic status",
+  "testing.status.saving": "Saving…",
+  "testing.status.saved": "Request status updated.",
+  "testing.status.invalid": "Enter a reason of 1–500 characters.",
+  "testing.status.forbidden":
+    "Only an active testing specialist may change this request status.",
+  "testing.status.changed":
+    "New requests have arrived. Refresh and review the current batch before changing its status.",
+  "testing.status.failed":
+    "Could not update status. Refresh to check the current status before retrying.",
+  "testing.status.manual": "Manually corrected",
+  "testing.status.automatic": "Automatic status",
+  "testing.status.workspaceHint":
+    "View JV requirements and scans; you may correct request status with a reason. Preparation and test data remain read-only.",
+  "testing.status.historyHint":
+    "Submission history shows automatic status from results; manual correction applies to the overall request above.",
+  "res.analysis.groupConditions": "Group conditions",
+  "res.analysis.moreConditions":
+    "{n} conditions differ in total; expand group conditions for the complete values.",
+  "res.analysis.materialVariables": "Material variables in this step",
+  "res.analysis.title": "Results analysis",
+  "res.analysis.source":
+    "Calculated from the same substrate values as the plots above, separately for this characterization. Variable meanings come from the current test plan and process flow.",
+  "res.analysis.highest": "Highest observed group mean: {groups} · {value}.",
+  "res.analysis.noData": "No valid numeric result.",
+  "res.analysis.range": "Group means: {values}",
+  "res.analysis.conditions": "Variable meanings and process context",
+  "res.analysis.unlinked": "No unique process step linked in the current flow.",
+  "res.analysis.materials": "Materials recorded for this step",
+  "res.analysis.planOnly":
+    "Test-plan condition; no matching varied parameter in the process flow. Verify execution before attributing effects.",
+  "res.analysis.flowSource":
+    "Group values follow the process flow; matching test-plan values are checked.",
+  "res.analysis.mismatch":
+    "Plan → process differs: {values}. Resolve this discrepancy before interpreting effects.",
+  "res.analysis.noConditions": "No group-variable definitions were recorded.",
+  "res.analysis.design": "plan only",
+  "res.analysis.changed": "Conditions differing from {group}: {variables}.",
+  "res.analysis.stats":
+    "n={n} · mean {mean} · median {median} · range {min}–{max}",
+  "res.analysis.delta": "Mean difference vs {group}: {value}.",
+  "res.analysis.single": "One substrate only; variability cannot be assessed.",
+  "res.analysis.combined":
+    "Several recorded variables change across groups. Differences describe combined conditions and cannot be attributed to one material or parameter alone. These are descriptive comparisons, not statistical significance or a causal mechanism.",
+  "res.analysis.descriptive":
+    "Observed associations do not establish a causal mechanism or statistical significance; confirm with controlled repeats.",
+  "res.analysis.units":
+    "Differences use each metric’s recorded units; percentages are absolute percentage-point differences. n counts available substrates per metric, not independent experiment repeats.",
+  "res.analysis.noControl":
+    "No measured control is available for this comparison.",
   "chemicals.error.exists":
     "This material is already in Pheno Chemicals. Edit its existing row.",
   "chemicals.error.ambiguous":
@@ -136,7 +192,7 @@ export const en = {
   "testing.completed": "Testing completed",
   "testing.inProgress": "Testing in progress",
   "testing.noScans": "No instrument scans recorded.",
-  "testing.permission": "JV testing only · read-only",
+  "testing.permission": "JV testing only · request status editing",
   "testing.readOnlyHint":
     "Read-only testing workspace. View substrate codes, testing requests and JV data. Refreshes every minute.",
   "testing.refresh": "Refresh",
@@ -1656,6 +1712,57 @@ export const en = {
 export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
+  "testing.status.edit": "修改需求状态",
+  "testing.status.hint":
+    "修正仅适用于当前这批需求；新增需求后恢复自动判断，不会修改测试数据。",
+  "testing.status.reason": "修正原因",
+  "testing.status.markComplete": "标记已完成",
+  "testing.status.markInProgress": "标记测试中",
+  "testing.status.restore": "恢复自动判断",
+  "testing.status.saving": "保存中…",
+  "testing.status.saved": "需求状态已更新。",
+  "testing.status.invalid": "请填写 1–500 字的修正原因。",
+  "testing.status.forbidden": "仅有效的测试专员账号可修改此需求状态。",
+  "testing.status.changed": "需求已更新，请刷新并核对当前这批需求后重试。",
+  "testing.status.failed": "更新失败，请先刷新核对当前状态后再重试。",
+  "testing.status.manual": "手动修正",
+  "testing.status.automatic": "自动判断",
+  "testing.status.workspaceHint":
+    "查看 JV 测试需求与扫描数据；可填写原因修正需求状态，制备内容和测试数据保持只读。",
+  "testing.status.historyHint":
+    "历史提交按测试结果显示自动判断状态；手动修正适用于上方的整体实验需求。",
+  "res.analysis.groupConditions": "组别条件",
+  "res.analysis.moreConditions":
+    "共 {n} 项条件不同，展开组别条件可查看全部取值。",
+  "res.analysis.materialVariables": "该步骤的材料变量",
+  "res.analysis.title": "结果分析",
+  "res.analysis.source":
+    "使用上方分布图的同一批基片数值，按当前表征单独分析；变量含义结合当前实验方案与工艺流程。",
+  "res.analysis.highest": "观测均值最高组：{groups} · {value}。",
+  "res.analysis.noData": "暂无有效数值结果。",
+  "res.analysis.range": "各组均值：{values}",
+  "res.analysis.conditions": "变量含义与工艺上下文",
+  "res.analysis.unlinked": "当前工艺流程中未关联到唯一工艺步骤。",
+  "res.analysis.materials": "该步骤记录的材料",
+  "res.analysis.planOnly":
+    "实验方案条件；工艺流程未匹配到对应的变化参数，归因前需核实执行情况。",
+  "res.analysis.flowSource": "组别取值以工艺流程为准，并核对匹配的实验方案值。",
+  "res.analysis.mismatch":
+    "方案 → 工艺取值不一致：{values}。解释变量影响前请先核对。",
+  "res.analysis.noConditions": "尚未记录组别变量定义。",
+  "res.analysis.design": "仅方案",
+  "res.analysis.changed": "与 {group} 相比，变化条件：{variables}。",
+  "res.analysis.stats":
+    "n={n} · 均值 {mean} · 中位数 {median} · 范围 {min}–{max}",
+  "res.analysis.delta": "相对 {group} 的均值差：{value}。",
+  "res.analysis.single": "仅 1 片基片，无法评估组内波动。",
+  "res.analysis.combined":
+    "组间有多个记录变量同时变化。结果反映组合条件差异，不能单独归因于某种材料或某个参数；此处为描述性比较，不代表统计显著性或因果机制。",
+  "res.analysis.descriptive":
+    "观测关联不代表因果机制或统计显著性，需通过受控重复实验验证。",
+  "res.analysis.units":
+    "均值差沿用指标记录单位，百分数取绝对百分点差；n 为该指标有数值的基片数，不等于独立实验重复次数。",
+  "res.analysis.noControl": "当前缺少可用于比较的对照组实测数据。",
   "chemicals.error.exists": "该材料已在 Pheno Chemicals 中，请编辑已有材料行。",
   "chemicals.error.ambiguous":
     "共享材料库中有多条同名记录，请先在材料库中核对并处理重名记录。",
@@ -1779,7 +1886,7 @@ export const zh: Record<TKey, string> = {
   "testing.completed": "已完成测试",
   "testing.inProgress": "测试中",
   "testing.noScans": "暂无仪器扫描数据。",
-  "testing.permission": "仅 JV 测试 · 只读",
+  "testing.permission": "仅 JV 测试 · 可修正需求状态",
   "testing.readOnlyHint":
     "只读测试工作台：查看基底编码、测试需求及 JV 数据。每分钟自动刷新。",
   "testing.refresh": "刷新",

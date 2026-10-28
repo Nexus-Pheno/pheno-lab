@@ -15,6 +15,11 @@ import { requestTesting } from "@/modules/testing/service";
 import { objectStorage } from "@/infrastructure/storage";
 import { applyTestPlan } from "@/modules/experiments/plan-service";
 import { ingestInstrumentUpload } from "@/modules/instruments/ingest-service";
+import {
+  setTestingStatus,
+  TestingStatusConflict,
+} from "@/modules/testing/status-service";
+import { AuthorizationError } from "@/modules/authorization/policy";
 
 vi.mock("@/modules/notifications/group-service", () => ({
   sendGroupNotice: vi.fn().mockResolvedValue(false),
@@ -168,6 +173,335 @@ async function fixture() {
     cleanup,
   };
 }
+
+async function correction(
+  f: Awaited<ReturnType<typeof fixture>>,
+  status: "COMPLETE" | "IN_PROGRESS" | "AUTO",
+) {
+  const detail = await getTestingExperiment(f.reader, f.experiment.id);
+  return {
+    experimentId: f.experiment.id,
+    requestSetKey: detail!.requestSetKey,
+    status,
+    reason: "  Confirmed at the instrument  ",
+  };
+}
+
+it("lets only the testing specialist correct unified status without changing scientific data, with an atomic audit and one completion notice", async () => {
+  const f = await fixture();
+  try {
+    const request = await f.request();
+    const before = await db.experiment.findUniqueOrThrow({
+      where: { id: f.experiment.id },
+    });
+    const input = await correction(f, "COMPLETE");
+    await setTestingStatus(f.reader, input);
+    const detail = await getTestingExperiment(f.reader, f.experiment.id);
+    expect(detail).toMatchObject({
+      complete: true,
+      automaticComplete: false,
+      canSetStatus: true,
+      manual: { status: "COMPLETE", reason: "Confirmed at the instrument" },
+    });
+    expect(detail!.requests.find((r) => r.id === request.id)?.complete).toBe(
+      false,
+    );
+    const list = await listTestingExperiments(f.reader, {});
+    expect(list.canSetStatus).toBe(true);
+    expect(list.recentRequests[0]).toMatchObject({
+      complete: true,
+      automaticComplete: false,
+      manual: { status: "COMPLETE" },
+    });
+    expect(list.rows[0]).toMatchObject({
+      complete: true,
+      manual: { status: "COMPLETE" },
+    });
+    expect(
+      (await getTestingExperiment(f.actor, f.experiment.id))?.canSetStatus,
+    ).toBe(false);
+    expect(
+      await db.experiment.findUniqueOrThrow({ where: { id: f.experiment.id } }),
+    ).toEqual(before);
+    expect(
+      await db.characterizationResult.count({
+        where: { characterization: { experimentId: f.experiment.id } },
+      }),
+    ).toBe(0);
+    const auditRow = await db.auditEvent.findFirstOrThrow({
+      where: {
+        organizationId: f.organization.id,
+        action: "testing.status_set",
+      },
+    });
+    expect(auditRow).toMatchObject({
+      actorType: "USER",
+      actorUserId: f.tester.id,
+      entityId: f.experiment.id,
+      metadata: {
+        requestSetKey: input.requestSetKey,
+        reason: "Confirmed at the instrument",
+      },
+    });
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(1);
+    await setTestingStatus(f.reader, input);
+    await setTestingStatus(f.reader, { ...input, status: "IN_PROGRESS" });
+    await setTestingStatus(f.reader, input);
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+it("retains a manual in-progress status while results change and restores current automatic status explicitly", async () => {
+  const f = await fixture();
+  try {
+    await f.request();
+    await setTestingStatus(f.reader, await correction(f, "IN_PROGRESS"));
+    await f.save(0);
+    await f.save(1);
+    expect(await getTestingExperiment(f.reader, f.experiment.id)).toMatchObject(
+      {
+        complete: false,
+        automaticComplete: true,
+        manual: { status: "IN_PROGRESS" },
+      },
+    );
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(0);
+    await setTestingStatus(f.reader, await correction(f, "AUTO"));
+    expect(await getTestingExperiment(f.reader, f.experiment.id)).toMatchObject(
+      { complete: true, automaticComplete: true, manual: null },
+    );
+    expect(
+      await db.testingStatusOverride.count({
+        where: { experimentId: f.experiment.id },
+      }),
+    ).toBe(0);
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+it("invalidates manual status on a new handoff and rejects a stale browser without changing the new batch", async () => {
+  const f = await fixture();
+  try {
+    await f.request();
+    const old = await correction(f, "COMPLETE");
+    await setTestingStatus(f.reader, old);
+    await f.request(1);
+    const current = await getTestingExperiment(f.reader, f.experiment.id);
+    expect(current).toMatchObject({ complete: false, manual: null });
+    expect(current!.requestSetKey).not.toBe(old.requestSetKey);
+    await expect(setTestingStatus(f.reader, old)).rejects.toBeInstanceOf(
+      TestingStatusConflict,
+    );
+    expect(
+      await db.auditEvent.count({
+        where: {
+          organizationId: f.organization.id,
+          action: "testing.status_set",
+        },
+      }),
+    ).toBe(1);
+    await setTestingStatus(f.reader, await correction(f, "COMPLETE"));
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(2);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+it("rejects ordinary colleagues, staff, forged grants and freshly revoked or restricted testing accounts", async () => {
+  const f = await fixture();
+  try {
+    await f.request();
+    const input = await correction(f, "COMPLETE");
+    for (const role of ["TECHNICIAN", "MANAGER", "ADMIN"] as const) {
+      await db.user.update({ where: { id: f.user.id }, data: { role } });
+      await expect(
+        setTestingStatus({ ...f.actor, role, testingOnly: true }, input),
+      ).rejects.toBeInstanceOf(AuthorizationError);
+    }
+    for (const restriction of [
+      { active: false },
+      { pendingApproval: true },
+      { mustChangePassword: true },
+      { testingOnly: false },
+    ]) {
+      await db.user.update({ where: { id: f.tester.id }, data: restriction });
+      await expect(setTestingStatus(f.reader, input)).rejects.toBeInstanceOf(
+        AuthorizationError,
+      );
+      await db.user.update({
+        where: { id: f.tester.id },
+        data: {
+          active: true,
+          pendingApproval: false,
+          mustChangePassword: false,
+          testingOnly: true,
+        },
+      });
+    }
+    await db.organization.update({
+      where: { id: f.organization.id },
+      data: { status: "PENDING" },
+    });
+    await expect(setTestingStatus(f.reader, input)).rejects.toBeInstanceOf(
+      AuthorizationError,
+    );
+    await db.organization.update({
+      where: { id: f.organization.id },
+      data: { status: "ACTIVE" },
+    });
+    expect(
+      await db.testingStatusOverride.count({
+        where: { experimentId: f.experiment.id },
+      }),
+    ).toBe(0);
+    expect(
+      await db.auditEvent.count({
+        where: {
+          action: "testing.status_set",
+          organizationId: f.organization.id,
+        },
+      }),
+    ).toBe(0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+it("rejects another organization's actor and test, deleted or unsubmitted experiments", async () => {
+  const f = await fixture();
+  const foreign = await fixture();
+  try {
+    await f.request();
+    const input = await correction(f, "COMPLETE");
+    await expect(
+      setTestingStatus(foreign.reader, input),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(
+      setTestingStatus({ ...f.reader, org: foreign.organization.id }, input),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+    for (const data of [{ isTest: true }, { deletedAt: new Date() }]) {
+      await db.experiment.update({ where: { id: f.experiment.id }, data });
+      await expect(setTestingStatus(f.reader, input)).rejects.toBeInstanceOf(
+        AuthorizationError,
+      );
+      await db.experiment.update({
+        where: { id: f.experiment.id },
+        data: { isTest: false, deletedAt: null },
+      });
+    }
+    await expect(
+      setTestingStatus(foreign.reader, {
+        ...input,
+        experimentId: foreign.experiment.id,
+      }),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+    expect(
+      await db.testingStatusOverride.count({
+        where: {
+          organizationId: { in: [f.organization.id, foreign.organization.id] },
+        },
+      }),
+    ).toBe(0);
+  } finally {
+    await f.cleanup();
+    await foreign.cleanup();
+  }
+});
+
+it("rolls back the override and audit if completion delivery fails", async () => {
+  const f = await fixture();
+  try {
+    await f.request();
+    const original = audit.recordSystemAudit;
+    vi.spyOn(audit, "recordSystemAudit").mockImplementation(
+      async (tx, input) => {
+        if (input.action === "testing.completed")
+          throw new Error("synthetic receipt failure");
+        return original(tx, input);
+      },
+    );
+    await expect(
+      setTestingStatus(f.reader, await correction(f, "COMPLETE")),
+    ).rejects.toThrow("synthetic receipt failure");
+    expect(await f.complete()).toBe(false);
+    expect(
+      await db.testingStatusOverride.count({
+        where: { experimentId: f.experiment.id },
+      }),
+    ).toBe(0);
+    expect(
+      await db.auditEvent.count({
+        where: { organizationId: f.organization.id },
+      }),
+    ).toBe(0);
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+it("serializes simultaneous manual completions and result saves without duplicating delivery", async () => {
+  const f = await fixture();
+  try {
+    await f.request();
+    const input = await correction(f, "COMPLETE");
+    await Promise.all([
+      setTestingStatus(f.reader, input),
+      setTestingStatus(f.reader, input),
+      f.save(0),
+      f.save(1),
+    ]);
+    expect(await f.complete()).toBe(true);
+    expect(
+      await db.testingStatusOverride.count({
+        where: { experimentId: f.experiment.id },
+      }),
+    ).toBe(1);
+    expect(
+      await db.notification.count({
+        where: { organizationId: f.organization.id, kind: "testing_completed" },
+      }),
+    ).toBe(1);
+    expect(
+      await db.auditEvent.count({
+        where: {
+          organizationId: f.organization.id,
+          action: "testing.completed",
+        },
+      }),
+    ).toBe(1);
+  } finally {
+    await f.cleanup();
+  }
+});
 
 it("matches list/detail status to all allocated groups, not just the selected handoff substrates", async () => {
   const f = await fixture();

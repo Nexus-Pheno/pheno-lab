@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isJvTesting, testingRequestSchema } from "./schema";
+import {
+  isJvTesting,
+  testingRequestSchema,
+  testingStatusSchema,
+} from "./schema";
+import { testingRequestSetKey } from "./request-set";
 import {
   canReadExperiment,
   canManageExperiment,
@@ -13,6 +18,31 @@ import {
 } from "@/modules/authorization/scope";
 
 describe("JV testing boundaries", () => {
+  it("validates status, batch identity and the required bounded reason", () => {
+    const input = {
+      experimentId: "experiment",
+      requestSetKey: testingRequestSetKey(["b", "a"]),
+      status: "COMPLETE",
+      reason: " verified ",
+    };
+    expect(input.requestSetKey).toBe(testingRequestSetKey(["a", "b"]));
+    expect(input.requestSetKey).not.toBe(testingRequestSetKey(["a", "b", "c"]));
+    expect(testingStatusSchema.parse(input).reason).toBe("verified");
+    for (const status of ["COMPLETE", "IN_PROGRESS", "AUTO"])
+      expect(testingStatusSchema.safeParse({ ...input, status }).success).toBe(
+        true,
+      );
+    for (const invalid of [
+      { reason: "   " },
+      { reason: "x".repeat(501) },
+      { status: "DRAFT" },
+      { requestSetKey: "bad" },
+      { experimentId: "" },
+    ])
+      expect(
+        testingStatusSchema.safeParse({ ...input, ...invalid }).success,
+      ).toBe(false);
+  });
   it("recognizes JV stages without including preparation or other characterizations", () => {
     for (const name of [
       "J-V",

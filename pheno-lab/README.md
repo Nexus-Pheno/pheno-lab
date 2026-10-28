@@ -69,6 +69,7 @@ new organizations can be added later without schema changes.
 - `src/lib/i18n/` — EN/ZH dictionary and providers; language is per-user (profile page), English default
 - `/` — homepage board: kanban ⇄ list views with search, create, duplicate; technicians see their assigned tasks
 - `/experiments/[id]/capture` — Phase 3 capture portal: per-sample planned-vs-actual step capture, environment conditions, notes/flags/photos, and characterization result entry (the one place technicians write)
+- `/experiments/[id]/results` — measured comparison, grouped plots and current FF/PCE/Voc/Jsc analysis. Analysis uses exactly the plotted substrate values per characterization, qualifies variables with the test plan and process/layer/equipment context, and exposes plan/flow mismatches. Group means and control differences are descriptive, not causal or significance claims. The former single-experiment `/report` route redirects here after authorization; weekly `/reports` is separate.
 - `/profile` — account settings, password change, language, stats, and bug/feedback reporting
 - `/feedback` + `/api/feedback-export` — admin-only feedback inbox with JSON export for agents
 - `src/lib/actions/` — framework adapters for remaining Server Actions; critical authorization and ingest rules live in modules
@@ -99,7 +100,7 @@ new organizations can be added later without schema changes.
   grants, password resets, OTPs and legacy research ownership remain admin-only.
   Delegates open **Profile → Members** from a personal device. Grants are
   default-deny, checked from the database on each operation and audited.
-- A **JV testing only** account has a separate read-only `/testing` workspace
+- A **JV testing only** account has a separate `/testing` workspace
   across the organization's real experiments. Only substrate codes, JV testing
   requirements, explicit testing handoffs/photos and JV scan metrics are exposed.
   Preparation, recipes, full experiments, general files, analysis and scientific
@@ -107,6 +108,11 @@ new organizations can be added later without schema changes.
   send a testing request from the JV capture stage, selecting ready substrates
   and uploading a photo. In-app delivery is transactional and idempotent; the
   existing optional DingTalk integration sends only a fixed alert after commit.
+  Only testing specialists may correct overall request status (completed,
+  in progress, or automatic), with a required reason and transactional audit.
+  Corrections never change scientific results, apply only to the current request
+  batch, and expire on a new submission. Completion notices retain the existing
+  creator/assignee/member recipients and once-per-batch delivery rule.
 - Approved operator provisioning uses `accounts/provisioning-service.ts`, with
   explicit organization and authorized notification recipients; it never replaces
   an existing account or claims historical research. Temporary credentials are

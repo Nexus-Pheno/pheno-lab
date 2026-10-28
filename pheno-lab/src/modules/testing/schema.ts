@@ -19,3 +19,10 @@ export const testingSearchSchema = z.object({
   q: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).max(10000).default(1),
 });
+
+export const testingStatusSchema = z.object({
+  experimentId: z.string().min(1).max(128),
+  requestSetKey: z.string().regex(/^[a-f0-9]{64}$/),
+  status: z.enum(["COMPLETE", "IN_PROGRESS", "AUTO"]),
+  reason: z.string().trim().min(1).max(500),
+});
