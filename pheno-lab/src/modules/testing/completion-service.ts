@@ -1,11 +1,11 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { canReadExperiment } from "@/modules/authorization/policy";
 import { recordSystemAudit } from "@/modules/audit/writer";
 import { notify } from "@/modules/notifications/service";
 import { getTestingCompletions } from "./completion-query";
+import { testingRequestSetKey } from "./request-set";
 
 /** Acquire before changing results, requests or sample membership. */
 export async function lockTestingCompletion(
@@ -37,9 +37,9 @@ export async function notifyTestingCompletion(
   if (!experiment?.testingRequests.length) return;
   // One receipt per set of submitted requests. Clearing/re-saving the same
   // results never re-sends it; adding a new request starts a new batch.
-  const requestSetKey = createHash("sha256")
-    .update(JSON.stringify(experiment.testingRequests.map((r) => r.id).sort()))
-    .digest("hex");
+  const requestSetKey = testingRequestSetKey(
+    experiment.testingRequests.map((r) => r.id),
+  );
   if (
     await tx.auditEvent.findFirst({
       where: {

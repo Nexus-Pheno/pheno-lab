@@ -3,6 +3,8 @@ import { requireSession } from "@/lib/auth";
 import { getT } from "@/lib/i18n/server";
 import { listTestingExperiments } from "@/modules/testing/query";
 import { TestingRefresh } from "@/components/testing/TestingRefresh";
+import { TestingStatusEditor } from "@/components/testing/TestingStatusEditor";
+import { TestingStatusNote } from "@/components/testing/TestingStatusNote";
 import { TestingCompletion } from "@/components/testing/TestingCompletion";
 import { fmtBeijing } from "@/lib/datetime";
 
@@ -27,43 +29,62 @@ export default async function TestingPage({
           <h1 className="text-xl font-bold">{t("testing.title")}</h1>
           <TestingRefresh />
         </div>
-        <p className="text-sm text-muted">{t("testing.readOnlyHint")}</p>
+        <p className="text-sm text-muted">
+          {t(
+            data.canSetStatus
+              ? "testing.status.workspaceHint"
+              : "testing.readOnlyHint",
+          )}
+        </p>
         {data.recentRequests.length > 0 && (
           <section className="bg-surface border border-brand/40 rounded-lg p-4">
             <h2 className="font-bold mb-3">{t("testing.requests")}</h2>
             <div className="space-y-2">
               {data.recentRequests.map((request) => (
-                <Link
-                  key={request.experimentId}
-                  href={`/testing/${request.experimentId}#request-${request.id}`}
-                  data-testing-request-experiment={request.experimentId}
-                  className={
-                    "block rounded-lg border p-3 " +
-                    (request.complete
-                      ? "border-emerald-200 bg-emerald-50/60"
-                      : "border-line")
-                  }
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <b className="text-sm font-mono">{request.code}</b>
-                    <TestingCompletion complete={request.complete} t={t} />
-                  </div>
-                  <p className="text-sm break-words mt-1">
-                    {t("testing.requestedBy")}:{" "}
-                    {request.requesters.join(" · ") ||
-                      t("testing.unknownRequester")}
-                  </p>
-                  <p className="text-xs font-mono break-words mt-1">
-                    {request.samples
-                      .map((s) => s.simCode || s.code)
-                      .join(" · ")}
-                  </p>
-                  <p className="text-xs text-muted mt-1">
-                    {t("testing.submissions")}: {request.submissionCount} ·{" "}
-                    {t("testing.latestSubmission")}:{" "}
-                    {fmtBeijing(new Date(request.createdAt))}
-                  </p>
-                </Link>
+                <div key={request.experimentId}>
+                  <Link
+                    href={`/testing/${request.experimentId}#request-${request.id}`}
+                    data-testing-request-experiment={request.experimentId}
+                    className={
+                      "block rounded-lg border p-3 " +
+                      (request.complete
+                        ? "border-emerald-200 bg-emerald-50/60"
+                        : "border-line")
+                    }
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <b className="text-sm font-mono">{request.code}</b>
+                      <TestingCompletion complete={request.complete} t={t} />
+                    </div>
+                    <p className="text-sm break-words mt-1">
+                      {t("testing.requestedBy")}:{" "}
+                      {request.requesters.join(" · ") ||
+                        t("testing.unknownRequester")}
+                    </p>
+                    <p className="text-xs font-mono break-words mt-1">
+                      {request.samples
+                        .map((s) => s.simCode || s.code)
+                        .join(" · ")}
+                    </p>
+                    <p className="text-xs text-muted mt-1">
+                      {t("testing.submissions")}: {request.submissionCount} ·{" "}
+                      {t("testing.latestSubmission")}:{" "}
+                      {fmtBeijing(new Date(request.createdAt))}
+                    </p>
+                    <TestingStatusNote
+                      manual={request.manual}
+                      automaticComplete={request.automaticComplete}
+                      t={t}
+                    />
+                  </Link>
+                  {data.canSetStatus && request.requestSetKey && (
+                    <TestingStatusEditor
+                      key={request.requestSetKey}
+                      experimentId={request.experimentId}
+                      requestSetKey={request.requestSetKey}
+                    />
+                  )}
+                </div>
               ))}
             </div>
           </section>
@@ -101,6 +122,13 @@ export default async function TestingPage({
                   <TestingCompletion complete={row.complete} t={t} />
                 )}
               </div>
+              {row.requests > 0 && (
+                <TestingStatusNote
+                  manual={row.manual}
+                  automaticComplete={row.automaticComplete}
+                  t={t}
+                />
+              )}
               <p className="text-sm mt-2 break-words">
                 {row.samples
                   .slice(0, 24)

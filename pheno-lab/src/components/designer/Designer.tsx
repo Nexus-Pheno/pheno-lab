@@ -444,15 +444,6 @@ export default function Designer({
             {t("idle.warnBanner")}
           </span>
         )}
-        {exp.status === "COMPLETE" && (
-          <Link
-            href={`/experiments/${exp.id}/report`}
-            className="shrink-0 h-8 text-xs font-semibold text-charcoal border border-line rounded-[4px] px-3 hover:bg-subtle flex items-center gap-1.5"
-          >
-            <Icon name="FileText" size={13} />
-            {t("rep.title")}
-          </Link>
-        )}
         {(exp.status === "IN_LAB" || exp.status === "COMPLETE") && (
           <Link
             href={`/experiments/${exp.id}/results`}

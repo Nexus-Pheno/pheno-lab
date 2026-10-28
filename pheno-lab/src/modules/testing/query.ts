@@ -6,6 +6,7 @@ import type { Actor } from "@/modules/authorization/actor";
 import { experimentVisibilityScope } from "@/modules/authorization/scope";
 import { isJvTesting, testingSearchSchema } from "./schema";
 import { getTestingCompletions } from "./completion-query";
+import { canSetTestingStatus } from "./status-access";
 
 /** Fresh database restriction checks; a testing grant never expands general experiment scope. */
 export async function testingExperimentScope(
@@ -217,6 +218,7 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
   ]);
   return {
     total,
+    canSetStatus: await canSetTestingStatus(db, actor),
     page: input.page,
     q: input.q,
     recentRequests: recentGroups.flatMap((group) => {
@@ -230,6 +232,10 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
           code: experiment.code,
           createdAt: latest.createdAt.toISOString(),
           complete: completions.get(experiment.id)?.complete ?? false,
+          automaticComplete:
+            completions.get(experiment.id)?.automaticComplete ?? false,
+          manual: completions.get(experiment.id)?.manual ?? null,
+          requestSetKey: completions.get(experiment.id)?.requestSetKey ?? "",
           ...summarizeRequests(
             actor.org,
             experiment.testingRequests,
@@ -245,6 +251,8 @@ export async function listTestingExperiments(actor: Actor, raw: unknown) {
       measurements: row._count.jvMeasurements,
       requests: row._count.testingRequests,
       complete: completions.get(row.id)?.complete ?? false,
+      automaticComplete: completions.get(row.id)?.automaticComplete ?? false,
+      manual: completions.get(row.id)?.manual ?? null,
       updatedAt: row.jvMeasurements[0]?.createdAt.toISOString() ?? null,
     })),
   };
@@ -316,6 +324,13 @@ export async function getTestingExperiment(actor: Actor, id: string) {
     id: row.id,
     code: row.code,
     complete: completion?.complete ?? false,
+    automaticComplete: completion?.automaticComplete ?? false,
+    manual: completion?.manual ?? null,
+    requestSetKey: completion?.requestSetKey ?? "",
+    canSetStatus:
+      row.testingRequests.length > 0 &&
+      !!completion &&
+      (await canSetTestingStatus(db, actor)),
     samples: row.samples,
     stages,
     requestSummary: summarizeRequests(

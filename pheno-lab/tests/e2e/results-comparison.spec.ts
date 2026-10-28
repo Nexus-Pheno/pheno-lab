@@ -48,6 +48,16 @@ test.beforeAll(async () => {
       title: "Results comparison fixture",
       metadata: {
         testPlan: {
+          variables: [
+            {
+              kind: "parameter",
+              processId,
+              layer: "TOP_PASSIVATION",
+              parameter: "Variable 1.1",
+              unit: "min",
+              values: { G01: "planned-control", G02: "planned-treatment" },
+            },
+          ],
           groups: [...groups, "G17"].map((label, index) => ({
             label,
             isControl: index === 0,
@@ -59,6 +69,7 @@ test.beforeAll(async () => {
           position,
           processId,
           name: steps[position],
+          layer: position === 0 ? "TOP_PASSIVATION" : "",
           parameters: {
             create: [1, 0].map((parameterPosition) => ({
               position: parameterPosition,
@@ -111,6 +122,8 @@ test.beforeAll(async () => {
           metrics: {
             PCE: (18 + index / 10).toFixed(1),
             FF: (70 + index / 10).toFixed(1),
+            "Voc (V)": (1 + index / 1000).toFixed(3),
+            "Jsc (mA/cm²)": (20 + index / 20).toFixed(2),
           },
         };
       }),
@@ -240,6 +253,53 @@ for (const viewport of [
     await page.screenshot({
       path: `test-results/results-${viewport.width}-${viewport.lang}.png`,
     });
+    const analysis = page.locator("[data-result-analysis]");
+    await expect(analysis).toHaveCount(1);
+    await expect(analysis.locator("[data-analysis-group]")).toHaveCount(17);
+    await expect(analysis.locator('[data-analysis-group="G01"]')).toContainText(
+      "18.15",
+    );
+    await expect(analysis.locator('[data-analysis-group="G16"]')).toContainText(
+      "+3",
+    );
+    await expect(analysis.locator('[data-analysis-group="G17"]')).toContainText(
+      viewport.lang === "zh" ? "暂无有效数值结果" : "No valid numeric result",
+    );
+    await expect(analysis).not.toContainText("999");
+    await analysis
+      .getByText(
+        viewport.lang === "zh"
+          ? "变量含义与工艺上下文"
+          : "Variable meanings and process context",
+        { exact: true },
+      )
+      .click();
+    await expect(analysis.locator("[data-plan-mismatch]")).toContainText(
+      "planned-control → condition-1-1-1",
+    );
+    await expect(analysis).toContainText("TOP_PASSIVATION");
+    await expect(analysis).toContainText("Voc (V)");
+    await expect(analysis).toContainText("Jsc (mA/cm²)");
+    await expect(analysis).toContainText(
+      viewport.lang === "zh" ? "组合条件差异" : "combined conditions",
+    );
+    await analysis.evaluate((element) =>
+      element.scrollIntoView({ block: "start" }),
+    );
+    await page.screenshot({
+      path: `test-results/results-analysis-${viewport.width}-${viewport.lang}.png`,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await expect(
+      page.locator(`a[href="/experiments/${experimentId}/report"]`),
+    ).toHaveCount(0);
+    await page.goto(`/experiments/${experimentId}/report`);
+    await expect(page).toHaveURL(`/experiments/${experimentId}/results`);
+    await expect(page.locator("[data-result-analysis]")).toHaveCount(1);
     expect(errors).toEqual([]);
   });
 }

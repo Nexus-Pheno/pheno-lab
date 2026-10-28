@@ -44,12 +44,6 @@ export function ReviewPanel({
         >
           {t("res.title")}
         </Link>
-        <Link
-          href={`/experiments/${expId}/report`}
-          className="h-8 flex items-center px-3 rounded-[4px] border border-warn-line bg-surface text-[11.5px] font-semibold text-charcoal"
-        >
-          {t("rep.title")}
-        </Link>
       </div>
       <p className="text-[11px] text-charcoal">
         <span className="mono">{code}</span> · {assigneeName} · {t("wf.submittedBy")} {submittedAt}

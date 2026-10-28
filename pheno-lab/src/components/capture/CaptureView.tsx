@@ -625,10 +625,10 @@ function CompleteCard({
           {t(exp.status === "COMPLETE" ? "cap.completed" : "wf.submitted")}
         </span>
         <Link
-          href={`/experiments/${exp.id}/report`}
+          href={`/experiments/${exp.id}/results`}
           className="h-9 flex items-center px-3.5 rounded-[5px] bg-ink text-white text-[12px] font-semibold shrink-0"
         >
-          {t("cap.viewReport")}
+          {t("res.title")}
         </Link>
       </div>
     );

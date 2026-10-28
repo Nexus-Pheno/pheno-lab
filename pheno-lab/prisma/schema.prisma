@@ -37,50 +37,56 @@ enum LibraryReviewStatus {
   REJECTED
 }
 
+enum TestingStatus {
+  IN_PROGRESS
+  COMPLETE
+}
+
 // Every organization owns its own data: users, experiments, processes,
 // equipment, materials, environments, locations, presets, labels.
 model Organization {
-  id              String                   @id @default(cuid())
-  name            String
-  slug            String                   @unique
-  orgNumber       Int                      @default(1) // organization number in experiment codes (Pheno = 001)
-  nextShortNo     Int                      @default(1) // hands out Experiment.shortCode
-  emailDomains    String[]                 @default([]) // registration allowed only for these domains
-  status          String                   @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
-  createdAt       DateTime                 @default(now())
+  id                     String                   @id @default(cuid())
+  name                   String
+  slug                   String                   @unique
+  orgNumber              Int                      @default(1) // organization number in experiment codes (Pheno = 001)
+  nextShortNo            Int                      @default(1) // hands out Experiment.shortCode
+  emailDomains           String[]                 @default([]) // registration allowed only for these domains
+  status                 String                   @default("ACTIVE") // ACTIVE | PENDING (awaiting platform-admin approval)
+  createdAt              DateTime                 @default(now())
   // Running total of measurement data points — every (x, y) point of every
   // stored curve. Incremented where scans are stored, recounted nightly.
-  dataPoints      Int                      @default(0)
-  users           User[]
-  experiments     Experiment[]
-  processes       Process[]
-  equipment       Equipment[]
-  materials       Material[]
-  environments    LabEnvironment[]
-  locations       Location[]
-  presets         Preset[]
-  labels          Label[]
-  counters        Counter[]
-  recipes         Recipe[]
-  ingestItems     IngestItem[]
-  aiProviders     AiProvider[]
-  exportRequests  ExportRequest[]
-  matCategories   MaterialCategoryDef[]
-  deviceLayers    DeviceLayer[]
-  feedback        Feedback[]
-  otpCodes        OtpCode[]
-  instruments     Instrument[]
-  jvMeasurements  JvMeasurement[]
-  sharedDevices   SharedDevice[]
-  notifications   Notification[]
-  materialEdits   MaterialEditSuggestion[]
-  projects        Project[]
-  analysisRuns    AnalysisRun[]
-  codeLedger      SampleCodeReservation[]
-  testingRequests TestingRequest[]
-  accountHandoffs AccountHandoff[]
-  labReports      LabReport[]
-  chemicalImports ChemicalImportBatch[]
+  dataPoints             Int                      @default(0)
+  users                  User[]
+  experiments            Experiment[]
+  processes              Process[]
+  equipment              Equipment[]
+  materials              Material[]
+  environments           LabEnvironment[]
+  locations              Location[]
+  presets                Preset[]
+  labels                 Label[]
+  counters               Counter[]
+  recipes                Recipe[]
+  ingestItems            IngestItem[]
+  aiProviders            AiProvider[]
+  exportRequests         ExportRequest[]
+  matCategories          MaterialCategoryDef[]
+  deviceLayers           DeviceLayer[]
+  feedback               Feedback[]
+  otpCodes               OtpCode[]
+  instruments            Instrument[]
+  jvMeasurements         JvMeasurement[]
+  sharedDevices          SharedDevice[]
+  notifications          Notification[]
+  materialEdits          MaterialEditSuggestion[]
+  projects               Project[]
+  analysisRuns           AnalysisRun[]
+  codeLedger             SampleCodeReservation[]
+  testingRequests        TestingRequest[]
+  testingStatusOverrides TestingStatusOverride[]
+  accountHandoffs        AccountHandoff[]
+  labReports             LabReport[]
+  chemicalImports        ChemicalImportBatch[]
 }
 
 // 课题组 (多实验组关联方案, 2026-09-09): the manager-curated research
@@ -137,11 +143,12 @@ model User {
   memberAdmin                Boolean                  @default(false) // approve registrations and add new technicians
   reportAccess               Boolean                  @default(false) // explicit report grant; independent of role, no implicit admin access
   chemicalAccess             Boolean                  @default(false) // explicit private chemistry grant; no implicit admin access
-  testingOnly                Boolean                  @default(false) // read-only JV workspace, no preparation/research access
+  testingOnly                Boolean                  @default(false) // JV workspace + audited request status, no scientific writes
   mustChangePassword         Boolean                  @default(false)
   temporaryPasswordExpiresAt DateTime?
   sessionVersion             Int                      @default(0)
   testingRequests            TestingRequest[]         @relation("TestingRequester")
+  testingStatusOverrides     TestingStatusOverride[]
   accountHandoffs            AccountHandoff[]
   // 项目组 (2026-09-13): the team this person works in. New experiments are
   // filed under it by default; unassigned people stay "ungrouped".
@@ -320,70 +327,71 @@ model Location {
 }
 
 model Experiment {
-  id                String              @id @default(cuid())
-  organizationId    String
-  organization      Organization        @relation(fields: [organizationId], references: [id])
-  code              String              @unique // YYYY-ORG-USER-SEQ, e.g. 2026-001-1-4
+  id                    String                 @id @default(cuid())
+  organizationId        String
+  organization          Organization           @relation(fields: [organizationId], references: [id])
+  code                  String                 @unique // YYYY-ORG-USER-SEQ, e.g. 2026-001-1-4
   // Short handle used for instrument serials, e.g. "E7" → sample S5 is "E7-S5".
   // Short enough to type on a lab keyboard; unique within the organization.
   // Nullable so pre-existing experiments can be backfilled one at a time.
-  shortCode         String?
+  shortCode             String?
   // Legacy letter, retained for compatibility. New allocations also store the
   // complete immutable prefix; neither follows subsequent staff assignments.
-  codeLetter        String?
-  simCodePrefix     String?
-  title             String
-  campaign          String              @default("") // legacy free-text group; superseded by projectId
-  projectId         String?
-  project           Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  status            ExperimentStatus    @default(DRAFT)
+  codeLetter            String?
+  simCodePrefix         String?
+  title                 String
+  campaign              String                 @default("") // legacy free-text group; superseded by projectId
+  projectId             String?
+  project               Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  status                ExperimentStatus       @default(DRAFT)
   // Test runs live alongside real work but are excluded from every real view
   // and can be cleared in one action. Chosen when the experiment is created.
-  isTest            Boolean             @default(false)
+  isTest                Boolean                @default(false)
   // Pinned as an org-wide template: anyone may start a new experiment from a
   // copy of its plan, even without read access to the original. Staff-set.
-  templatePinnedAt  DateTime?
+  templatePinnedAt      DateTime?
   // Idle-draft housekeeping (Michael, 2026-09-16): a draft untouched for 7
   // days is warned, for 10 days (3 after the warning) is archived by the
   // nightly sweep. idleArchivedAt marks an archive the creator may undo in
   // one click, as opposed to a deliberate one.
-  idleWarnedAt      DateTime?
-  idleArchivedAt    DateTime?
-  observation       String              @default("")
-  problem           String              @default("")
-  hypothesis        String              @default("")
-  conclusion        String              @default("")
-  metadata          Json? // includes testPlan: variables tested, control, groups
+  idleWarnedAt          DateTime?
+  idleArchivedAt        DateTime?
+  observation           String                 @default("")
+  problem               String                 @default("")
+  hypothesis            String                 @default("")
+  conclusion            String                 @default("")
+  metadata              Json? // includes testPlan: variables tested, control, groups
   // Assignment + sign-off workflow
-  assigneeId        String? // technician responsible for running it
-  assignee          User?               @relation("ExperimentAssignee", fields: [assigneeId], references: [id])
-  submittedAt       DateTime? // when the assignee submitted for review
-  submitNote        String              @default("") // assignee's handover note
-  approvedAt        DateTime?
-  approvedById      String?
-  approvedBy        User?               @relation("ExperimentApprover", fields: [approvedById], references: [id])
-  reviewNote        String              @default("") // manager's closing notes / thoughts
-  createdById       String
-  createdBy         User                @relation(fields: [createdById], references: [id])
-  members           ExperimentMember[]
-  samples           Sample[]
-  steps             ProcessStep[]
-  characterizations Characterization[]
-  labels            ExperimentLabel[]
-  runs              Run[]
-  jvMeasurements    JvMeasurement[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  accessRequests    AccessRequest[]
-  comments          ExperimentComment[]
-  attachments       Attachment[]
+  assigneeId            String? // technician responsible for running it
+  assignee              User?                  @relation("ExperimentAssignee", fields: [assigneeId], references: [id])
+  submittedAt           DateTime? // when the assignee submitted for review
+  submitNote            String                 @default("") // assignee's handover note
+  approvedAt            DateTime?
+  approvedById          String?
+  approvedBy            User?                  @relation("ExperimentApprover", fields: [approvedById], references: [id])
+  reviewNote            String                 @default("") // manager's closing notes / thoughts
+  createdById           String
+  createdBy             User                   @relation(fields: [createdById], references: [id])
+  members               ExperimentMember[]
+  samples               Sample[]
+  steps                 ProcessStep[]
+  characterizations     Characterization[]
+  labels                ExperimentLabel[]
+  runs                  Run[]
+  jvMeasurements        JvMeasurement[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  accessRequests        AccessRequest[]
+  comments              ExperimentComment[]
+  attachments           Attachment[]
   // Recycle bin (团队反馈 2026-09-08): deleting trashes instead of destroying.
   // Trashed rows keep code/shortCode/serials so restore is loss-free; they are
   // hidden from every scope and purged ~30 days after deletion.
-  deletedAt         DateTime?
-  deletedById       String?
-  deletedBy         User?               @relation("ExperimentDeleter", fields: [deletedById], references: [id])
-  testingRequests   TestingRequest[]
+  deletedAt             DateTime?
+  deletedById           String?
+  deletedBy             User?                  @relation("ExperimentDeleter", fields: [deletedById], references: [id])
+  testingRequests       TestingRequest[]
+  testingStatusOverride TestingStatusOverride?
 
   @@unique([organizationId, shortCode])
   @@index([organizationId, deletedAt])
@@ -486,6 +494,24 @@ model TestingRequest {
   @@unique([organizationId, requestKey])
   @@index([organizationId, createdAt])
   @@index([experimentId])
+}
+
+// An explicit request-status correction never writes capture or experiment data.
+// Applies only while the submitted request ID set still matches requestSetKey.
+model TestingStatusOverride {
+  experimentId   String        @id
+  experiment     Experiment    @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  requestSetKey  String
+  status         TestingStatus
+  reason         String
+  changedById    String
+  changedBy      User          @relation(fields: [changedById], references: [id], onDelete: Restrict)
+  updatedAt      DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([changedById])
 }
 
 model ExperimentMember {
