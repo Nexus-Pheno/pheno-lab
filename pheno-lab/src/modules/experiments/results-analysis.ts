@@ -2,7 +2,7 @@ import type { TestPlan } from "@/lib/library";
 import { metricKeyOf } from "@/lib/analysis-metrics";
 import { summarize } from "@/modules/analysis/stats";
 
-type Step = {
+export type ResultStep = {
   id: string;
   name: string;
   processId: string;
@@ -23,12 +23,12 @@ type Step = {
 
 /** Keep step identity: repeated processes can build different device layers. */
 export function describeResultConditions(
-  steps: Step[],
-  plan: TestPlan | undefined,
+  steps: ResultStep[],
+  plan: Pick<TestPlan, "variables"> | undefined,
   layers: { code: string; name: string }[],
 ) {
   const variables = plan?.variables ?? [];
-  const context = (step: Step) => ({
+  const context = (step: ResultStep) => ({
     process: step.name || step.process.name,
     layer:
       layers.find((layer) => layer.code === step.layer)?.name || step.layer,
@@ -67,6 +67,8 @@ export function describeResultConditions(
         if (planIndex >= 0) linked.add(planIndex);
         return {
           id: parameter.id,
+          stepId: step.id as string | null,
+          parameterName: parameter.name,
           name: parameter.name,
           unit: parameter.unit,
           ...context(step),
@@ -86,6 +88,8 @@ export function describeResultConditions(
     const step = matches[index].length === 1 ? matches[index][0] : null;
     conditions.push({
       id: `plan-${index}`,
+      stepId: step?.id ?? null,
+      parameterName: variable.parameter,
       name: variable.parameter,
       unit: variable.unit,
       ...(step

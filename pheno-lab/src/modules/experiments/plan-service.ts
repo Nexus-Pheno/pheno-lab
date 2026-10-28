@@ -565,15 +565,17 @@ export async function applyTestPlan(
     }
   }
 
-  const expBefore = await db.experiment.findUniqueOrThrow({
-    where: { id: experimentId },
-    select: { metadata: true },
-  });
-  const oldPlan = (expBefore.metadata as { testPlan?: TestPlan } | null)
-    ?.testPlan;
-
   await db.$transaction(async (tx) => {
     await lockTestingCompletion(tx, actor.org, experimentId);
+    await tx.$queryRaw`SELECT "id" FROM "Experiment" WHERE "id" = ${experimentId} AND "organizationId" = ${actor.org} FOR UPDATE`;
+    // Read after serialization: another result-analysis or plan save may have
+    // committed while this application waited for the experiment lock.
+    const expBefore = await tx.experiment.findFirstOrThrow({
+      where: { id: experimentId, organizationId: actor.org, deletedAt: null },
+      select: { metadata: true },
+    });
+    const oldPlan = (expBefore.metadata as { testPlan?: TestPlan } | null)
+      ?.testPlan;
     // 1. Remove variations wired by the previous plan that are no longer part
     //    of the new plan (e.g. the tested process was changed).
     for (const old of oldPlan?.variables ?? []) {

@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireSession, type Session } from "@/lib/auth";
+import type { AiSummaryOptions } from "@/modules/experiments/summary-types";
+import { reviewAiSummary as reviewAiSummaryService } from "@/modules/experiments/summary-service";
 import type { TestPlan } from "@/lib/library";
 import type {
   CharDraft,
@@ -308,16 +310,43 @@ export async function quickCreateMaterial(
   return quickCreateMaterialService(await requireSession(), name, processId);
 }
 
-export async function startAiSummary(experimentId: string, lang: "en" | "zh") {
+export async function startAiSummary(
+  experimentId: string,
+  lang: "en" | "zh",
+  options: AiSummaryOptions = {},
+) {
   return startAiSummaryService(
     await requireSession(),
     experimentId,
     z.enum(["en", "zh"]).parse(lang),
+    options,
   );
 }
 
-export async function getAiSummaryState(experimentId: string) {
-  return getAiSummaryStateService(await requireSession(), experimentId);
+export async function getAiSummaryState(
+  experimentId: string,
+  options: AiSummaryOptions = {},
+) {
+  return getAiSummaryStateService(
+    await requireSession(),
+    experimentId,
+    options,
+  );
+}
+
+export async function reviewAiSummary(
+  experimentId: string,
+  sourceHash: string,
+  options: AiSummaryOptions = {},
+) {
+  const summary = await reviewAiSummaryService(
+    await requireSession(),
+    experimentId,
+    sourceHash,
+    options,
+  );
+  revalidatePath(`/experiments/${experimentId}/results`);
+  return summary;
 }
 
 export async function applyTestPlan(experimentId: string, plan: TestPlan) {

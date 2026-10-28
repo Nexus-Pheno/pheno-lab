@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
 import {
@@ -22,6 +22,7 @@ import {
 } from "@/modules/instruments/sample-serial-engine";
 import { matchSerial } from "@/modules/instruments/matching-service";
 import { setSampleAliases } from "@/modules/instruments/measurement-service";
+import * as completionLocks from "@/modules/testing/completion-service";
 
 const organizations: string[] = [];
 afterAll(async () => {
@@ -549,6 +550,122 @@ describe("permanent sample identities against PostgreSQL", () => {
     expect(
       (await f.samples()).map((s) => [s.id, s.simCode, s.instrumentCodes]),
     ).toEqual(before.map((s) => [s.id, s.simCode, s.instrumentCodes]));
+  });
+
+  it("reads the current prior plan and preserves analysis metadata after waiting for a concurrent save", async () => {
+    const f = await fixture();
+    const process = await db.process.create({
+      data: {
+        organizationId: f.org.id,
+        name: "Synthetic prior treatment",
+        kind: "PROCESSING",
+      },
+    });
+    const step = await db.processStep.create({
+      data: {
+        experimentId: f.exp.id,
+        processId: process.id,
+        name: process.name,
+        position: 0,
+        parameters: {
+          create: {
+            name: "Prior candidate",
+            source: "material",
+            position: 0,
+            value: "Synthetic candidate",
+            variations: {
+              create: { variationGroup: "A", value: "Synthetic candidate" },
+            },
+          },
+        },
+      },
+      include: { parameters: true },
+    });
+    const originalLock = completionLocks.lockTestingCompletion;
+    let announceLocked!: () => void;
+    let allowCommit!: () => void;
+    let announceApplying!: () => void;
+    const locked = new Promise<void>((resolve) => {
+      announceLocked = resolve;
+    });
+    const commitAllowed = new Promise<void>((resolve) => {
+      allowCommit = resolve;
+    });
+    const applyingEntered = new Promise<void>((resolve) => {
+      announceApplying = resolve;
+    });
+    const concurrent = db.$transaction(
+      async (tx) => {
+        await originalLock(tx, f.org.id, f.exp.id);
+        announceLocked();
+        await commitAllowed;
+        const current = await tx.experiment.findUniqueOrThrow({
+          where: { id: f.exp.id },
+          select: { metadata: true },
+        });
+        await tx.experiment.update({
+          where: { id: f.exp.id },
+          data: {
+            metadata: {
+              ...((current.metadata as object) ?? {}),
+              aiSummary: { text: "Synthetic analysis committed concurrently" },
+              aiAnalysisPending: { state: "queued", requestedAt: "synthetic" },
+              testPlan: {
+                ...plan(),
+                variables: [
+                  {
+                    kind: "material",
+                    processId: process.id,
+                    parameter: "Prior candidate",
+                    unit: "",
+                    values: { A: "Synthetic candidate" },
+                  },
+                ],
+              },
+            },
+          },
+        });
+      },
+      { timeout: 10_000 },
+    );
+    await locked;
+    const spy = vi
+      .spyOn(completionLocks, "lockTestingCompletion")
+      .mockImplementation(async (tx, organizationId, experimentId) => {
+        if (organizationId === f.org.id && experimentId === f.exp.id)
+          announceApplying();
+        await originalLock(tx, organizationId, experimentId);
+      });
+    let applying: ReturnType<typeof applyTestPlan> | undefined;
+    try {
+      applying = applyTestPlan(f.actor, f.exp.id, plan());
+      await Promise.race([
+        applyingEntered,
+        applying.then(() => {
+          throw new Error("Plan application completed without the lock.");
+        }),
+      ]);
+      allowCommit();
+      await Promise.all([concurrent, applying]);
+      const saved = await db.experiment.findUniqueOrThrow({
+        where: { id: f.exp.id },
+        select: { metadata: true },
+      });
+      expect(saved.metadata).toMatchObject({
+        aiSummary: { text: "Synthetic analysis committed concurrently" },
+        aiAnalysisPending: { state: "queued", requestedAt: "synthetic" },
+        testPlan: { variables: [] },
+      });
+      expect(
+        await db.stepParameter.findUnique({
+          where: { id: step.parameters[0].id },
+        }),
+      ).toBeNull();
+    } finally {
+      allowCommit();
+      await Promise.allSettled([concurrent, ...(applying ? [applying] : [])]);
+      spy.mockRestore();
+    }
   });
 
   it("keeps identical code namespaces isolated by organization and rejects foreign edits", async () => {

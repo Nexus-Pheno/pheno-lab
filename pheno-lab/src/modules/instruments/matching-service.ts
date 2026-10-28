@@ -1,4 +1,5 @@
 import "server-only";
+import { queueAutomaticAiSummary } from "@/modules/experiments/summary-service";
 
 import { db as prisma } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
@@ -429,7 +430,7 @@ export async function refreshSampleJvResult(
   const characterizationId = await findJvCharacterization(experimentId);
   if (!characterizationId) return "no-card";
 
-  return prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     await lockTestingCompletion(tx, best.organizationId, experimentId);
     const existing = await tx.characterizationResult.findFirst({
       where: { characterizationId, sampleId, runId: best.runId },
@@ -478,6 +479,12 @@ export async function refreshSampleJvResult(
     await notifyTestingCompletion(tx, best.organizationId, experimentId);
     return "written";
   });
+  if (outcome === "written") {
+    await queueAutomaticAiSummary(best.organizationId, experimentId).catch(
+      () => {},
+    );
+  }
+  return outcome;
 }
 
 const POLICIES: JvMetricPolicy[] = ["BEST", "MIN", "AVERAGE", "MEDIAN"];

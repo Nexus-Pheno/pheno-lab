@@ -17,3 +17,35 @@ Set the optional `requireExistingAccess` boolean to `true` for every scheduled p
 For a separately approved grant and access announcement, supply `organizationId`, the scoped administrator's `senderUserId`, the exact `recipientUserId`, a stable `requestId`, and a non-secret `authorizationReference` through stdin to `NODE_OPTIONS=--conditions=react-server pnpm exec tsx scripts/grant-report-access.ts`. Reuse the identical input after an uncertain outcome. This operator script has no public endpoint, performs no publication, and does not edit existing reports or storage. Recipient identity and changes to scheduled notification recipients need explicit user approval.
 
 This module distributes finished reports. Automated scientific calculations, scheduled generation and experimental execution are not introduced by this feature. Scientific report content and raw inputs remain outside Git.
+
+## Shared experiment evidence for the reporting workflow
+
+The read-only operator command `scripts/export-report-evidence.ts` returns the
+same `buildExperimentEvidence` accepted-device-result policy used by Results and
+the AI interpretation. Run it through the existing deployment shell and
+environment with `NODE_OPTIONS=--conditions=react-server`; it has no HTTP endpoint,
+provider call, publication, notice, scientific write or grant operation.
+
+Input JSON contains `organizationSlug`, an existing authorized staff reader's
+`readerEmail`, bounded `experimentCodes` (maximum 250), `sourceSnapshotAt` and
+`reportWindowEnd`. The repeatable-read transaction rechecks active organization,
+approved/unrestricted staff account, existing explicit report grant and actual
+experiment visibility. An administrator does not bypass the report grant. A
+technician's report-viewing grant does not authorize collecting complete
+experiment data. Missing/out-of-scope cases fail the whole export; row bounds
+fail instead of truncating.
+
+The private result identifies method `pheno-device-evidence-2026-10-28`, app
+selection-policy/source hashes and an explicit `asOf`. Its population is
+`EXPERIMENT_CURRENT_ACCEPTED_RESULTS_AT_SNAPSHOT`: current cumulative accepted
+device results, not newly fabricated seven-day outcomes. Raw-scan period panels
+remain independently reviewed secondary robustness/history. Saved AI text is
+eligible for weekly reuse only when source-current, current-policy/rule/prompt-version,
+researcher-reviewed and selected against the same comparator/characterization; the export never generates AI.
+
+All exported conditions and internal source references remain private workflow
+evidence. Shared reports use a reviewed allowlist of necessary named material,
+dose/carrier and changed process conditions, with planned/actual/retrospective
+status. Never publish full proprietary recipe payloads, molecular notation,
+structures or reconstructive descriptors. Existing report recipients, immutable
+publication keys and strict access/notification reconciliation are unchanged.

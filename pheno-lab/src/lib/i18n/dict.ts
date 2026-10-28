@@ -2,6 +2,86 @@
 // materials-science lab audience (工艺/表征 terminology), not machine-translated.
 
 export const en = {
+  "res.evidence.invalid":
+    "{n} invalid metric vectors remain in the raw table but are excluded from performance statistics.",
+  "res.evidence.PARTIAL":
+    "Actual conditions are recorded for only part of this group.",
+  "res.evidence.nonJv":
+    "PCE alone does not answer this substrate study; review its recorded optical and electrical objectives as well.",
+  "res.evidence.protocol":
+    "Some selected results have different or incomplete measurement conditions; treat these comparisons as exploratory and verify the protocol.",
+  "res.evidence.policy":
+    "One accepted result per device; repeat scans do not increase n. Results, AI and reports use the same selected records.",
+  "res.evidence.reference": "Comparison reference",
+  "res.evidence.apply": "Compare",
+  "res.evidence.planReference": "Plan control: {group}",
+  "res.evidence.referenceWarning":
+    "This comparison reference differs from the plan control. Only the analysis changes; the experiment plan stays as recorded.",
+  "res.evidence.untreated": "Untreated reference: {group}",
+  "res.evidence.rule":
+    "A highest-PCE gain of 0.5 absolute percentage points is an exploratory screening reference, not proof of repeatability or a rejection cutoff. Average output or consistency can still improve below it.",
+  "res.evidence.value": "Material / process judgment",
+  "res.evidence.confidence": "Evidence and repeatability",
+  "res.evidence.spread": "SD {sd} · IQR {iqr}",
+  "res.evidence.bestDelta":
+    "Highest PCE difference vs {group}: {value} percentage points.",
+  "res.evidence.REFERENCE": "Reference: preserve it in the next comparison.",
+  "res.evidence.PROMISING":
+    "Shows improvement potential; retain and repeat under fixed conditions.",
+  "res.evidence.PROMISING_VARIABLE":
+    "Promising but variable; retain and prioritize preparation/test repeatability.",
+  "res.evidence.PROCESS_VALUE":
+    "Average output or consistency improves; worth process validation.",
+  "res.evidence.NO_OBSERVED_BENEFIT":
+    "No demonstrated benefit in these conditions; lower priority until new evidence.",
+  "res.evidence.NOT_COMPARABLE":
+    "Confirm the reference and comparable measurement conditions before deciding.",
+  "res.evidence.EXPLORATORY":
+    "Exploratory comparison; independent fabrication repeatability is not established.",
+  "res.evidence.UNRESOLVED":
+    "Reference or measurement evidence needs confirmation.",
+  "res.evidence.planned": "Planned",
+  "res.evidence.recorded": "Recorded actual",
+  "res.evidence.NOT_RECORDED": "Actual execution not recorded",
+  "res.evidence.RETROSPECTIVE":
+    "Entered after measurement; retrospective record",
+  "res.evidence.FLAGGED": "Execution flagged for review",
+  "res.evidence.DEVIATION": "Recorded values differ from plan",
+  "res.evidence.RECORDED_MATCH": "Recorded values match the current plan",
+  "res.evidence.purpose": "Experimental purpose",
+  "res.evidence.purposeMissing":
+    "The original research question is not recorded; these comparisons remain descriptive.",
+  "res.ai.title": "AI result interpretation",
+  "res.ai.interim": "Interim analysis · testing is in progress",
+  "res.ai.draft": "Draft · researcher review needed",
+  "res.ai.reviewed": "Reviewed for this source version",
+  "res.ai.stale":
+    "Results or conditions changed. This analysis is outdated; regenerate before using it.",
+  "res.ai.legacy":
+    "Earlier summary has no source version; regenerate for current results.",
+  "res.ai.empty":
+    "New imported results trigger a draft automatically. Generate now to analyze existing results.",
+  "res.ai.noResults":
+    "Record eligible device results before generating an analysis.",
+  "res.ai.refresh": "Regenerate analysis",
+  "res.ai.generate": "Generate analysis",
+  "res.ai.review": "Mark this version reviewed",
+  "res.ai.reviewing": "Saving review…",
+  "res.ai.failed":
+    "Analysis is unavailable or the source changed. Measurements are saved; refresh or retry.",
+  "res.ai.loading": "Loading current analysis…",
+  "res.ai.purpose": "Purpose",
+  "res.ai.attainment": "Did the experiment answer its question?",
+  "res.ai.judgment": "Current judgment",
+  "res.ai.issue": "Main issue",
+  "res.ai.mechanisms": "Relevant explanations",
+  "res.ai.next": "Next priority",
+  "res.ai.expected": "Expected observation",
+  "res.ai.decision": "Decision after the test",
+  "res.ai.source": "Generated {date} · {model} · source {hash}",
+  "res.ai.advisory":
+    "Advisory interpretation; verify facts and conditions before a research decision. The scientist’s conclusion stays separate.",
+
   "testing.status.edit": "Edit request status",
   "testing.status.hint":
     "A correction applies to the current request batch. New submissions restore automatic status. It does not change test results.",
@@ -1712,6 +1792,72 @@ export const en = {
 export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
+  "res.evidence.invalid":
+    "{n}条指标不一致的记录保留在原始表格中，但不进入性能统计。",
+  "res.evidence.PARTIAL": "仅部分器件有实际条件记录。",
+  "res.evidence.nonJv":
+    "仅凭PCE不能回答本项基底验证，仍需核对原定光学及电学目标。",
+  "res.evidence.protocol":
+    "部分选定结果的测试条件不同或不完整；当前比较为探索性，需核实协议。",
+  "res.evidence.policy":
+    "每片器件采用一条接受结果，重复扫描不增加n；结果页、AI及报告使用同一批选定记录。",
+  "res.evidence.reference": "比较参照",
+  "res.evidence.apply": "比较",
+  "res.evidence.planReference": "方案对照：{group}",
+  "res.evidence.referenceWarning":
+    "此比较参照与方案对照不同；仅改变分析对象，实验方案保持原记录。",
+  "res.evidence.untreated": "未处理参照：{group}",
+  "res.evidence.rule":
+    "最高PCE绝对提高0.5个百分点是探索性筛选参考，不代表重复性确认或淘汰门槛；低于该值但均值或一致性改善仍有价值。",
+  "res.evidence.value": "材料／工艺判断",
+  "res.evidence.confidence": "证据与重复性",
+  "res.evidence.spread": "标准差{sd} · 四分位距{iqr}",
+  "res.evidence.bestDelta": "相对{group}的最高PCE差：{value}个百分点。",
+  "res.evidence.REFERENCE": "参照条件，下次比较继续保留。",
+  "res.evidence.PROMISING": "显示增效潜力，保留并在固定条件下复验。",
+  "res.evidence.PROMISING_VARIABLE":
+    "有潜力但波动较大；保留并优先核实制备／测试重复性。",
+  "res.evidence.PROCESS_VALUE": "均值或一致性改善，值得开展工艺验证。",
+  "res.evidence.NO_OBSERVED_BENEFIT":
+    "在这些条件下尚未显示收益，出现新证据前降低优先级。",
+  "res.evidence.NOT_COMPARABLE": "请先核实参照及测试条件可比性，再作判断。",
+  "res.evidence.EXPLORATORY": "探索性比较，尚未确立独立制备重复性。",
+  "res.evidence.UNRESOLVED": "参照或测量证据仍需核实。",
+  "res.evidence.planned": "计划",
+  "res.evidence.recorded": "记录实际",
+  "res.evidence.NOT_RECORDED": "实际执行未记录",
+  "res.evidence.RETROSPECTIVE": "测试之后补录，为事后记录",
+  "res.evidence.FLAGGED": "执行记录有待核实标记",
+  "res.evidence.DEVIATION": "记录值与计划不同",
+  "res.evidence.RECORDED_MATCH": "记录值与当前计划一致",
+  "res.evidence.purpose": "实验目的",
+  "res.evidence.purposeMissing": "未记录原始研发问题，以下比较为描述性判断。",
+  "res.ai.title": "AI结果分析",
+  "res.ai.interim": "阶段性分析 · 测试仍在进行",
+  "res.ai.draft": "草稿 · 待研究人员核对",
+  "res.ai.reviewed": "已核对当前来源版本",
+  "res.ai.stale": "结果或条件已变化，此分析已过期，请重新生成后使用。",
+  "res.ai.legacy": "早期总结未绑定来源版本，请重新生成以分析当前结果。",
+  "res.ai.empty": "新增导入结果会自动触发草稿；已有结果可点击生成立即分析。",
+  "res.ai.noResults": "有合格器件结果后才可生成分析。",
+  "res.ai.refresh": "重新生成分析",
+  "res.ai.generate": "生成分析",
+  "res.ai.review": "标记当前版本已核对",
+  "res.ai.reviewing": "保存核对状态…",
+  "res.ai.failed": "分析暂不可用或来源已变化；测试数据已保存，请刷新或重试。",
+  "res.ai.loading": "读取当前分析…",
+  "res.ai.purpose": "目的",
+  "res.ai.attainment": "是否回答原实验问题？",
+  "res.ai.judgment": "当前判断",
+  "res.ai.issue": "主要问题",
+  "res.ai.mechanisms": "相关原因解释",
+  "res.ai.next": "下一重点",
+  "res.ai.expected": "预期观察",
+  "res.ai.decision": "验证后的决策",
+  "res.ai.source": "生成于{date} · {model} · 来源{hash}",
+  "res.ai.advisory":
+    "辅助解释；作研发决策前请核对事实与条件，研究人员结论独立保留。",
+
   "testing.status.edit": "修改需求状态",
   "testing.status.hint":
     "修正仅适用于当前这批需求；新增需求后恢复自动判断，不会修改测试数据。",

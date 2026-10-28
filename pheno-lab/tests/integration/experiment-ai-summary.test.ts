@@ -1,0 +1,357 @@
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { db } from "@/infrastructure/db/client";
+import type { Actor } from "@/modules/authorization/actor";
+import {
+  generateAiSummary,
+  getAiSummaryState,
+  reviewAiSummary,
+  startAiSummary,
+  queueAutomaticAiSummary,
+  drainPendingAiSummaries,
+} from "@/modules/experiments/summary-service";
+
+const ai = vi.hoisted(() => ({ chat: vi.fn(), activeProvider: vi.fn() }));
+vi.mock("@/modules/ai/client", () => ({
+  ...ai,
+  jsonFrom: (text: string | null) => {
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return null;
+    }
+  },
+}));
+const text = (en: string) => ({ en, zh: "对应的实验解释与验证建议。" });
+const reply = (label = "Retain candidate for controlled repetition") =>
+  JSON.stringify({
+    purpose: text("Compare the candidate with its reference"),
+    objectiveAttainment: text("Preliminary results support further validation"),
+    groups: [
+      {
+        group: "B",
+        judgment: text(label),
+        mainIssue: text("Between-device consistency needs confirmation"),
+        mechanisms: [text("Processing variation is a conditional explanation")],
+        nextTest: text("Repeat the matched reference and candidate"),
+        expectedOutcome: text(
+          "A consistent improvement under matched conditions",
+        ),
+        decision: text(
+          "Continue on repeated gains, otherwise adjust processing",
+        ),
+      },
+    ],
+  });
+
+beforeEach(() => {
+  ai.activeProvider.mockReset().mockResolvedValue({ model: "synthetic-model" });
+  ai.chat.mockReset().mockResolvedValue(reply());
+});
+afterAll(async () => {
+  await db.$disconnect();
+});
+async function fixture() {
+  const suffix = crypto.randomUUID();
+  const org = await db.organization.create({
+    data: { name: "AI summary fixture", slug: `ai-summary-${suffix}` },
+  });
+  const user = await db.user.create({
+    data: {
+      organizationId: org.id,
+      email: `owner-${suffix}@example.test`,
+      name: "Owner",
+      role: "TECHNICIAN",
+      passwordHash: "test-only",
+    },
+  });
+  const other = await db.user.create({
+    data: {
+      organizationId: org.id,
+      email: `other-${suffix}@example.test`,
+      name: "Other",
+      role: "TECHNICIAN",
+      passwordHash: "test-only",
+    },
+  });
+  const owner: Actor = { uid: user.id, org: org.id, role: "TECHNICIAN" };
+  const outsider: Actor = { uid: other.id, org: org.id, role: "TECHNICIAN" };
+  const exp = await db.experiment.create({
+    data: {
+      organizationId: org.id,
+      code: `AI-${suffix}`,
+      title: "Synthetic candidate screening",
+      status: "IN_LAB",
+      createdById: owner.uid,
+      metadata: {
+        testPlan: {
+          variables: [],
+          groups: [
+            { label: "A", isControl: true, samples: 1 },
+            { label: "B", isControl: false, samples: 1 },
+          ],
+        },
+      },
+    },
+  });
+  const process = await db.process.create({
+    data: {
+      organizationId: org.id,
+      name: "Synthetic JV",
+      kind: "CHARACTERIZATION",
+    },
+  });
+  const char = await db.characterization.create({
+    data: {
+      experimentId: exp.id,
+      processId: process.id,
+      name: "Synthetic JV",
+      position: 0,
+    },
+  });
+  const results = [];
+  for (const [code, group, pce] of [
+    ["S1", "A", 19],
+    ["S2", "B", 20],
+  ] as const) {
+    const sample = await db.sample.create({
+      data: { experimentId: exp.id, code, variationGroup: group },
+    });
+    results.push(
+      await db.characterizationResult.create({
+        data: {
+          characterizationId: char.id,
+          sampleId: sample.id,
+          metrics: { "PCE (%)": String(pce), "Voc (V)": "1.1", "FF (%)": "78" },
+        },
+      }),
+    );
+  }
+  return {
+    org,
+    owner,
+    outsider,
+    exp,
+    results,
+    cleanup: async () => {
+      await db.auditEvent.deleteMany({ where: { organizationId: org.id } });
+      await db.experiment.delete({ where: { id: exp.id } });
+      await db.process.delete({ where: { id: process.id } });
+      await db.user.deleteMany({ where: { organizationId: org.id } });
+      await db.organization.delete({ where: { id: org.id } });
+    },
+  };
+}
+async function settle(actor: Actor, id: string) {
+  for (let n = 0; n < 80; n++) {
+    const state = await getAiSummaryState(actor, id);
+    if (state?.run?.state !== "running") return state;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return getAiSummaryState(actor, id);
+}
+
+describe("versioned AI result interpretation against guarded PostgreSQL", () => {
+  it("keeps an IN_LAB analysis advisory, supports review and detects child-result changes", async () => {
+    const f = await fixture();
+    try {
+      const initial = await getAiSummaryState(f.owner, f.exp.id);
+      expect(initial?.hasResults).toBe(true);
+      const summary = await generateAiSummary(f.owner, f.exp.id, "en");
+      expect(summary?.analysis?.groups[0].group).toBe("B");
+      expect(summary?.interim).toBe(true);
+      expect(summary?.reviewState).toBe("draft");
+      expect(
+        (await db.experiment.findUniqueOrThrow({ where: { id: f.exp.id } }))
+          .status,
+      ).toBe("IN_LAB");
+      const reviewed = await reviewAiSummary(
+        f.owner,
+        f.exp.id,
+        summary!.sourceHash!,
+      );
+      expect(reviewed.reviewState).toBe("reviewed");
+      await db.characterizationResult.update({
+        where: { id: f.results[1].id },
+        data: { metrics: { "PCE (%)": "20.3" } },
+      });
+      expect((await getAiSummaryState(f.owner, f.exp.id))?.isStale).toBe(true);
+      await expect(
+        reviewAiSummary(f.owner, f.exp.id, summary!.sourceHash!),
+      ).rejects.toThrow("Results changed");
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "experiment.aiSummary.reviewed",
+          },
+        }),
+      ).toBe(1);
+      const payload = ai.chat.mock.calls[0][1][1].content;
+      expect(payload).not.toContain('"selectedResults"');
+      expect(payload).not.toContain('"aiSummary"');
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("denies foreign, uninvolved, restricted and deactivated accounts before a provider call", async () => {
+    const f = await fixture();
+    try {
+      await expect(
+        startAiSummary(f.outsider, f.exp.id, "en"),
+      ).rejects.toThrow();
+      await expect(
+        startAiSummary({ ...f.owner, org: "foreign-org" }, f.exp.id, "en"),
+      ).rejects.toThrow();
+      await expect(
+        startAiSummary({ ...f.owner, testingOnly: true }, f.exp.id, "en"),
+      ).rejects.toThrow();
+      await db.user.update({
+        where: { id: f.owner.uid },
+        data: { active: false },
+      });
+      await expect(startAiSummary(f.owner, f.exp.id, "en")).rejects.toThrow();
+      expect(ai.chat).not.toHaveBeenCalled();
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("rejects stale responses and never lets an older generation overwrite the latest one", async () => {
+    const f = await fixture();
+    let completeOld!: (text: string) => void;
+    try {
+      ai.chat.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            completeOld = resolve;
+          }),
+      );
+      await startAiSummary(f.owner, f.exp.id, "en");
+      for (let n = 0; n < 40 && !completeOld; n++)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      await db.characterizationResult.update({
+        where: { id: f.results[1].id },
+        data: { metrics: { "PCE (%)": "20.4" } },
+      });
+      await startAiSummary(f.owner, f.exp.id, "en");
+      const newest = await settle(f.owner, f.exp.id);
+      expect(newest?.summary?.sourceHash).toBe(newest?.evidenceHash);
+      completeOld(reply("Old response must be discarded"));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const final = await getAiSummaryState(f.owner, f.exp.id);
+      expect(final?.summary?.analysis?.groups[0].judgment.en).not.toContain(
+        "Old response",
+      );
+      expect(final?.summary?.sourceHash).toBe(newest?.summary?.sourceHash);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("does not persist an answer after its requester's permission is revoked", async () => {
+    const f = await fixture();
+    let complete!: (text: string) => void;
+    try {
+      ai.chat.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      await startAiSummary(f.owner, f.exp.id, "en");
+      for (let n = 0; n < 40 && !complete; n++)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      await db.user.update({
+        where: { id: f.owner.uid },
+        data: { active: false },
+      });
+      complete(reply());
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const e = await db.experiment.findUniqueOrThrow({
+        where: { id: f.exp.id },
+      });
+      expect((e.metadata as Record<string, unknown>).aiSummary).toBeUndefined();
+      expect(
+        await db.auditEvent.count({
+          where: { organizationId: f.org.id, action: "experiment.aiSummary" },
+        }),
+      ).toBe(0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("fails honestly on invalid model output without replacing a prior summary", async () => {
+    const f = await fixture();
+    try {
+      const old = await generateAiSummary(f.owner, f.exp.id, "en");
+      ai.chat.mockResolvedValueOnce('{"groups":[]}');
+      expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
+      expect(
+        (await getAiSummaryState(f.owner, f.exp.id))?.summary?.sourceHash,
+      ).toBe(old?.sourceHash);
+      expect((await getAiSummaryState(f.owner, f.exp.id))?.run?.state).toBe(
+        "failed",
+      );
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("debounces automatic work, audits SYSTEM and skips already current evidence", async () => {
+    const f = await fixture();
+    try {
+      await queueAutomaticAiSummary(f.org.id, f.exp.id);
+      await queueAutomaticAiSummary(f.org.id, f.exp.id);
+      let exp = await db.experiment.findUniqueOrThrow({
+        where: { id: f.exp.id },
+      });
+      const metadata = exp.metadata as Record<string, unknown>;
+      await db.experiment.update({
+        where: { id: f.exp.id },
+        data: {
+          metadata: {
+            ...metadata,
+            aiAnalysisPending: {
+              ...(metadata.aiAnalysisPending as object),
+              dueAt: "2000-01-01T00:00:00Z",
+            },
+          },
+        },
+      });
+      expect((await drainPendingAiSummaries()).started).toBe(1);
+      const state = await settle(f.owner, f.exp.id);
+      expect(state?.summary?.sourceHash).toBe(state?.evidenceHash);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "experiment.aiSummary",
+            actorType: "SYSTEM",
+          },
+        }),
+      ).toBe(1);
+      const calls = ai.chat.mock.calls.length;
+      await queueAutomaticAiSummary(f.org.id, f.exp.id);
+      exp = await db.experiment.findUniqueOrThrow({ where: { id: f.exp.id } });
+      const current = exp.metadata as Record<string, unknown>;
+      await db.experiment.update({
+        where: { id: f.exp.id },
+        data: {
+          metadata: {
+            ...current,
+            aiAnalysisPending: {
+              ...(current.aiAnalysisPending as object),
+              dueAt: "2000-01-01T00:00:00Z",
+            },
+          },
+        },
+      });
+      expect((await drainPendingAiSummaries()).started).toBe(0);
+      expect(ai.chat.mock.calls.length).toBe(calls);
+    } finally {
+      await f.cleanup();
+    }
+  });
+});

@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@prisma/client";
 
 import { publicMaterialSelect } from "@/modules/library/material-visibility";
 import { fmtBeijing } from "@/lib/datetime";
@@ -281,114 +282,129 @@ export async function getCaptureRunData(
   };
 }
 
-export async function getResultsExperiment(actor: Actor, rawId: unknown) {
-  const id = experimentIdSchema.parse(rawId);
-  const experiment = await db.experiment.findFirst({
-    where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
+type EvidenceReadClient = Pick<
+  Prisma.TransactionClient,
+  "experiment" | "deviceLayer"
+>;
+
+const reportEvidenceInclude = {
+  createdBy: { select: { name: true } },
+  assignee: { select: { name: true } },
+  approvedBy: { select: { name: true } },
+  members: { include: { user: { select: { id: true, name: true } } } },
+  samples: { orderBy: { code: "asc" } },
+  steps: {
+    orderBy: [{ position: "asc" }, { id: "asc" }],
     include: {
-      members: { select: { userId: true } },
-      samples: { orderBy: { code: "asc" } },
-      characterizations: {
-        orderBy: { position: "asc" },
-        include: {
-          process: true,
-          results: {
-            where: {
-              OR: [
-                { runId: null },
-                { run: { is: { status: { not: "CANCELLED" } } } },
-              ],
-            },
-            include: { run: true },
-          },
-        },
+      process: true,
+      equipment: { select: { name: true, nickname: true } },
+      environment: true,
+      materials: {
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: { amount: true, material: { select: { name: true } } },
       },
-      steps: {
-        orderBy: { position: "asc" },
-        include: {
-          process: true,
-          equipment: { select: { name: true, nickname: true } },
-          materials: {
-            orderBy: { position: "asc" },
-            select: { amount: true, material: { select: { name: true } } },
-          },
-          parameters: {
-            orderBy: { position: "asc" },
-            include: { variations: true },
-          },
-        },
+      parameters: {
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        include: { variations: true },
       },
     },
-  });
+  },
+  characterizations: {
+    orderBy: [{ position: "asc" }, { id: "asc" }],
+    include: {
+      process: true,
+      equipment: true,
+      results: {
+        where: {
+          OR: [
+            { runId: null },
+            { run: { is: { status: { not: "CANCELLED" } } } },
+          ],
+        },
+        include: { run: true },
+      },
+    },
+  },
+  runs: {
+    where: { status: { not: "CANCELLED" } },
+    orderBy: { runNo: "asc" },
+    include: { executions: true },
+  },
+  // Raw scans back the measurement-artifact flags (negative Rsh/Rs): the
+  // result rows only carry the summary metrics, which look fine.
+  jvMeasurements: {
+    where: { status: "MATCHED" },
+    select: {
+      id: true,
+      serial: true,
+      sampleId: true,
+      runId: true,
+      status: true,
+      condition: true,
+      direction: true,
+      measuredAt: true,
+      metrics: true,
+      settings: true,
+      sample: { select: { id: true, code: true, variationGroup: true } },
+    },
+  },
+  labels: { include: { label: true } },
+} satisfies Prisma.ExperimentInclude;
+
+async function withEvidenceLayers<T>(
+  client: EvidenceReadClient,
+  organizationId: string,
+  experiment: T | null,
+) {
   if (!experiment) return null;
-  const layers = await db.deviceLayer.findMany({
-    where: { organizationId: actor.org },
+  const layers = await client.deviceLayer.findMany({
+    where: { organizationId },
     select: { code: true, name: true },
     orderBy: { position: "asc" },
   });
   return { ...experiment, layers };
 }
 
-export async function getReportExperiment(actor: Actor, rawId: unknown) {
+/** Results, AI and the read-only operator export use one scoped source projection. */
+export async function getResultsExperiment(
+  actor: Actor,
+  rawId: unknown,
+  client: EvidenceReadClient = db,
+) {
+  return getReportExperiment(actor, rawId, client);
+}
+
+export async function getReportExperiment(
+  actor: Actor,
+  rawId: unknown,
+  client: EvidenceReadClient = db,
+) {
   const id = experimentIdSchema.parse(rawId);
-  return db.experiment.findFirst({
+  const experiment = await client.experiment.findFirst({
     where: { AND: [{ id }, experimentVisibilityScope(actor, true)] },
-    include: {
-      createdBy: { select: { name: true } },
-      assignee: { select: { name: true } },
-      approvedBy: { select: { name: true } },
-      members: { include: { user: { select: { id: true, name: true } } } },
-      samples: { orderBy: { code: "asc" } },
-      steps: {
-        orderBy: { position: "asc" },
-        include: {
-          process: true,
-          equipment: true,
-          environment: true,
-          materials: {
-            orderBy: { position: "asc" },
-            include: { material: { select: publicMaterialSelect } },
-          },
-          parameters: {
-            orderBy: { position: "asc" },
-            include: { variations: true },
-          },
-        },
-      },
-      characterizations: {
-        orderBy: { position: "asc" },
-        include: {
-          process: true,
-          equipment: true,
-          results: {
-            where: {
-              OR: [
-                { runId: null },
-                { run: { is: { status: { not: "CANCELLED" } } } },
-              ],
-            },
-            include: { run: true },
-          },
-        },
-      },
-      runs: {
-        where: { status: { not: "CANCELLED" } },
-        orderBy: { runNo: "asc" },
-        include: { executions: true },
-      },
-      // Raw scans back the measurement-artifact flags (negative Rsh/Rs): the
-      // result rows only carry the summary metrics, which look fine.
-      jvMeasurements: {
-        where: { status: "MATCHED" },
-        select: {
-          serial: true,
-          metrics: true,
-          sample: { select: { code: true, variationGroup: true } },
-        },
-      },
-      labels: { include: { label: true } },
-    },
+    include: reportEvidenceInclude,
   });
+  return withEvidenceLayers(client, actor.org, experiment);
+}
+
+/** Internal worker read: explicit organization scope, never an impersonated user. */
+export async function getSystemAnalysisExperiment(
+  organizationId: string,
+  rawId: unknown,
+  client: EvidenceReadClient = db,
+) {
+  const id = experimentIdSchema.parse(rawId);
+  const experiment = await client.experiment.findFirst({
+    where: {
+      id,
+      organizationId,
+      isTest: false,
+      deletedAt: null,
+      organization: { status: "ACTIVE" },
+    },
+    include: reportEvidenceInclude,
+  });
+  return withEvidenceLayers(client, organizationId, experiment);
 }
 
 export async function getExperimentCode(actor: Actor, rawId: unknown) {

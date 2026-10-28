@@ -69,13 +69,37 @@ new organizations can be added later without schema changes.
 - `src/lib/i18n/` — EN/ZH dictionary and providers; language is per-user (profile page), English default
 - `/` — homepage board: kanban ⇄ list views with search, create, duplicate; technicians see their assigned tasks
 - `/experiments/[id]/capture` — Phase 3 capture portal: per-sample planned-vs-actual step capture, environment conditions, notes/flags/photos, and characterization result entry (the one place technicians write)
-- `/experiments/[id]/results` — measured comparison, grouped plots and current FF/PCE/Voc/Jsc analysis. Analysis uses exactly the plotted substrate values per characterization, qualifies variables with the test plan and process/layer/equipment context, and exposes plan/flow mismatches. Group means and control differences are descriptive, not causal or significance claims. The former single-experiment `/report` route redirects here after authorization; weekly `/reports` is separate.
+- `/experiments/[id]/results` — measured comparison, grouped plots and current FF/PCE/Voc/Jsc analysis. Analysis and plots use one accepted representative per physical device and characterization, with complete metric vectors. Named conditions distinguish planned settings, recorded actuals, retrospective entries and missing execution. The analysis reference can differ explicitly from the plan control without rewriting the design. Group means and control differences are descriptive, not causal or significance claims. The former single-experiment `/report` route redirects here after authorization; weekly `/reports` is separate.
 - `/profile` — account settings, password change, language, stats, and bug/feedback reporting
 - `/feedback` + `/api/feedback-export` — admin-only feedback inbox with JSON export for agents
 - `src/lib/actions/` — framework adapters for remaining Server Actions; critical authorization and ingest rules live in modules
 - `src/components/designer/` — the three-pane Experiment Designer
 - `src/app/(app)/` — experiment list, designer, library pages
 - `public/brand/` — official Pheno logo assets (do not modify; see brand rules)
+
+## Experiment result interpretation
+
+The Results page and Designer share a bilingual AI interpretation panel, including
+interim results during IN_LAB. It separates practical material/process potential
+from repeatability confidence and keeps AI drafts separate from scientist conclusions.
+A highest-PCE gain of +0.5 absolute percentage points is an exploratory internal
+screening reference under comparable conditions, not significance or a rejection rule.
+Purpose-specific component metrics and original non-JV objectives remain necessary.
+
+After committed result entry or matched JV results, a persisted marker coalesces
+updates over a 60-second quiet period. The existing rematch worker resumes bounded
+automatic work after interruption; no additional service or schedule is introduced.
+Manual generation remains available. Provider failure preserves deterministic
+results and prior summaries. Source fingerprints, policy/prompt versions, fresh
+permissions and generation tokens prevent stale responses from replacing current
+evidence. Authorized editors can mark only the current source version reviewed.
+
+The existing organization provider receives a reduced, privacy-filtered payload.
+Private molecular notation and full formulation payloads are withheld. Weekly
+reporting reads the same deterministic evidence and may reuse only a current,
+reviewed interpretation using the same comparison selection; it still requires
+independent numerical, scientific and privacy review. See the read-only operator
+[evidence export](src/modules/reports/README.md#shared-experiment-evidence-for-the-reporting-workflow).
 
 ## Security & backups
 
