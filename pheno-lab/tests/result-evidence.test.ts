@@ -97,6 +97,46 @@ function fixture(): ResultEvidenceExperiment {
   };
 }
 
+function multistepPassivationFixture(): ResultEvidenceExperiment {
+  const exp = fixture();
+  for (const sample of exp.samples)
+    if (sample.variationGroup === "B") sample.variationGroup = "H";
+  for (const variation of exp.steps[0].parameters[0].variations)
+    if (variation.variationGroup === "B") variation.variationGroup = "H";
+  const dormant = structuredClone(exp.steps[0]);
+  dormant.id = "step-dormant";
+  dormant.name = "Top passivation evaporation";
+  dormant.processId = "evaporation";
+  dormant.process.name = "Evaporation";
+  dormant.parameters[0].id = "param-dormant";
+  dormant.parameters[0].variations = ["A", "H", "C"].map((variationGroup) => ({
+    variationGroup,
+    value: "/",
+  }));
+  exp.steps.push(dormant);
+  exp.metadata = {
+    testPlan: {
+      groups: [
+        { label: "A", samples: 1, isControl: true },
+        { label: "H", samples: 2, isControl: false },
+        { label: "C", samples: 2, isControl: false },
+        { label: "J", samples: 0, isControl: false },
+      ],
+      variables: [
+        {
+          kind: "material",
+          processId: "future-evaporation",
+          layer: "PASS_TOP",
+          parameter: "Future passivation material",
+          unit: "",
+          values: { J: "Synthetic future inorganic treatment" },
+        },
+      ],
+    },
+  };
+  return exp;
+}
+
 describe("shared accepted-device evidence", () => {
   it("keeps one complete accepted vector per physical device, not one per result row", () => {
     const exp = fixture();
@@ -208,6 +248,47 @@ describe("shared accepted-device evidence", () => {
     ).toBe("A");
     expect(exp).toEqual(before);
   });
+
+  it("requires untreated values across all applicable passivation steps, excluding future-only groups", () => {
+    const exp = multistepPassivationFixture();
+    const before = structuredClone(exp);
+    const evidence = buildExperimentEvidence(exp);
+    expect(evidence.reference).toMatchObject({
+      declaredGroup: "A",
+      selectedGroup: "H",
+      untreatedGroups: ["H"],
+      warning: "COMPARATOR_DIFFERS_FROM_PLAN_CONTROL",
+    });
+    expect(
+      evidence.conditions.find((condition) => condition.plannedOnly)?.values,
+    ).toEqual({ J: "Synthetic future inorganic treatment" });
+    expect(
+      evidence.characterizations[0].groups.find((group) => group.label === "C")
+        ?.deltaMean.pce,
+    ).toBeCloseTo(0.55);
+    expect(exp).toEqual(before);
+  });
+
+  it.each(["treated", "missing", "blank"])(
+    "does not infer an untreated device when another applicable step is %s",
+    (state) => {
+      const exp = multistepPassivationFixture();
+      const parameter = exp.steps[1].parameters[0];
+      if (state === "missing")
+        parameter.variations = parameter.variations.filter(
+          (variation) => variation.variationGroup !== "H",
+        );
+      else
+        parameter.variations.find(
+          (variation) => variation.variationGroup === "H",
+        )!.value = state === "blank" ? "" : "Synthetic second treatment";
+      expect(buildExperimentEvidence(exp).reference).toMatchObject({
+        declaredGroup: "A",
+        selectedGroup: "A",
+        untreatedGroups: [],
+      });
+    },
+  );
 
   it("does not infer untreated from missing dose or from two ambiguous untreated groups", () => {
     const exp = fixture();

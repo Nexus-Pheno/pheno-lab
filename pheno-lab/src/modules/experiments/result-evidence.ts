@@ -369,11 +369,18 @@ function comparisonReference(
     /^(?:\/|none|untreated|no passivation|无|未处理|未钝化)$/i.test(
       value.trim(),
     );
-  const untreatedGroups = groupLabels.filter((group) =>
-    passivationMaterials.some((condition) =>
-      isUntreated(condition.values[group]),
-    ),
-  );
+  const untreatedGroups = groupLabels.filter((group) => {
+    // A future plan-only contrast does not apply to groups it does not name.
+    // Concrete step definitions do apply: a missing value remains unknown.
+    const applicable = passivationMaterials.filter(
+      (condition) =>
+        !condition.plannedOnly || Object.hasOwn(condition.values, group),
+    );
+    return (
+      applicable.length > 0 &&
+      applicable.every((condition) => isUntreated(condition.values[group]))
+    );
+  });
   const declaredTreated =
     declaredGroup &&
     passivationMaterials.some(
