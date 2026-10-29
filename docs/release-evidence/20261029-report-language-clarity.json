@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "scope": "29 October result-first bilingual reporting and reviewed edition",
+  "releases": [
+    {
+      "releaseId": "20261029-002",
+      "applicationSha": "635f470c70ab7e94bf781e62058eb31259fa8e46",
+      "pullRequest": 128,
+      "artifactSha256": "dd7488abf9b8a8af9373ce7430bebbef731c258d1612e670a0628baf2f15b120",
+      "verifiedAt": "2026-10-29T12:44:06Z"
+    },
+    {
+      "releaseId": "20261029-003",
+      "applicationSha": "62c4c98c11c5e3f9d9ddd668b886bc22f7f48e84",
+      "pullRequest": 129,
+      "artifactSha256": "2c64e48c2991358419ae276fa534c01f29635a5416ffd6906e8c993cbf8cd5fb",
+      "verifiedAt": "2026-10-29T13:13:37Z"
+    },
+    {
+      "releaseId": "20261029-004",
+      "applicationSha": "15e7700d51c588d0306bdf8da38290e76716ce87",
+      "pullRequest": 130,
+      "artifactSha256": "94798eeae511181cd03a171fcb916058ed14a2950c667591f7e10bd5198afe38",
+      "verifiedAt": "2026-10-29T13:33:22Z"
+    }
+  ],
+  "finalSoftwareChecks": {
+    "unitTests": 309,
+    "guardedPostgresTests": 164,
+    "browserTests": 57,
+    "fullVerify": true,
+    "independentCodeReview": true,
+    "prCi": 40881387558,
+    "mainCi": 40881420801,
+    "deployedRuntimeFilesMatched": 8
+  },
+  "production": {
+    "canonicalGithubPullBuildReleaseChain": true,
+    "readinessDatabase": true,
+    "readinessPrivateCos": true,
+    "nonrootUser": "pheno",
+    "loopbackPort": 3457,
+    "automaticRestarts": 0,
+    "nginxActive": true,
+    "httpRedirect": 301,
+    "existingMigrations": 47,
+    "pendingMigrations": 0,
+    "onlyAppVersionEnvironmentChanged": true,
+    "otherEnvBytesOwnerGroupModeInodeAclPreserved": true,
+    "temporaryEnvironmentBackupRemoved": true,
+    "queriedJournalCriticalErrors": 0
+  },
+  "publishedReport": {
+    "url": "https://lab.szkl.com/reports/c73d7d27-34f8-4a9c-87a6-da7c96691d71",
+    "publishedAt": "2026-10-29T12:49:40.615Z",
+    "contentBytes": 211227,
+    "sha256": "0ff95ebfa823ba3035c325b2f3fe877592a1d6329f6dde8f899147be133e2a5c",
+    "sourceEvidenceReusedForRequestedLanguageEdition": true,
+    "sourceContextDescriptionsCorrected": 2,
+    "numericTablesUnchanged": true,
+    "allLedgerEntriesAndHistoriesUnchanged": true,
+    "ledgerEntries": 71,
+    "newMeasurementAliases": 0,
+    "newLedgerProposals": 0,
+    "gatesPassed": 7,
+    "actualIndependentManuscriptReview": true,
+    "scienceCertified": false,
+    "offlineExactCspCases": 16,
+    "printPagesInspected": {
+      "en": 17,
+      "zh": 14
+    },
+    "freshExistingRecipients": 5,
+    "noticesExactlyOnePerRecipient": true,
+    "noticeCount": 5,
+    "publicationAuditCount": 1,
+    "requireExistingAccess": true,
+    "newGrants": 0
+  },
+  "automaticDrafts": {
+    "promptVersion": "concise-bilingual-results-v5",
+    "sourceCurrentBilingualDrafts": 2,
+    "oneBoundedRetryAfterFailedSecondCase": true,
+    "researcherReviewed": false,
+    "reusedInPublishedReport": false,
+    "targetedMeanHighestSpreadFixObserved": true,
+    "failedCommonSolventBranchActualV5Coverage": false,
+    "actualTextReviewStatus": "UNAPPROVED_DRAFTS_WITH_RECORDED_LIMITATIONS",
+    "limitations": [
+      "Optional mechanism wording still confuses solution concentration with deposited amount.",
+      "Some source/comparator and planned-versus-actual shorthand still needs scientific review.",
+      "A negative thermal branch needs an explicit comparison to the matched reference."
+    ],
+    "noManualProviderTextRewrite": true
+  },
+  "savedWorkflow": {
+    "testsBeforeDocOnlyFollowup": 237,
+    "pythonGateCodeUnchangedByFinalDocFollowup": true,
+    "officialSkillValidation": true,
+    "actualIndependentImplementationAndDocReview": true,
+    "newLanguageStandard": "RESULT_JUDGMENT_ISSUE_NEXT_V1",
+    "automationId": "pheno-lab-weekly-material-analysis",
+    "sameActiveSaturday0900AsiaShanghaiScheduleAndThread": true,
+    "sameFiveRecipientContract": true,
+    "finalPromptSha256": "7a9f2c22a586e43641b5e5057091f495df5f82f8b58fc2d6bed5a8bf2f10b696"
+  },
+  "boundaries": {
+    "scientificMeasurementsOrExecutionChanged": false,
+    "experimentDesignFieldsChanged": false,
+    "rolesOrReportChemistryGrantsChanged": false,
+    "providerCredentialsChangedByThisLanguageTask": false,
+    "newServicesOrEnvironmentFiles": false,
+    "signedInProductionScreenAcceptance": false,
+    "normalUserLoginPending": true,
+    "humanScientificAcceptanceClaimed": false,
+    "primaryDirtyCheckoutPreserved": true
+  },
+  "documentationOnly": true,
+  "documentationCommitIsNotDeployedApplication": true,
+  "technicianHandoff": {
+    "fileName": "Pheno-Lab-Report-Language-Changes-for-Technician-2026-10-29.html",
+    "bytes": 20635,
+    "sha256": "a59843cab81f1fb87822fa3780dfc9a4046042819281d8e22e5ac33c6fbbaae0",
+    "offlineExactCspCases": 16,
+    "printPagesInspected": {
+      "en": 3,
+      "zh": 2
+    },
+    "residualDraftLimitationsDisclosed": true
+  }
+}
