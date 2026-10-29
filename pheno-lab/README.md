@@ -100,10 +100,20 @@ timeout, below the existing three-minute stale-run lease. Blank or token-truncat
 final answers remain failures; reasoning text is never used or saved. Other
 providers and other chat features retain their existing request behavior. The
 tiny official DeepSeek connection check disables thinking only for its probe.
-Prompt version 2 also distinguishes a shared carrier from a changed factor,
+The prompt also distinguishes a shared carrier from a changed factor,
 applies the screening reference to the highest-PCE difference, and prioritizes
 fixed-condition repetition when a promising result has wide device-to-device
 spread. Missing recorded objectives remain explicitly plan-implied comparisons.
+
+Prompt version 3 and the panel use a result-first reading order: observed result
+and practical judgment, the concrete question that could change that judgment,
+then the next controlled experiment. Short separate sentences replace combined
+result/caveat/disclaimer clauses. General methods are not repeated per group;
+the recorded purpose and generation details are available once in the panel's
+collapsed context section. Important local limitations stay with the relevant
+decision, and possible mechanisms remain distinct from observations. Draft,
+stale-source and researcher-review controls remain visible. This is a writing
+contract, not a ban on uncertainty words or a relaxation of evidence checks.
 
 The existing organization provider receives a reduced, privacy-filtered payload.
 Private molecular notation and full formulation payloads are withheld. Weekly
