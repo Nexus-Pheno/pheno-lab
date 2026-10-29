@@ -105,7 +105,7 @@ applies the screening reference to the highest-PCE difference, and prioritizes
 fixed-condition repetition when a promising result has wide device-to-device
 spread. Missing recorded objectives remain explicitly plan-implied comparisons.
 
-Prompt version 4 and the panel use a result-first reading order: observed result
+Prompt version 5 and the panel use a result-first reading order: observed result
 and practical judgment, the concrete question that could change that judgment,
 then the next controlled experiment. Short separate sentences replace combined
 result/caveat/disclaimer clauses. General methods are not repeated per group;
@@ -124,7 +124,13 @@ English-prose check rejects stray Chinese text through the existing generation
 failure path, preserving the earlier summary without retrying or approving it.
 Exact supplied material, condition or group names may appear quoted in English;
 group IDs themselves are excluded from the prose check. This lexical check is
-not a translation-quality or scientific-validity certification.
+not a translation-quality or scientific-validity certification. Outcome branches
+must judge mean, highest PCE and device spread separately: loss of a mean benefit
+does not establish loss of the highest-device signal. A failed common-solvent
+material comparison applies to that common context; original material–solvent
+interactions and preparation differences remain unresolved. Bilingual examples
+and a final field-by-field self-check reinforce those limits without changing
+the schema, failure guard or researcher-review requirement.
 
 The existing organization provider receives a reduced, privacy-filtered payload.
 Private molecular notation and full formulation payloads are withheld. Weekly
