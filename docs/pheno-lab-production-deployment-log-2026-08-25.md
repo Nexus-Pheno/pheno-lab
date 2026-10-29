@@ -2052,3 +2052,15 @@ Michael 明确批准按技术员反馈实现全部报告优化、提交 GitHub �
 - 同一 Saturday 09:00 Asia/Shanghai 本地 heartbeat 已通过 app 工具更新并读回核对，原 thread、五位既有收件人和 requireExistingAccess:true 契约不变；首个按新方法的计划周期为 2026-10-31。完整旧台账及历史报告保留，本次没有另发科研报告或五人通知。新旧统计口径、当前来源版本与已核对 AI 复用条件由新流程明确区分。
 
 聚合证据：[release-evidence/20261028-reporting-analysis.json](release-evidence/20261028-reporting-analysis.json)。不保存科研原值、内部实验／样品标识、账号身份、截图、凭据或原始日志。本节与证据为上线后的独立文档补记，其 commit 与最终应用 commit 分开，不再把文档 commit 当作已部署应用版本。
+
+### 17.25 2026-10-29：DeepSeek 凭据更换、完整结果输出修正及报告重跑
+
+Michael 明确要求通过 Liu Agent 使用其指定的公司 DeepSeek 凭据替换既有凭据，并重跑报告。原生选择与 Mac 认证后，通过既有 SSH 将凭据写入同一组织、同一 active provider 的既有加密字段；沿用既有 endpoint、model、加密 adapter 和事务审计。未把密钥嵌入代码、前端、参数、日志或新 env 文件。首次操作命令在 TypeScript 执行前因多层 shell 解析失败，已只读确认零 provider 更新审计；修正为 stdin 传输后使用新的原生授权，未复用已消耗授权。
+
+- 更换后发现另一个真实故障：提供方返回 HTTP 200，但旧 6,500-token 限额全部被 reasoning 消耗，没有最终结果。应用 PR [#126](https://github.com/Nexus-Pheno/pheno-lab/pull/126) 将官方 DeepSeek 的结果摘要显式设为低 reasoning、JSON 输出、12,000-token 上限及 110 秒超时；仍低于现有三分钟任务租期。空结果和明确截断结果失败处理，其他提供方及普通 chat 的请求保持原行为。未保存 reasoning 内容。Prompt v2 明确相同载液不能算比较变量、0.5 参考仅用于最高效率差而非平均值或确认门槛、离散较大的有希望条件应先固定条件复验；旧 prompt 草稿按版本变为待重算。
+- 完整应用 commit [`22f073933e3fb42ad9d82fc09d013498e704d515`](https://github.com/Nexus-Pheno/pheno-lab/commit/22f073933e3fb42ad9d82fc09d013498e704d515) 对应 **20261029-001**。本地 commit/push、GitHub 合并后由服务器 fast-forward 拉取，并沿用 build-release.sh／deploy-release.sh；未复制或手改服务器应用源码。PR/main CI 40807834583／40808621435 通过，验证含 309 单元、160 受保护真实 PostgreSQL 集成、57 浏览器、Go Bridge、架构／部署检查、TypeScript、production build 及制品 checksum。独立代码复核无阻断项；既有 10 条 lint warning、0 error。
+- 规范制品 SHA256 为 `3aa358d774de43c46a3926aaeda916c14e066fe66b73cb6dca203f2fc019203a`。发布脚本退出 0 并输出 `deployed 20261029-001`；2026-10-29T02:53:51Z 完成验收。六个制品源文件与应用 commit 匹配，含报告 CSP 实现。47 个 migration 无待应用项、0 个旧明文凭据需加密。既有 env 仅改变 APP_VERSION，其余字节、owner/group/mode/inode/ACL 保持，受保护临时备份已移除；非 root pheno、loopback3457、零自动重启，Nginx、HTTP301、公网 liveness、PostgreSQL／私有 COS readiness 通过。检查 200 行 journal，当前进程无所查关键错误。标准 retention 裁剪 20261019-001，保留五个 release；003 保留为代码回滚目标，代码回滚不回滚数据。
+- 经未改请求参数的已部署 service，两个真实中英文结果摘要分别约 42 秒完成，source current、prompt v2、draft 状态；仍需研究人员核对，不宣称科学结论已批准，也未将它们作为周报的已审阅结论。权限、schema/privacy、source/version 与 generation-token 检查保持；未修改实验设计、测量、执行或科学结论字段。
+- 同次明确要求的新版[实验决策报告](https://lab.szkl.com/reports/6ed4e69f-c5e8-4226-8b65-399e2f584846) 通过既有私有 Reports 服务于 2026-10-29T02:49:47.515Z 发布，保留历史报告。227,813 bytes，SHA256 `6eee499b57c66202fe38289bba965e3d6cb999ae22eaa78c2b3d56997c023356`。报告先给具名材料／浓度／载液／工艺及实用判断；独立科学复核与补充复核、五类公开／科学／决策门禁和私有材料门禁通过，16 项离线／准确 CSP 检查及全部 19 英文／16 中文打印页验收。存储 hash/bytes、双语标题／日期、五位现有授权收件人、每人一个通知及一个发布审计精确核对；未新增权限。Hao 仍为 technician，无化学访问。完整旧台账 68 条原样保留，追加三项仅报告建议及规范 report UUID 来源版本，共 71 条，成功基线选择器已核对。源记录新增不代表新器件／独立批次，未确认计划／执行一致性或机理因果。
+
+原 Saturday09:00 Asia/Shanghai 周期、thread 和五位收件人契约保持。无科研修复、导入、回填、新服务、云资源或额外消息。聚合证据：[release-evidence/20261029-deepseek-reporting.json](release-evidence/20261029-deepseek-reporting.json)。本节与证据为独立文档补记，其 commit 不同于已部署应用 commit，不再次部署文档；未宣称生产登录界面或人类科研使用验收。
