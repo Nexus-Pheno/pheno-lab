@@ -140,19 +140,11 @@ export function AiResultAnalysis({
           )}
           {analysis ? (
             <>
-              <div className="grid sm:grid-cols-2 gap-3 text-[12.5px]">
-                <div>
-                  <h3 className="font-semibold">{t("res.ai.purpose")}</h3>
-                  <p className="mt-1 whitespace-pre-wrap">
-                    {analysis.purpose[lang]}
-                  </p>
-                </div>
-                <div>
-                  <h3 className="font-semibold">{t("res.ai.attainment")}</h3>
-                  <p className="mt-1 whitespace-pre-wrap">
-                    {analysis.objectiveAttainment[lang]}
-                  </p>
-                </div>
+              <div data-ai-result-overview className="text-[12.5px]">
+                <h3 className="font-semibold">{t("res.ai.attainment")}</h3>
+                <p className="mt-1 whitespace-pre-wrap">
+                  {analysis.objectiveAttainment[lang]}
+                </p>
               </div>
               <div className="grid lg:grid-cols-2 gap-3">
                 {analysis.groups.map((group) => (
@@ -164,16 +156,16 @@ export function AiResultAnalysis({
                     <h3 className="font-bold">
                       {group.group} · {t("res.ai.judgment")}
                     </h3>
-                    <p>{group.judgment[lang]}</p>
-                    <p>
+                    <p data-ai-judgment>{group.judgment[lang]}</p>
+                    <p data-ai-issue>
                       <strong>{t("res.ai.issue")}: </strong>
                       {group.mainIssue[lang]}
                     </p>
-                    <p>
+                    <p data-ai-next>
                       <strong>{t("res.ai.next")}: </strong>
                       {group.nextTest[lang]}
                     </p>
-                    <details>
+                    <details data-ai-reasoning>
                       <summary className="cursor-pointer font-semibold">
                         {t("res.ai.mechanisms")}
                       </summary>
@@ -203,15 +195,28 @@ export function AiResultAnalysis({
             )
           )}
           {summary && (
-            <p className="text-[10.5px] text-muted">
-              {t("res.ai.source", {
-                date: new Date(summary.generatedAt).toLocaleString(
-                  lang === "zh" ? "zh-CN" : "en-GB",
-                ),
-                model: summary.model,
-                hash: summary.sourceHash?.slice(0, 12) ?? "—",
-              })}
-            </p>
+            <details data-ai-context className="border-t border-line pt-2">
+              <summary className="cursor-pointer text-[11px] font-semibold text-muted">
+                {t("res.ai.context")}
+              </summary>
+              {analysis && (
+                <div className="mt-2 text-[12px]">
+                  <h3 className="font-semibold">{t("res.ai.purpose")}</h3>
+                  <p className="mt-1 whitespace-pre-wrap">
+                    {analysis.purpose[lang]}
+                  </p>
+                </div>
+              )}
+              <p className="mt-2 text-[10.5px] text-muted">
+                {t("res.ai.source", {
+                  date: new Date(summary.generatedAt).toLocaleString(
+                    lang === "zh" ? "zh-CN" : "en-GB",
+                  ),
+                  model: summary.model,
+                  hash: summary.sourceHash?.slice(0, 12) ?? "—",
+                })}
+              </p>
+            </details>
           )}
           {canAnalyze && (
             <div className="flex flex-wrap items-center gap-2">

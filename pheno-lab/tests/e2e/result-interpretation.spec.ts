@@ -60,6 +60,47 @@ test.beforeAll(async () => {
           lang: "en",
           model: "synthetic",
           generatedAt: "2026-01-01T00:00:00Z",
+          analysis: {
+            purpose: {
+              en: "Compare Candidate X with the untreated reference.",
+              zh: "比较候选材料X与未处理参照。",
+            },
+            objectiveAttainment: {
+              en: "Candidate X improves output. Retain it for a fixed-condition repeat.",
+              zh: "候选材料X提高了输出。保留该条件，固定工艺复验。",
+            },
+            groups: [
+              {
+                group: "C",
+                judgment: {
+                  en: "Candidate X has improvement potential.",
+                  zh: "候选材料X具有增效潜力。",
+                },
+                mainIssue: {
+                  en: "Only two devices were measured; test consistency next.",
+                  zh: "目前只有两片器件，下一轮重点确认一致性。",
+                },
+                nextTest: {
+                  en: "Repeat C and H with the same coating conditions.",
+                  zh: "固定涂布条件，配对复验C与H。",
+                },
+                mechanisms: [
+                  {
+                    en: "Uneven deposition may explain the spread.",
+                    zh: "沉积不均匀可能造成波动。",
+                  },
+                ],
+                expectedOutcome: {
+                  en: "Look for repeated gains with a narrower spread.",
+                  zh: "观察增效能否重复，同时减小波动。",
+                },
+                decision: {
+                  en: "Continue if the gain repeats; otherwise check deposition.",
+                  zh: "若增效重复出现则继续；否则先排查沉积。",
+                },
+              },
+            ],
+          },
         },
       },
       samples: {
@@ -184,6 +225,57 @@ for (const width of [390, 1440]) {
       const ai = page.locator("[data-ai-result-analysis]");
       await expect(ai).toBeVisible();
       await expect(ai.locator("[data-ai-stale]")).toBeVisible();
+      await expect(ai).toContainText(
+        lang === "en"
+          ? "Draft · researcher review needed"
+          : "草稿 · 待研究人员核对",
+      );
+      await expect(ai.locator("[data-ai-result-overview]")).toContainText(
+        lang === "en"
+          ? "Candidate X improves output. Retain it for a fixed-condition repeat."
+          : "候选材料X提高了输出。保留该条件，固定工艺复验。",
+      );
+      const aiGroup = ai.locator('[data-ai-group="C"]');
+      await expect(aiGroup.locator("[data-ai-judgment]")).toBeVisible();
+      await expect(aiGroup.locator("[data-ai-issue]")).toBeVisible();
+      await expect(aiGroup.locator("[data-ai-next]")).toBeVisible();
+      expect(
+        await aiGroup.evaluate((element) => {
+          const ordered = [
+            "[data-ai-judgment]",
+            "[data-ai-issue]",
+            "[data-ai-next]",
+            "[data-ai-reasoning]",
+          ].map((selector) => element.querySelector(selector)!);
+          return ordered.every(
+            (node, index) =>
+              index === 0 ||
+              Boolean(
+                ordered[index - 1].compareDocumentPosition(node) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+              ),
+          );
+        }),
+      ).toBe(true);
+      const context = ai.locator("[data-ai-context]");
+      await expect(context).not.toHaveAttribute("open");
+      await expect(
+        context.getByText(
+          lang === "en"
+            ? "Compare Candidate X with the untreated reference."
+            : "比较候选材料X与未处理参照。",
+        ),
+      ).not.toBeVisible();
+      await context.locator("summary").click();
+      await expect(context).toHaveAttribute("open");
+      await expect(
+        context.getByText(
+          lang === "en"
+            ? "Compare Candidate X with the untreated reference."
+            : "比较候选材料X与未处理参照。",
+        ),
+      ).toBeVisible();
+      await context.locator("summary").click();
       await expect(
         ai.getByRole("button", {
           name: lang === "en" ? "Regenerate analysis" : "重新生成分析",
@@ -199,12 +291,16 @@ for (const width of [390, 1440]) {
         .click();
       await expect(page).toHaveURL(/reference=A/);
       await expect(page.locator("#analysis-reference")).toHaveValue("A");
+      await expect(ai.locator("[data-ai-result-overview]")).toBeVisible();
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true);
       expect(errors).toEqual([]);
+      await ai.screenshot({
+        path: `test-results/result-interpretation-ai-${lang}-${width}.png`,
+      });
       await page.screenshot({
         path: `test-results/result-interpretation-${lang}-${width}.png`,
         fullPage: true,

@@ -182,7 +182,18 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
         expect(prompt).toContain(
           "Accepted device evidence governs numerical judgments",
         );
-        expect(summary?.promptVersion).toBe("concise-bilingual-results-v2");
+        expect(prompt).toContain(
+          "result and judgment first, the most important concrete question second, a specific next test third",
+        );
+        expect(prompt).toContain("Keep these three roles separate");
+        expect(prompt).toContain(
+          "Do not repeat general measurement policy, snapshot/cutoff, statistics definitions or generic disclaimers",
+        );
+        expect(prompt).toContain("Uncertainty words are allowed when needed");
+        expect(prompt).toContain(
+          "If a limitation blocks attribution, bound the judgment",
+        );
+        expect(summary?.promptVersion).toBe("concise-bilingual-results-v3");
       }
       ai.chat.mockResolvedValueOnce(null);
       expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
@@ -190,6 +201,38 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
       expect(state?.run?.state).toBe("failed");
       expect(state?.summary?.reviewState).toBe("draft");
       expect(state?.summary?.sourceHash).toBe(state?.evidenceHash);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("requires renewed review after the result-first prompt changes even when measurements are unchanged", async () => {
+    const f = await fixture();
+    try {
+      const summary = await generateAiSummary(f.owner, f.exp.id, "en");
+      expect(summary?.promptVersion).toBe("concise-bilingual-results-v3");
+      await reviewAiSummary(f.owner, f.exp.id, summary!.sourceHash!);
+      const row = await db.experiment.findUniqueOrThrow({
+        where: { id: f.exp.id },
+      });
+      const meta = JSON.parse(JSON.stringify(row.metadata));
+      meta.aiSummary.promptVersion = "concise-bilingual-results-v2";
+      await db.experiment.update({
+        where: { id: f.exp.id },
+        data: { metadata: meta },
+      });
+      const old = await getAiSummaryState(f.owner, f.exp.id);
+      expect(old?.evidenceHash).toBe(summary?.sourceHash);
+      expect(old?.summary?.reviewState).toBe("reviewed");
+      expect(old?.isStale).toBe(true);
+      await expect(
+        reviewAiSummary(f.owner, f.exp.id, summary!.sourceHash!),
+      ).rejects.toThrow();
+      const regenerated = await generateAiSummary(f.owner, f.exp.id, "en");
+      expect(regenerated?.sourceHash).toBe(summary?.sourceHash);
+      expect(regenerated?.promptVersion).toBe("concise-bilingual-results-v3");
+      expect(regenerated?.reviewState).toBe("draft");
+      expect((await getAiSummaryState(f.owner, f.exp.id))?.isStale).toBe(false);
     } finally {
       await f.cleanup();
     }
