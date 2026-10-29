@@ -9,6 +9,7 @@ import {
 import type { Actor } from "@/modules/authorization/actor";
 import { assertAdmin } from "@/modules/authorization/policy";
 import { recordUserAudit } from "@/modules/audit/writer";
+import { isOfficialDeepSeek } from "./provider-policy";
 import {
   aiModelListSchema,
   aiProviderIdSchema,
@@ -205,6 +206,7 @@ export async function testAiProvider(
         messages: [{ role: "user", content: "Reply with the single word: ok" }],
         max_tokens: 5,
         temperature: 0,
+        ...(isOfficialDeepSeek(p) ? { thinking: { type: "disabled" } } : {}),
       }),
       signal: AbortSignal.timeout(20_000),
     });
