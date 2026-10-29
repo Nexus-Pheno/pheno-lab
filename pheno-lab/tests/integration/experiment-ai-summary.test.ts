@@ -208,11 +208,29 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
           "Only an explicit source status such as NOT_RECORDED",
         );
         expect(prompt).toContain("Every en field must be English prose");
+        expect(prompt).toContain(
+          "evaluate mean PCE, highest PCE and device-to-device spread independently in every expectedOutcome and decision branch",
+        );
+        expect(prompt).toContain(
+          "Never use a mean-only condition to declare a highest-PCE screening signal absent",
+        );
+        expect(prompt).toContain(
+          "平均PCE回到对照范围：平均增益未复现。若最高PCE仍较高",
+        );
+        expect(prompt).toContain(
+          "The original material–solvent interaction and preparation differences remain unresolved; do not assign the original benefit to solvent",
+        );
+        expect(prompt).toContain(
+          "在该共同溶剂下，材料优势未复现。原条件中的材料与溶剂相互作用及制备差异仍待区分",
+        );
+        expect(prompt).toContain(
+          "self-check every field in both languages, including expectedOutcome and decision",
+        );
         const payload = JSON.parse(ai.chat.mock.lastCall?.[1][1].content);
         expect(payload.inputScope).toContain(
           "Omission is not a source-record absence",
         );
-        expect(summary?.promptVersion).toBe("concise-bilingual-results-v4");
+        expect(summary?.promptVersion).toBe("concise-bilingual-results-v5");
       }
       ai.chat.mockResolvedValueOnce(null);
       expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
@@ -229,13 +247,13 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
     const f = await fixture();
     try {
       const summary = await generateAiSummary(f.owner, f.exp.id, "en");
-      expect(summary?.promptVersion).toBe("concise-bilingual-results-v4");
+      expect(summary?.promptVersion).toBe("concise-bilingual-results-v5");
       await reviewAiSummary(f.owner, f.exp.id, summary!.sourceHash!);
       const row = await db.experiment.findUniqueOrThrow({
         where: { id: f.exp.id },
       });
       const meta = JSON.parse(JSON.stringify(row.metadata));
-      meta.aiSummary.promptVersion = "concise-bilingual-results-v3";
+      meta.aiSummary.promptVersion = "concise-bilingual-results-v4";
       await db.experiment.update({
         where: { id: f.exp.id },
         data: { metadata: meta },
@@ -249,7 +267,7 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
       ).rejects.toThrow();
       const regenerated = await generateAiSummary(f.owner, f.exp.id, "en");
       expect(regenerated?.sourceHash).toBe(summary?.sourceHash);
-      expect(regenerated?.promptVersion).toBe("concise-bilingual-results-v4");
+      expect(regenerated?.promptVersion).toBe("concise-bilingual-results-v5");
       expect(regenerated?.reviewState).toBe("draft");
       expect((await getAiSummaryState(f.owner, f.exp.id))?.isStale).toBe(false);
     } finally {
