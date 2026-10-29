@@ -1,5 +1,5 @@
 export const AI_SUMMARY_RULE_VERSION = "purpose-screening-0.5pp-v2";
-export const AI_SUMMARY_PROMPT_VERSION = "concise-bilingual-results-v3";
+export const AI_SUMMARY_PROMPT_VERSION = "concise-bilingual-results-v4";
 /** Serializable AI interpretation state; safe to import from client components. */
 export type AnalysisText = { en: string; zh: string };
 export type AiResultInterpretation = {

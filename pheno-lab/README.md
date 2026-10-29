@@ -105,7 +105,7 @@ applies the screening reference to the highest-PCE difference, and prioritizes
 fixed-condition repetition when a promising result has wide device-to-device
 spread. Missing recorded objectives remain explicitly plan-implied comparisons.
 
-Prompt version 3 and the panel use a result-first reading order: observed result
+Prompt version 4 and the panel use a result-first reading order: observed result
 and practical judgment, the concrete question that could change that judgment,
 then the next controlled experiment. Short separate sentences replace combined
 result/caveat/disclaimer clauses. General methods are not repeated per group;
@@ -114,6 +114,17 @@ collapsed context section. Important local limitations stay with the relevant
 decision, and possible mechanisms remain distinct from observations. Draft,
 stale-source and researcher-review controls remain visible. This is a writing
 contract, not a ban on uncertainty words or a relaxation of evidence checks.
+
+The prompt uses natural metric names, restricts a proposed test's expected
+outcome to the factors it actually changes or measures, and treats a failed
+repeat as a result not reproduced rather than proof of its cause. The payload
+explicitly distinguishes privacy-withheld details from an explicit source
+status reporting absent records. The privacy projection is unchanged. A small
+English-prose check rejects stray Chinese text through the existing generation
+failure path, preserving the earlier summary without retrying or approving it.
+Exact supplied material, condition or group names may appear quoted in English;
+group IDs themselves are excluded from the prose check. This lexical check is
+not a translation-quality or scientific-validity certification.
 
 The existing organization provider receives a reduced, privacy-filtered payload.
 Private molecular notation and full formulation payloads are withheld. Weekly

@@ -206,6 +206,34 @@ function flattenText(
     ),
   ].join("\n\n");
 }
+
+/** Check English prose, while allowing exact source names quoted as names. */
+function hasMixedEnglishProse(
+  analysis: z.infer<typeof aiResultInterpretationSchema>,
+  sourceNames: string[],
+) {
+  const fields = [
+    analysis.purpose,
+    analysis.objectiveAttainment,
+    ...analysis.groups.flatMap((group) => [
+      group.judgment,
+      group.mainIssue,
+      ...group.mechanisms,
+      group.nextTest,
+      group.expectedOutcome,
+      group.decision,
+    ]),
+  ];
+  const quotedNames = [...new Set(sourceNames)]
+    .filter((name) => /\p{Script=Han}/u.test(name))
+    .flatMap((name) => [`"${name}"`, `'${name}'`, `“${name}”`, `‘${name}’`]);
+  return fields.some(({ en }) => {
+    let prose = en;
+    for (const name of quotedNames) prose = prose.replaceAll(name, "");
+    return /\p{Script=Han}/u.test(prose);
+  });
+}
+
 function systemPrompt() {
   return [
     "You are the laboratory's experiment-results research collaborator. Return ONE JSON object with exactly the requested shape; no code fences.",
@@ -216,18 +244,22 @@ function systemPrompt() {
     "Field contract: judgment states the observed result pattern and the practical route decision. mainIssue names only the one or two gaps that could change that decision, with the actual missing factor or supplied sample count. nextTest says what to change or repeat, the reference and what to measure. Keep these three roles separate. If a limitation blocks attribution, bound the judgment and explain the named missing factor in mainIssue; do not remove that limitation or imply causality.",
     "objectiveAttainment opens with what the experiment achieved and the current decision. purpose gives the recorded question, or clearly labels a plan-implied comparison. Put a shared decision-critical issue here once if it affects the whole experiment; do not repeat it mechanically in every group. Do not repeat general measurement policy, snapshot/cutoff, statistics definitions or generic disclaimers: those belong in the app's common context and tables.",
     "For a plan-implied comparison, write 'Based on the design, this experiment compares…' / '按实验设计，本轮比较……', not the jargon 'plan-implied objective' / '计划隐含目标'. This does not turn the design into a recorded original research question.",
+    "Translate field names into laboratory language: write 'mean PCE improvement' / '平均PCE提高' and 'highest PCE improvement' / '最高PCE提高', not deltaMean, deltaBest, best-PCE or code-style flags. Use 'matched comparison' / '匹配对照比较', and 'regular annealing' / '常规退火'. Re-read both languages for complete, natural sentences and typing or translation errors before returning JSON.",
     "Make limitations useful: say which carrier fraction, blade gap, annealing record, reference or independent repetition is missing and how it affects the decision. Do not replace a concrete explanation with abstract phrases such as 'treatment identity not verified' or 'causal benefit cannot be established'. Uncertainty words are allowed when needed; targeted reasoning is required, not a word ban.",
     "Style example only, not facts for this experiment: avoid 'The treatment identity is unverified, so causal benefit cannot be established despite higher output.' Instead separate judgment 'Output is higher. Keep the condition for a controlled repeat.' from issue 'The actual carrier fraction and blade gap are missing, so we cannot yet tell which factor caused the change.' Use only the actual supplied evidence and factors in your answer.",
     "Name material and condition, not unexplained group letters. Distinguish design/step definitions, captured actuals, retrospective captures and missing execution. No deviations does not mean execution matched the plan.",
+    "Source scope: private actual-detail fields and sensitive formulation strings may be withheld from this analysis input. An omitted field or a '[Restricted… omitted]' / '[Detailed table withheld]' marker does not mean the laboratory failed to record it. Only an explicit source status such as NOT_RECORDED establishes missing records for that named condition. Otherwise say 'Confirm the actual settings in the run record' / '请核对制备记录中的实际条件'; if necessary explain that those settings are not available in this analysis input. Do not copy redaction markers or describe withheld details as unrecorded, missing execution or an observed deviation.",
     "Separate material/process potential from repeatability confidence. The +0.5 absolute PCE-point maximum gain is an exploratory screening reference, not significance or a confirmation threshold. Preserve a promising maximum with variable average; mean/dispersion improvements below the reference may have process value.",
     "Apply the +0.5 screening reference only to deltaBestPce, never deltaMeanPce. The reference is a proposed screening convention, not an experimental outcome to confirm or an unconfirmed material property.",
     "Do not make the +0.5 exploratory reference a required condition for advancing a process. A reproducible mean or consistency improvement can justify continuing below that reference; give the appropriate result-dependent decision without turning it into a confirmation gate.",
     "Check changed factors for the specific candidate/reference pair. A carrier or process shared by both groups is not a between-group difference or confound. Mention a cochanged factor only when the pair's source conditions explicitly differ; missing actual execution remains missing, not a proven difference.",
     "When a promising maximum accompanies large device-to-device spread, prioritize matched reference/candidate repetitions at fixed conditions and checking variation sources before widening concentrations or changing several factors.",
+    "Test identifiability: name what the proposed test changes and holds fixed, then limit expectedOutcome to that contrast. A concentration series in one fixed solvent can test a concentration response under that solvent; it cannot distinguish a solvent effect without another solvent arm. A common-solvent material pair tests the material contrast in that common context, not which factor caused the original cochanged comparison. If a named competing explanation is not varied or separately measured, say which additional controlled contrast or measurement would distinguish it.",
+    "A repeat with no gain means the earlier gain was not reproduced under the tested conditions. It does not prove the earlier gain was run/device variation or establish another cause. For that branch, pause expansion and check the named preparation, measurement or material alternatives; keep the cause unresolved until discriminating evidence exists. Use separate positive, negative and mixed/invalid outcomes when they lead to different actions, without inventing numerical success criteria.",
     "Use purpose-specific judgments: material/passivant potential; process consistency; SAM Voc/FF trade-offs; substrate original optical/electrical/device objectives. Missing molecular identity blocks structure-specific explanations, not qualified numerical screening judgments.",
     "Never pool characterization stages or incompatible protocols. If group labels recur, name the relevant characterization/stage in each judgment. Rank at most two conditional explanations per group. Keep observed results, possible causes and unanswered questions distinct: mechanisms must use conditional language, while expectedOutcome and decision describe a proposed test and different result-dependent actions. Focus on decision-changing issues, not generic wetting/contact essays. Do not describe proposals as executed work.",
     "Never emit private structures, SMILES, formulas, reconstructive descriptors or full proprietary recipes. Do not propose a new chemical structure.",
-    "JSON shape: {purpose:{en,zh},objectiveAttainment:{en,zh},groups:[{group,judgment:{en,zh},mainIssue:{en,zh},mechanisms:[{en,zh}],nextTest:{en,zh},expectedOutcome:{en,zh},decision:{en,zh}}]}. Use only supplied group labels. English and Chinese must express equivalent conditions and decisions. Use natural technical English and Chinese, without stray words from other languages; preserve supplied material names and standard abbreviations.",
+    "JSON shape: {purpose:{en,zh},objectiveAttainment:{en,zh},groups:[{group,judgment:{en,zh},mainIssue:{en,zh},mechanisms:[{en,zh}],nextTest:{en,zh},expectedOutcome:{en,zh},decision:{en,zh}}]}. Use only supplied group labels. English and Chinese must express equivalent conditions and decisions. Every en field must be English prose, with no stray Chinese words. Preserve supplied Latin material names and standard abbreviations. If a material or condition has only a supplied Chinese name, quote that exact source name inside the English sentence; do not invent an English chemical identity. Group IDs are identifiers, not prose. Every zh field must use natural Chinese sentences with standard material names and metric abbreviations.",
   ].join("\n");
 }
 
@@ -442,6 +474,8 @@ async function perform(
             projectAnalysisPayload(
               {
                 experiment: evidence.experiment,
+                inputScope:
+                  "Privacy-filtered analysis input: actual-detail fields and sensitive strings may be withheld. Omission is not a source-record absence; only an explicit condition status such as NOT_RECORDED establishes that absence.",
                 reference: evidence.reference,
                 policyVersion: evidence.policyVersion,
                 evaluationFocus: evidence.evaluationFocus,
@@ -494,6 +528,18 @@ async function perform(
     const parsed = aiResultInterpretationSchema.safeParse(jsonFrom(reply));
     if (
       !parsed.success ||
+      (parsed.success &&
+        hasMixedEnglishProse(parsed.data, [
+          ...exp.steps.flatMap((step) =>
+            step.materials.map(({ material }) => material.name),
+          ),
+          ...evidence.conditions.flatMap((condition) =>
+            Object.values(condition.values),
+          ),
+          ...evidence.characterizations.flatMap((characterization) =>
+            characterization.groups.map((group) => group.label),
+          ),
+        ])) ||
       containsRestrictedAnalysisText(
         JSON.stringify(parsed.success ? parsed.data : {}),
         privateNotations,
