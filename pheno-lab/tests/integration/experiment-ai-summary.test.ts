@@ -151,6 +151,50 @@ async function settle(actor: Actor, id: string) {
 }
 
 describe("versioned AI result interpretation against guarded PostgreSQL", () => {
+  it("reserves final-output budget only for official DeepSeek summaries", async () => {
+    const f = await fixture();
+    try {
+      for (const [provider, baseUrl, maxTokens, timeoutMs] of [
+        ["deepseek", "https://api.deepseek.com", 12000, 110000],
+        ["deepseek", "https://proxy.example.test/v1", 6500, 55000],
+        ["custom", "https://api.deepseek.com", 6500, 55000],
+      ] as const) {
+        ai.activeProvider.mockResolvedValue({
+          id: "synthetic-provider",
+          provider,
+          baseUrl,
+          model: "synthetic-model",
+        });
+        const summary = await generateAiSummary(f.owner, f.exp.id, "en");
+        expect(summary?.reviewState).toBe("draft");
+        expect(ai.chat.mock.lastCall?.[2]).toMatchObject({
+          structuredJson: true,
+          maxTokens,
+          timeoutMs,
+        });
+        const prompt = ai.chat.mock.lastCall?.[1][0].content;
+        expect(prompt).toContain("only to deltaBestPce, never deltaMeanPce");
+        expect(prompt).toContain(
+          "shared by both groups is not a between-group difference or confound",
+        );
+        expect(prompt).toContain("repetitions at fixed conditions");
+        expect(prompt).toContain("plan-implied comparison");
+        expect(prompt).toContain(
+          "Accepted device evidence governs numerical judgments",
+        );
+        expect(summary?.promptVersion).toBe("concise-bilingual-results-v2");
+      }
+      ai.chat.mockResolvedValueOnce(null);
+      expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
+      const state = await getAiSummaryState(f.owner, f.exp.id);
+      expect(state?.run?.state).toBe("failed");
+      expect(state?.summary?.reviewState).toBe("draft");
+      expect(state?.summary?.sourceHash).toBe(state?.evidenceHash);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it("keeps an IN_LAB analysis advisory, supports review and detects child-result changes", async () => {
     const f = await fixture();
     try {

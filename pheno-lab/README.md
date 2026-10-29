@@ -94,6 +94,17 @@ results and prior summaries. Source fingerprints, policy/prompt versions, fresh
 permissions and generation tokens prevent stale responses from replacing current
 evidence. Authorized editors can mark only the current source version reviewed.
 
+On the official DeepSeek endpoint, result interpretation explicitly requests final
+JSON with low reasoning effort, a 12,000-token total budget and a 110-second
+timeout, below the existing three-minute stale-run lease. Blank or token-truncated
+final answers remain failures; reasoning text is never used or saved. Other
+providers and other chat features retain their existing request behavior. The
+tiny official DeepSeek connection check disables thinking only for its probe.
+Prompt version 2 also distinguishes a shared carrier from a changed factor,
+applies the screening reference to the highest-PCE difference, and prioritizes
+fixed-condition repetition when a promising result has wide device-to-device
+spread. Missing recorded objectives remain explicitly plan-implied comparisons.
+
 The existing organization provider receives a reduced, privacy-filtered payload.
 Private molecular notation and full formulation payloads are withheld. Weekly
 reporting reads the same deterministic evidence and may reuse only a current,
