@@ -131,6 +131,7 @@ async function fixture() {
     owner,
     outsider,
     exp,
+    process,
     results,
     cleanup: async () => {
       await db.auditEvent.deleteMany({ where: { organizationId: org.id } });
@@ -193,7 +194,25 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
         expect(prompt).toContain(
           "If a limitation blocks attribution, bound the judgment",
         );
-        expect(summary?.promptVersion).toBe("concise-bilingual-results-v3");
+        expect(prompt).toContain("mean PCE improvement' / '平均PCE提高'");
+        expect(prompt).toContain(
+          "cannot distinguish a solvent effect without another solvent arm",
+        );
+        expect(prompt).toContain(
+          "It does not prove the earlier gain was run/device variation",
+        );
+        expect(prompt).toContain(
+          "An omitted field or a '[Restricted… omitted]'",
+        );
+        expect(prompt).toContain(
+          "Only an explicit source status such as NOT_RECORDED",
+        );
+        expect(prompt).toContain("Every en field must be English prose");
+        const payload = JSON.parse(ai.chat.mock.lastCall?.[1][1].content);
+        expect(payload.inputScope).toContain(
+          "Omission is not a source-record absence",
+        );
+        expect(summary?.promptVersion).toBe("concise-bilingual-results-v4");
       }
       ai.chat.mockResolvedValueOnce(null);
       expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
@@ -210,13 +229,13 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
     const f = await fixture();
     try {
       const summary = await generateAiSummary(f.owner, f.exp.id, "en");
-      expect(summary?.promptVersion).toBe("concise-bilingual-results-v3");
+      expect(summary?.promptVersion).toBe("concise-bilingual-results-v4");
       await reviewAiSummary(f.owner, f.exp.id, summary!.sourceHash!);
       const row = await db.experiment.findUniqueOrThrow({
         where: { id: f.exp.id },
       });
       const meta = JSON.parse(JSON.stringify(row.metadata));
-      meta.aiSummary.promptVersion = "concise-bilingual-results-v2";
+      meta.aiSummary.promptVersion = "concise-bilingual-results-v3";
       await db.experiment.update({
         where: { id: f.exp.id },
         data: { metadata: meta },
@@ -230,7 +249,7 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
       ).rejects.toThrow();
       const regenerated = await generateAiSummary(f.owner, f.exp.id, "en");
       expect(regenerated?.sourceHash).toBe(summary?.sourceHash);
-      expect(regenerated?.promptVersion).toBe("concise-bilingual-results-v3");
+      expect(regenerated?.promptVersion).toBe("concise-bilingual-results-v4");
       expect(regenerated?.reviewState).toBe("draft");
       expect((await getAiSummaryState(f.owner, f.exp.id))?.isStale).toBe(false);
     } finally {
@@ -381,6 +400,124 @@ describe("versioned AI result interpretation against guarded PostgreSQL", () => 
       expect((await getAiSummaryState(f.owner, f.exp.id))?.run?.state).toBe(
         "failed",
       );
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("rejects stray Chinese in every English prose field without replacing or approving a prior summary", async () => {
+    const f = await fixture();
+    try {
+      const old = await generateAiSummary(f.owner, f.exp.id, "en");
+      const reviewed = await reviewAiSummary(
+        f.owner,
+        f.exp.id,
+        old!.sourceHash!,
+      );
+      for (let index = 0; index < 8; index++) {
+        const response = JSON.parse(reply());
+        const group = response.groups[0];
+        const fields = [
+          response.purpose,
+          response.objectiveAttainment,
+          group.judgment,
+          group.mainIssue,
+          group.mechanisms[0],
+          group.nextTest,
+          group.expectedOutcome,
+          group.decision,
+        ];
+        fields[index].en = "Keep 常规 annealing for the controlled repeat.";
+        ai.chat.mockResolvedValueOnce(JSON.stringify(response));
+        expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
+        const state = await getAiSummaryState(f.owner, f.exp.id);
+        expect(state?.run?.state).toBe("failed");
+        expect(state?.summary).toEqual(reviewed);
+        expect(ai.chat).toHaveBeenCalledTimes(index + 2);
+      }
+      expect(
+        await db.auditEvent.count({
+          where: { organizationId: f.org.id, action: "experiment.aiSummary" },
+        }),
+      ).toBe(1);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            organizationId: f.org.id,
+            action: "experiment.aiSummary.reviewed",
+          },
+        }),
+      ).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("allows exact quoted source material names in English without allowing unrelated quoted Chinese prose", async () => {
+    const f = await fixture();
+    try {
+      await db.experiment.update({
+        where: { id: f.exp.id },
+        data: {
+          metadata: {
+            testPlan: {
+              variables: [
+                {
+                  kind: "material",
+                  processId: f.process.id,
+                  layer: "SAM",
+                  parameter: "SAM material",
+                  unit: "",
+                  values: { A: "Reference-SAM", B: "合成候选甲" },
+                },
+              ],
+              groups: [
+                { label: "A", isControl: true, samples: 1 },
+                { label: "B", isControl: false, samples: 1 },
+              ],
+            },
+          },
+        },
+      });
+      ai.chat.mockResolvedValueOnce(
+        reply('Retain "合成候选甲" for a controlled repeat.'),
+      );
+      const accepted = await generateAiSummary(f.owner, f.exp.id, "en");
+      expect(accepted?.analysis?.groups[0].judgment.en).toBe(
+        'Retain "合成候选甲" for a controlled repeat.',
+      );
+      expect(accepted?.reviewState).toBe("draft");
+      expect(ai.chat.mock.lastCall?.[1][1].content).toContain("合成候选甲");
+      for (const english of [
+        "Retain 合成候选甲 for a controlled repeat.",
+        'Keep "常规" annealing for a controlled repeat.',
+      ]) {
+        ai.chat.mockResolvedValueOnce(reply(english));
+        expect(await generateAiSummary(f.owner, f.exp.id, "en")).toBeNull();
+        expect((await getAiSummaryState(f.owner, f.exp.id))?.summary).toEqual(
+          accepted,
+        );
+      }
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("does not treat a Chinese group identifier as mixed English prose", async () => {
+    const f = await fixture();
+    try {
+      await db.sample.updateMany({
+        where: { experimentId: f.exp.id, variationGroup: "B" },
+        data: { variationGroup: "候选组" },
+      });
+      const response = JSON.parse(reply());
+      response.groups[0].group = "候选组";
+      response.groups[0].judgment.en =
+        'Retain "候选组" for a controlled repeat.';
+      ai.chat.mockResolvedValueOnce(JSON.stringify(response));
+      const accepted = await generateAiSummary(f.owner, f.exp.id, "en");
+      expect(accepted?.analysis?.groups[0].group).toBe("候选组");
+      expect(accepted?.reviewState).toBe("draft");
     } finally {
       await f.cleanup();
     }
