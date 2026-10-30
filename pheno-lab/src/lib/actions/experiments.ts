@@ -2,6 +2,7 @@
 
 import type { ExperimentStatus, Prisma } from "@prisma/client";
 import { queueTranslations } from "@/modules/translations/service";
+import { TestPlanStepError } from "@/modules/experiments/plan-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -350,7 +351,16 @@ export async function reviewAiSummary(
 }
 
 export async function applyTestPlan(experimentId: string, plan: TestPlan) {
-  return applyTestPlanService(await requireSession(), experimentId, plan);
+  const actor = await requireSession();
+  try {
+    const experiment = await applyTestPlanService(actor, experimentId, plan);
+    revalidatePath(`/experiments/${experimentId}`);
+    return { ok: true, experiment } as const;
+  } catch (error) {
+    if (error instanceof TestPlanStepError)
+      return { ok: false, error: error.code } as const;
+    throw error;
+  }
 }
 
 export async function updatePreset(

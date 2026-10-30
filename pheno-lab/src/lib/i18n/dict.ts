@@ -85,6 +85,12 @@ export const en = {
   "res.ai.advisory":
     "Advisory interpretation; verify facts and conditions before a research decision. The scientist’s conclusion stays separate.",
 
+  "plan.applyError.ambiguous":
+    "Several steps match a plan variable. Specify its equipment and device layer, or distinguish duplicate steps, then apply again. No changes were applied.",
+  "plan.applyError.duplicate":
+    "The same parameter is defined more than once for one process step. Merge these variables, then apply again. No changes were applied.",
+  "plan.applyError.failed":
+    "The plan could not be applied. Your draft is retained; review the settings and retry.",
   "testing.status.edit": "Edit request status",
   "testing.status.hint":
     "A correction applies to the current request batch. New submissions restore automatic status. It does not change test results.",
@@ -1864,6 +1870,11 @@ export const zh: Record<TKey, string> = {
   "res.ai.advisory":
     "辅助解释；作研发决策前请核对事实与条件，研究人员结论独立保留。",
 
+  "plan.applyError.ambiguous":
+    "方案变量匹配到多个工序。请明确设备和器件层，或区分重复工序后重试；本次未应用任何修改。",
+  "plan.applyError.duplicate":
+    "同一工序的同一参数在方案中定义了多次。请合并这些变量后重试；本次未应用任何修改。",
+  "plan.applyError.failed": "应用方案失败，编辑内容已保留，请核对设置后重试。",
   "testing.status.edit": "修改需求状态",
   "testing.status.hint":
     "修正仅适用于当前这批需求；新增需求后恢复自动判断，不会修改测试数据。",

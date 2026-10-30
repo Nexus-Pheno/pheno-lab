@@ -18,6 +18,11 @@ import {
   syncSampleSerials,
 } from "@/modules/instruments/sample-serial-service";
 import { assertEdit, assertEditByChar, assertEditByStep } from "./access";
+import {
+  findTestPlanStep,
+  planParameterKey,
+  TestPlanStepError,
+} from "./plan-routing";
 import { reconcileSamples } from "./sample-plan-service";
 import {
   characterizationDraftSchema,
@@ -308,8 +313,11 @@ export async function saveStep(
 
 // Labels are generated automatically from what the experiment actually uses:
 // processes, equipment, materials, and tested variables.
-export async function syncAutoLabels(experimentId: string) {
-  const exp = await db.experiment.findUnique({
+export async function syncAutoLabels(
+  experimentId: string,
+  client: Prisma.TransactionClient = db,
+) {
+  const exp = await client.experiment.findUnique({
     where: { id: experimentId },
     include: {
       steps: {
@@ -336,16 +344,16 @@ export async function syncAutoLabels(experimentId: string) {
   for (const c of exp.characterizations) names.add(c.process.name);
   for (const v of plan?.variables ?? []) names.add(`var:${v.parameter}`);
 
-  await db.experimentLabel.deleteMany({ where: { experimentId } });
+  await client.experimentLabel.deleteMany({ where: { experimentId } });
   for (const name of names) {
-    const label = await db.label.upsert({
+    const label = await client.label.upsert({
       where: {
         organizationId_name: { organizationId: exp.organizationId, name },
       },
       update: {},
       create: { organizationId: exp.organizationId, name },
     });
-    await db.experimentLabel.create({
+    await client.experimentLabel.create({
       data: { experimentId, labelId: label.id },
     });
   }
@@ -576,22 +584,96 @@ export async function applyTestPlan(
     });
     const oldPlan = (expBefore.metadata as { testPlan?: TestPlan } | null)
       ?.testPlan;
+
+    // Resolve every destination before reconciling samples or old variables.
+    // Multiple steps with the same process can build entirely different layers.
+    const bindings: {
+      variable: TestPlan["variables"][number];
+      stepId: string;
+    }[] = [];
+    const destinations = new Set<string>();
+    for (const v of variables) {
+      const candidates = await tx.processStep.findMany({
+        where: { experimentId, processId: v.processId },
+        orderBy: { position: "asc" },
+        include: { parameters: true },
+      });
+      let step = findTestPlanStep(v, candidates);
+      if (!step) {
+        const process = await tx.process.findUniqueOrThrow({
+          where: { id: v.processId },
+        });
+        const count = await tx.processStep.count({ where: { experimentId } });
+        const defs = Array.isArray(process.parameters)
+          ? (process.parameters as {
+              name: string;
+              unit: string;
+              defaultValue: string;
+            }[])
+          : [];
+        step = await tx.processStep.create({
+          data: {
+            experimentId,
+            position: count,
+            processId: v.processId,
+            name: process.name,
+            equipmentId: v.equipmentId || null,
+            layer: v.layer || process.defaultLayer,
+            parameters: {
+              create: defs.map((d, i) => ({
+                position: i,
+                name: d.name,
+                unit: d.unit,
+                value: d.defaultValue,
+                source: "process",
+              })),
+            },
+          },
+          include: { parameters: true },
+        });
+      } else {
+        await tx.processStep.update({
+          where: { id: step.id },
+          data: {
+            ...(!step.equipmentId && v.equipmentId
+              ? { equipmentId: v.equipmentId }
+              : {}),
+            ...(!step.layer && v.layer ? { layer: v.layer } : {}),
+          },
+        });
+      }
+      const key = planParameterKey(step.id, v.parameter);
+      if (destinations.has(key)) throw new TestPlanStepError("duplicate");
+      destinations.add(key);
+      bindings.push({ variable: v, stepId: step.id });
+    }
+
+    const resolvedSteps = await tx.processStep.findMany({
+      where: { experimentId },
+    });
+    for (const { variable, stepId } of bindings) {
+      if (findTestPlanStep(variable, resolvedSteps)?.id !== stepId)
+        throw new TestPlanStepError("ambiguous");
+    }
+
     // 1. Remove variations wired by the previous plan that are no longer part
     //    of the new plan (e.g. the tested process was changed).
     for (const old of oldPlan?.variables ?? []) {
-      const stillThere = variables.some(
-        (v) =>
-          v.processId === old.processId &&
-          v.parameter.toLowerCase() === old.parameter.toLowerCase(),
-      );
-      if (stillThere) continue;
       const oldSteps = await tx.processStep.findMany({
-        where: { experimentId, processId: old.processId },
+        where: {
+          experimentId,
+          processId: old.processId,
+          ...(old.equipmentId ? { equipmentId: old.equipmentId } : {}),
+          ...(old.layer ? { layer: old.layer } : {}),
+        },
         include: { parameters: true },
       });
       for (const st of oldSteps) {
+        if (destinations.has(planParameterKey(st.id, old.parameter))) continue;
         const param = st.parameters.find(
-          (pp) => pp.name.toLowerCase() === old.parameter.toLowerCase(),
+          (pp) =>
+            planParameterKey(st.id, pp.name) ===
+            planParameterKey(st.id, old.parameter),
         );
         if (!param) continue;
         await tx.parameterVariation.deleteMany({
@@ -632,76 +714,23 @@ export async function applyTestPlan(
     await reconcileSamples(tx, actor.org, experimentId, desired);
     await syncSampleSerials(tx, experimentId);
 
-    // 3. Wire each variable onto its process step.
-    for (const v of variables) {
-      // Prefer the step already running on the machine named by the variable.
-      let step = v.equipmentId
-        ? await tx.processStep.findFirst({
-            where: {
-              experimentId,
-              processId: v.processId,
-              equipmentId: v.equipmentId,
-            },
-            orderBy: { position: "asc" },
-            include: { parameters: true },
-          })
-        : null;
-      step ??= await tx.processStep.findFirst({
-        where: { experimentId, processId: v.processId },
-        orderBy: { position: "asc" },
+    // 3. Fill each resolved step, including its current parameter list.
+    for (const { variable: v, stepId } of bindings) {
+      const step = await tx.processStep.findUniqueOrThrow({
+        where: { id: stepId },
         include: { parameters: true },
       });
-      if (!step) {
-        const process = await tx.process.findUniqueOrThrow({
-          where: { id: v.processId },
-        });
-        const count = await tx.processStep.count({ where: { experimentId } });
-        const defs = Array.isArray(process.parameters)
-          ? (process.parameters as {
-              name: string;
-              unit: string;
-              defaultValue: string;
-            }[])
-          : [];
-        step = await tx.processStep.create({
-          data: {
-            experimentId,
-            position: count,
-            processId: v.processId,
-            name: process.name,
-            equipmentId: v.equipmentId || null,
-            layer: v.layer || process.defaultLayer,
-            parameters: {
-              create: defs.map((d, i) => ({
-                position: i,
-                name: d.name,
-                unit: d.unit,
-                value: d.defaultValue,
-                source: "process",
-              })),
-            },
-          },
-          include: { parameters: true },
-        });
-      } else if (v.equipmentId || v.layer) {
-        // Keep the flow in sync with what the plan says is being tested.
-        await tx.processStep.update({
-          where: { id: step.id },
-          data: {
-            ...(v.equipmentId ? { equipmentId: v.equipmentId } : {}),
-            ...(v.layer ? { layer: v.layer } : {}),
-          },
-        });
-      }
-
       let param = step.parameters.find(
-        (pp) => pp.name.toLowerCase() === v.parameter.toLowerCase(),
+        (pp) =>
+          planParameterKey(step.id, pp.name) ===
+          planParameterKey(step.id, v.parameter),
       );
       if (!param) {
         param = await tx.stepParameter.create({
           data: {
             stepId: step.id,
-            position: step.parameters.length,
+            position:
+              Math.max(-1, ...step.parameters.map((p) => p.position)) + 1,
             name: v.parameter,
             unit: v.unit,
             value: v.values[control.label] ?? "",
@@ -753,14 +782,15 @@ export async function applyTestPlan(
           kind: variable.kind,
           processId: variable.processId,
           equipmentId: variable.equipmentId,
+          layer: variable.layer,
           parameter: variable.parameter,
         })),
       },
     });
+    await syncAutoLabels(experimentId, tx);
     await notifyTestingCompletion(tx, actor.org, experimentId);
   });
 
-  await syncAutoLabels(experimentId);
   // Refresh derived instrument results without rebuilding samples.
   await refreshExperimentSerials(experimentId);
   return db.experiment.findUniqueOrThrow({

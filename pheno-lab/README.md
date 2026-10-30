@@ -139,6 +139,15 @@ reviewed interpretation using the same comparison selection; it still requires
 independent numerical, scientific and privacy review. See the read-only operator
 [evidence export](src/modules/reports/README.md#shared-experiment-evidence-for-the-reporting-workflow).
 
+## DOE test plans
+
+Applying a test plan resolves each variable to its process, selected equipment
+and device layer together. Configured steps in another scope are preserved;
+a uniquely compatible unassigned step may be completed, or a missing scoped
+step is added. Multiple matches or duplicate parameter targets reject the whole
+application and keep the editor draft. Reapplying/moving variables reconciles
+old variations within their previous scope in the same audited transaction.
+
 ## Security & backups
 
 - Sessions are signed JWTs in httpOnly cookies; passwords are bcrypt-hashed;
