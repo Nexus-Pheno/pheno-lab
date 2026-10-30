@@ -1,5 +1,6 @@
 "use client";
 
+import type { TestPlanApplyError } from "@/modules/experiments/plan-routing";
 import { useState } from "react";
 import type { Process, Equipment } from "@prisma/client";
 import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
@@ -66,7 +67,7 @@ export function TestPlanCard({
   samples: { code: string; variationGroup: string | null }[];
   canEdit: boolean;
   canManageMaterials?: boolean;
-  onApply: (plan: TestPlan) => Promise<void>;
+  onApply: (plan: TestPlan) => Promise<TestPlanApplyError | null>;
   onMaterialCreated?: (m: Material) => void;
 }) {
   const t = useT();
@@ -80,6 +81,7 @@ export function TestPlanCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<TestPlan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [applyError, setApplyError] = useState<TestPlanApplyError | null>(null);
   // Creating a material mid-plan must not lose the draft — the modal overlays
   // this page and the saved name drops straight into the pending select.
   const [addTarget, setAddTarget] = useState<AddMaterialTarget | null>(null);
@@ -149,6 +151,7 @@ export function TestPlanCard({
           }
         : emptyPlan(processing[0]?.id ?? "")
     );
+    setApplyError(null);
     setEditing(true);
   };
 
@@ -655,15 +658,28 @@ export function TestPlanCard({
                     })),
                   }
                 : draft;
-            await onApply(toApply);
-            setBusy(false);
-            setEditing(false);
+            setApplyError(null);
+            try {
+              const error = await onApply(toApply);
+              setApplyError(error);
+              if (!error) setEditing(false);
+            } catch {
+              setApplyError("failed");
+            } finally {
+              setBusy(false);
+            }
           }}
           className="h-8 shrink-0 whitespace-nowrap bg-ink text-white rounded-[4px] px-4 text-[12px] font-bold disabled:opacity-50"
         >
           {t("plan.apply")}
         </button>
       </div>
+
+      {applyError && (
+        <p role="alert" className="text-[12px] text-danger mt-2">
+          {t(`plan.applyError.${applyError}`)}
+        </p>
+      )}
 
       {/* In-page material creation — the plan draft stays intact underneath. */}
       {addTarget && (

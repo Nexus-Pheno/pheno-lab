@@ -340,8 +340,14 @@ export default function Designer({
   };
 
   const handleApplyTestPlan = async (plan: TestPlan) => {
-    const fresh = await track(applyTestPlan(exp.id, plan));
-    if (fresh) setExp(fresh as ExperimentFull);
+    const result = await track(applyTestPlan(exp.id, plan));
+    if (!result) return "failed" as const;
+    if (!result.ok) {
+      setSaveState("error");
+      return result.error;
+    }
+    setExp(result.experiment as ExperimentFull);
+    return null;
   };
 
   const handleSaveStepPreset = async (name: string, draft: StepDraft) => {
