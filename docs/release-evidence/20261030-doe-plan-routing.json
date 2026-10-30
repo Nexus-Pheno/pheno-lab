@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "scope": "DOE plan variable routing by process, equipment and device layer",
+  "release": {
+    "releaseId": "20261030-001",
+    "applicationCommit": "3deb99792774819c785e98a354a9e69e3054a7c8",
+    "artifactSha256": "50f7c996f8bfd8f122bcb0cabbbaf9fac18656c4922ff08a1f5a57cf32ebb6db",
+    "sourceCleanAtBuildAndAfterDeployment": true,
+    "trackedRuntimeFilesMatchedCommit": 496,
+    "latestPublishedReportingPreserved": true,
+    "databaseReady": true,
+    "cosReady": true,
+    "publicHttpsLiveness": true,
+    "httpToHttpsStatus": 301,
+    "serviceUser": "pheno",
+    "loopbackPort": 3457,
+    "automaticRestarts": 0,
+    "nginxActive": true,
+    "releaseDirectoriesRetained": 5,
+    "previousReleaseId": "20261029-004",
+    "prunedReleaseId": "20261028-003",
+    "temporaryEnvironmentBackupRemoved": true,
+    "readinessVerifiedAt": "2026-10-30T07:51:26.247Z",
+    "verifiedAt": "2026-10-30T07:51:28.829323+00:00"
+  },
+  "applicationCommitUrl": "https://github.com/Nexus-Pheno/pheno-lab/commit/3deb99792774819c785e98a354a9e69e3054a7c8",
+  "applicationPullRequest": 132,
+  "checks": {
+    "prCi": 41020463822,
+    "mainCi": 41021266227,
+    "bothCiSuccessful": true,
+    "unitTests": 315,
+    "guardedPostgresIntegrationTests": 173,
+    "linuxBrowserTests": 61,
+    "affectedMicrosoftEdgeTests": 15,
+    "typecheck": true,
+    "format": true,
+    "architecture": true,
+    "productionBuild": true,
+    "existingLintWarnings": 10,
+    "schemaDrift": false,
+    "nativeWindowsVerifyLimitation": "deploy:check cannot find /bin/bash; complete Linux PR/main CI passed",
+    "initialParallelWindowsAttempt": "Native process/test PostgreSQL interrupted; sequential rerun passed"
+  },
+  "deployment": {
+    "canonicalGithubPullBuildReleaseChain": true,
+    "sourcePulledAfterMainCiSuccess": true,
+    "initialLocalLogEncodingFailure": true,
+    "initialAttemptStoppedBeforeSwitch": true,
+    "originalEnvironmentRestoredAndVerifiedByteForByte": true,
+    "interruptedTemporaryBackupRemoved": true,
+    "existingBuiltArtifactReusedAfterChecksumValidation": true,
+    "canonicalDeployResumeExitCode": 0,
+    "onlyAppVersionEnvironmentChanged": true,
+    "environmentOwnerGroupModeInodeAclPreserved": true,
+    "existingMigrations": 47,
+    "pendingMigrations": 0,
+    "legacyAiCredentialsEncrypted": 0,
+    "schemaMigrationAdded": false,
+    "historicalScientificDataBackfill": false
+  },
+  "aggregateDataChecks": {
+    "before": {
+      "experiment": 1110,
+      "sample": 20274,
+      "stepExecution": 7934,
+      "characterizationResult": 24660,
+      "attachment": 45846,
+      "jvMeasurement": 42492,
+      "testingRequest": 26
+    },
+    "after": {
+      "experiment": 1110,
+      "sample": 20274,
+      "stepExecution": 7934,
+      "characterizationResult": 24660,
+      "attachment": 45846,
+      "jvMeasurement": 42498,
+      "testingRequest": 26
+    },
+    "userAccessDigestUnchanged": true,
+    "userCountBefore": 29,
+    "userCountAfter": 29,
+    "appliedMigrationsBefore": 47,
+    "appliedMigrationsAfter": 47,
+    "measurementCountChangeDuringLiveService": 6,
+    "completeScientificDataUnchangedClaimed": false
+  },
+  "productionBrowser": {
+    "browser": "Microsoft Edge",
+    "publicRouteChecks": [
+      {
+        "width": 1600,
+        "path": "/login",
+        "status": "passed"
+      },
+      {
+        "width": 1600,
+        "path": "/experiments",
+        "status": "passed"
+      },
+      {
+        "width": 1600,
+        "path": "/testing",
+        "status": "passed"
+      },
+      {
+        "width": 1600,
+        "path": "/reports",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/login",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/experiments",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/testing",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/reports",
+        "status": "passed"
+      }
+    ],
+    "anonymousReadinessDenied": true,
+    "pageErrors": 0,
+    "outerOverflow": false,
+    "authenticatedProductionUiAcceptance": false,
+    "sessionFabrication": false,
+    "scientificMutations": false
+  },
+  "journal": {
+    "journalLinesReviewed": 200,
+    "startupMarkerInWindow": true,
+    "currentStartupLines": 9,
+    "errorLinesSinceStartup": 0,
+    "serverActionVersionMismatch": 0,
+    "serverActionIdentifierLengths": {},
+    "otherCriticalErrorsSinceStartup": 0,
+    "distinctMismatchedActions": 0,
+    "mismatchedActionsKnownToPreviousReleaseOnly": 0,
+    "mismatchedActionsKnownToCurrentRelease": 0,
+    "mismatchedActionsUnknownToBoth": 0
+  },
+  "acceptanceLimits": {
+    "authenticatedProductionDoeMutationPerformed": false,
+    "humanAcceptanceClaimed": false,
+    "productionSessionsFabricated": false,
+    "codeRollbackDoesNotRollBackDatabaseOrCos": true
+  }
+}

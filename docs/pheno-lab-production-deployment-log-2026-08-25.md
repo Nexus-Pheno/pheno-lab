@@ -2101,3 +2101,15 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - 两个真实 v5 中英文草稿最终均来源当前。第二个案例首次失败后保留旧版并标为过期；只读确认状态后仅作一次有界重试，57.3 秒完成。实际双语逐段复核观察到平均／最高值／离散分支修正，但未将全文标记科研通过：可选机制仍有“溶液浓度”与“沉积量”的量纲表述问题，个别来源／计划实际／相对参照表述及取样可行性需要研究者核对。旧的 A 组共同溶剂阴性分支未在本次生成中出现，不宣称该分支已有真实输出覆盖。两个草稿均未研究者通过、未用于已发布报告，没有手工改写提供方文本冒充生成结果。
 - 上述易读修订报告、完整 71 条台账及历史保持不变；只有原五位现有授权收件人的五条通知，无重复发布。正常生产登录页已按用户要求在应用内打开并保留，用户尚未正常登录，因此不宣称已完成登录后屏幕验收，也未制造会话或提取密码。聚合证据：[release-evidence/20261029-report-language-clarity.json](release-evidence/20261029-report-language-clarity.json)。本节和证据是已验证事件的独立文档补记，其 commit 与已部署应用 commit 不同，不再部署文档。
 - 可转交技术人员的双语 HTML 说明已完成，SHA256 `a59843cab81f1fb87822fa3780dfc9a4046042819281d8e22e5ac33c6fbbaae0`，20,635 bytes；16 项离线／准确 CSP 视图和全部英文 3 页／中文 2 页打印页通过。说明明确区分已审阅报告与仍未审核的自动草稿，并如实列出量纲／比较口径等后续核对事项。
+
+
+### 17.29 2026-10-30：DOE 变量按完整工序条件匹配（001）
+
+- Louis 明确要求本次优化提交 GitHub 并部署上线。应用 PR [#132](https://github.com/Nexus-Pheno/pheno-lab/pull/132) 合并为 [`3deb99792774819c785e98a354a9e69e3054a7c8`](https://github.com/Nexus-Pheno/pheno-lab/commit/3deb99792774819c785e98a354a9e69e3054a7c8)，对应 release **`20261030-001`**。本次在最新 main 基础上增加 DOE 修复，保留已发布的报告功能。
+- 应用 DOE 方案时同时匹配工艺、所选设备和器件层，避免同一刮涂设备上的 HTL 与 Top passivation 混用变量。仅补全唯一兼容工序的空设备/层，缺失完整 scope 时创建对应工序；多个匹配或同一工序重复参数会整体拒绝并保留编辑稿。旧变量按先前 scope 清理，其他设备/层的配置保留；样品、参数、方案、标签和审计在同一事务中处理，重复应用与并发保存均有真实数据库保护。
+- 本机串行验证通过 315 单元测试、173 个受保护 PostgreSQL 集成测试、15 个 Microsoft Edge 受影响用例、TypeScript、格式、架构边界和 production build。最初并行运行出现 Windows 进程/测试库异常，停止该次测试后串行重跑通过；未弱化断言。本机 `pnpm run verify` 在硬编码 `/bin/bash` 的部署检查处停止；PR/main CI `41020463822`／`41021266227` 全绿，补全 Linux verify、61 个浏览器用例、Go Bridge、发布制品和 checksum 校验。10 条既有 ESLint warning 保持。
+- 主分支 CI 全绿后，受限 `deploy_pheno_lab` 从 GitHub fast-forward 拉取上述应用 commit，使用既有 `build-release.sh` 构建。首次流程已生成制品和 checksum，本机记录程序随后因输出编码异常退出；只读确认发布在切换前停止、旧版持续运行、APP_VERSION 已恢复，逐字节核对原 env 后仅清除该次受保护临时备份。修正本机记录程序后重新校验制品，以既有 `deploy-release.sh` 继续发布，最终退出 0 并输出 `deployed 20261030-001`，于 `2026-10-30T07:50:50Z` 完成切换。制品 SHA256：`50f7c996f8bfd8f122bcb0cabbbaf9fac18656c4922ff08a1f5a57cf32ebb6db`。没有直接复制应用代码或服务器手改源码。
+- 部署后 496 个受版本控制的运行文件与应用 commit 一致，source 干净；PostgreSQL/私有 COS readiness、公网 HTTPS liveness、HTTP301、非 root `pheno`、loopback3457、Nginx active、零自动重启通过。最近 200 行日志中包含本次启动，启动后 0 条已匹配严重错误。仅 APP_VERSION 从 `20261029-004` 增至 `20261030-001`，其他 env 字节及 owner/group/mode/inode/ACL 保持，临时备份移除。47 个既有 migration 无待应用项，0 个旧凭据需加密，没有新增 schema migration 或历史科研数据回填。标准 retention 保留五版并裁剪 `20261028-003`；**`20261029-004`** 保留为代码回滚目标。
+- Edge 的 1600/390px 登录、实验、测试、报告匿名入口共 8 项检查通过，无页面脚本错误或外层溢出。公网 readiness 被既有 Nginx 规则以403拒绝，loopback 匿名为401，带现有运维凭据的 readiness 通过。首次自动页面检查等待 networkidle 超时，改为等待 DOM/可见登录表单；随后纠正了测试对公网 readiness 的401预期，使其符合已读的 Nginx403契约，最终全部通过。未制造生产 session、未登录真实账号或对真实实验应用 DOE；生产登录后及人类验收不作完成声明。
+- 发布前后实验、样品、工序执行、表征结果、附件、testing request 聚合计数相同，29 名用户的访问字段摘要一致。J-V 测量总数在在线服务窗口从42,492增至42,498；不把该聚合对照声明为完整科研数据不变证据。没有执行科研导入、修复或回填。
+- 聚合证据：[release-evidence/20261030-doe-plan-routing.json](release-evidence/20261030-doe-plan-routing.json)。本节及证据是独立文档补记，其 commit 与上述已部署应用 commit 分别记录，不再为文档重部署。回溯以应用 commit/release 为准，代码回滚不代表 PostgreSQL/COS 数据回滚。
