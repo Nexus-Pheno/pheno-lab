@@ -194,12 +194,68 @@ for (const view of [
       .getByRole("textbox")
       .nth(1)
       .fill("0.3");
-    await editor
+    const persisted = () =>
+      db.experiment.findUniqueOrThrow({
+        where: { id: experiment.id },
+        include: {
+          samples: true,
+          steps: { include: { parameters: { include: { variations: true } } } },
+        },
+      });
+    const beforePreview = await persisted();
+    const applyButton = editor.getByRole("button", {
+      name: zh ? "应用实验方案" : "Apply test plan",
+      exact: true,
+    });
+    await applyButton.click();
+    const confirmation = page.getByRole("dialog", {
+      name: zh ? "确认实验方案覆盖" : "Confirm test plan changes",
+    });
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation).toContainText("Fixture coater");
+    await expect(confirmation).toContainText("Top passivation");
+    await expect(confirmation).toContainText("original");
+    expect(await persisted()).toEqual(beforePreview);
+    await confirmation.screenshot({
+      path: `test-results/doe-overwrite-${view.width}-${view.lang}.png`,
+    });
+    // Native dialog traps focus and Escape cancels without discarding the draft.
+    await page.keyboard.press("Escape");
+    await expect(confirmation).toBeHidden();
+    await expect(editor).toBeVisible();
+    expect(await persisted()).toEqual(beforePreview);
+    await applyButton.click();
+    await expect(confirmation).toBeVisible();
+    await confirmation
       .getByRole("button", {
-        name: zh ? "应用实验方案" : "Apply test plan",
+        name: zh ? "保留设置并返回" : "Keep settings and return",
         exact: true,
       })
       .click();
+    expect(await persisted()).toEqual(beforePreview);
+    await applyButton.click();
+    await expect(confirmation).toBeVisible();
+    // A second editor's saved setting must not be overwritten by stale consent.
+    const topParameter = await db.stepParameter.findFirstOrThrow({
+      where: { stepId: experiment.steps[1].id },
+    });
+    await db.stepParameter.update({
+      where: { id: topParameter.id },
+      data: { value: "manual revision" },
+    });
+    const manuallyRevised = await persisted();
+    const confirmButton = confirmation.getByRole("button", {
+      name: zh ? "确认覆盖并应用" : "Confirm changes and apply",
+      exact: true,
+    });
+    await confirmButton.click();
+    await expect(confirmation.getByRole("status")).toContainText(
+      zh ? "重新确认" : "confirm again",
+    );
+    await expect(confirmation).toContainText("manual revision");
+    expect(await persisted()).toEqual(manuallyRevised);
+    await confirmButton.click();
+    await expect(confirmation).toBeHidden();
     await expect(editor).toBeHidden();
     await expect(
       page.locator(`[data-drop-step="${experiment.steps[0].id}"]`),

@@ -8,6 +8,7 @@ import {
   updateExperimentMeta,
 } from "@/modules/experiments/lifecycle-service";
 import { applyTestPlan } from "@/modules/experiments/plan-service";
+import { TestPlanConfirmationError } from "@/modules/experiments/plan-routing";
 import { regroupSampleService } from "@/modules/runs/service";
 import { setSamples } from "@/modules/experiments/membership-service";
 import { deleteExperiment } from "@/modules/experiments/lifecycle-service";
@@ -636,9 +637,11 @@ describe("permanent sample identities against PostgreSQL", () => {
           announceApplying();
         await originalLock(tx, organizationId, experimentId);
       });
-    let applying: ReturnType<typeof applyTestPlan> | undefined;
+    let applying: Promise<unknown> | undefined;
     try {
-      applying = applyTestPlan(f.actor, f.exp.id, plan());
+      applying = applyTestPlan(f.actor, f.exp.id, plan()).catch(
+        (error) => error,
+      );
       await Promise.race([
         applyingEntered,
         applying.then(() => {
@@ -646,7 +649,20 @@ describe("permanent sample identities against PostgreSQL", () => {
         }),
       ]);
       allowCommit();
-      await Promise.all([concurrent, applying]);
+      const [, preview] = await Promise.all([concurrent, applying]);
+      expect(preview).toBeInstanceOf(TestPlanConfirmationError);
+      const confirmation = (preview as TestPlanConfirmationError).preview;
+      expect(confirmation.changes).toHaveLength(1);
+      expect(confirmation.changes[0]).toMatchObject({
+        parameter: "Prior candidate",
+        after: null,
+      });
+      expect(
+        await db.stepParameter.findUnique({
+          where: { id: step.parameters[0].id },
+        }),
+      ).not.toBeNull();
+      await applyTestPlan(f.actor, f.exp.id, plan(), confirmation.token);
       const saved = await db.experiment.findUniqueOrThrow({
         where: { id: f.exp.id },
         select: { metadata: true },

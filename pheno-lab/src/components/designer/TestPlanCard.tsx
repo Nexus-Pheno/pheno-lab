@@ -1,6 +1,6 @@
 "use client";
 
-import type { TestPlanApplyError } from "@/modules/experiments/plan-routing";
+import type { TestPlanApplyError, TestPlanApplyIssue, TestPlanConfirmation } from "@/modules/experiments/plan-routing";
 import { useState } from "react";
 import type { Process, Equipment } from "@prisma/client";
 import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
@@ -13,6 +13,8 @@ import { Icon, inputCls, selectCls, FieldLabel } from "@/components/ui";
 import { SubstrateBoard, EXTRA_GROUP } from "@/components/designer/SubstrateBoard";
 import { MaterialModal, type CategoryRow } from "@/components/library/MaterialsRecipes";
 import { useT } from "@/lib/i18n/LanguageProvider";
+
+import { TestPlanOverwriteDialog } from "./TestPlanOverwriteDialog";
 
 const CUSTOM = "__custom__";
 
@@ -67,7 +69,7 @@ export function TestPlanCard({
   samples: { code: string; variationGroup: string | null }[];
   canEdit: boolean;
   canManageMaterials?: boolean;
-  onApply: (plan: TestPlan) => Promise<TestPlanApplyError | null>;
+  onApply: (plan: TestPlan, confirmation?: string) => Promise<TestPlanApplyIssue | null>;
   onMaterialCreated?: (m: Material) => void;
 }) {
   const t = useT();
@@ -82,6 +84,30 @@ export function TestPlanCard({
   const [draft, setDraft] = useState<TestPlan | null>(null);
   const [busy, setBusy] = useState(false);
   const [applyError, setApplyError] = useState<TestPlanApplyError | null>(null);
+  const [confirmation, setConfirmation] = useState<TestPlanConfirmation | null>(null);
+  const [refreshed, setRefreshed] = useState(false);
+  const applyDraft = async (token?: string) => {
+    if (!draft) return;
+    setBusy(true);
+    setApplyError(null);
+    const toApply = draft.substrates && draft.assignments
+      ? { ...draft, groups: draft.groups.map(g => ({ ...g, samples: counts?.byGroup[g.label] ?? 0 })) }
+      : draft;
+    try {
+      const issue = await onApply(toApply, token);
+      if (issue?.code === "confirmation") {
+        setRefreshed(Boolean(token));
+        setConfirmation(issue);
+      } else {
+        setConfirmation(null);
+        setApplyError(issue?.code ?? null);
+        if (!issue) setEditing(false);
+      }
+    } catch {
+      setConfirmation(null);
+      setApplyError("failed");
+    } finally { setBusy(false); }
+  };
   // Creating a material mid-plan must not lose the draft — the modal overlays
   // this page and the saved name drops straight into the pending select.
   const [addTarget, setAddTarget] = useState<AddMaterialTarget | null>(null);
@@ -646,29 +672,7 @@ export function TestPlanCard({
             draft.variables.some((v) => !v.parameter.trim() || !v.processId) ||
             draft.variables.some((v) => draft.groups.some((g) => !(v.values[g.label] ?? "").trim()))
           }
-          onClick={async () => {
-            setBusy(true);
-            const toApply =
-              draft.substrates && draft.assignments
-                ? {
-                    ...draft,
-                    groups: draft.groups.map((g) => ({
-                      ...g,
-                      samples: counts?.byGroup[g.label] ?? 0,
-                    })),
-                  }
-                : draft;
-            setApplyError(null);
-            try {
-              const error = await onApply(toApply);
-              setApplyError(error);
-              if (!error) setEditing(false);
-            } catch {
-              setApplyError("failed");
-            } finally {
-              setBusy(false);
-            }
-          }}
+          onClick={() => void applyDraft()}
           className="h-8 shrink-0 whitespace-nowrap bg-ink text-white rounded-[4px] px-4 text-[12px] font-bold disabled:opacity-50"
         >
           {t("plan.apply")}
@@ -680,6 +684,8 @@ export function TestPlanCard({
           {t(`plan.applyError.${applyError}`)}
         </p>
       )}
+
+      {confirmation && <TestPlanOverwriteDialog preview={confirmation} layers={layers} busy={busy} refreshed={refreshed} onCancel={() => { setConfirmation(null); setRefreshed(false); }} onConfirm={() => void applyDraft(confirmation.token)} />}
 
       {/* In-page material creation — the plan draft stays intact underneath. */}
       {addTarget && (

@@ -2,6 +2,16 @@
 // materials-science lab audience (工艺/表征 terminology), not machine-translated.
 
 export const en = {
+  "plan.overwrite.title": "Confirm test plan changes",
+  "plan.overwrite.hint": "Review the listed steps and current/proposed values. Cancel to keep your draft, or confirm to apply the full test plan.",
+  "plan.overwrite.base": "Default / control value",
+  "plan.overwrite.before": "Current settings",
+  "plan.overwrite.after": "After applying the plan",
+  "plan.overwrite.remove": "Remove this plan material parameter",
+  "plan.overwrite.unassigned": "Unassigned",
+  "plan.overwrite.cancel": "Keep settings and return",
+  "plan.overwrite.confirm": "Confirm changes and apply",
+  "plan.overwrite.refreshed": "The flow or plan has changed. Review the refreshed differences and confirm again.",
   "res.evidence.invalid":
     "{n} invalid metric vectors remain in the raw table but are excluded from performance statistics.",
   "res.evidence.PARTIAL":
@@ -1801,6 +1811,16 @@ export const en = {
 export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
+  "plan.overwrite.title": "确认实验方案覆盖",
+  "plan.overwrite.hint": "请核对下列工序及新旧值。取消将保留编辑稿，确认后将应用完整实验方案。",
+  "plan.overwrite.base": "默认／对照值",
+  "plan.overwrite.before": "当前设置",
+  "plan.overwrite.after": "应用方案后",
+  "plan.overwrite.remove": "删除此方案材料参数",
+  "plan.overwrite.unassigned": "未指定",
+  "plan.overwrite.cancel": "保留设置并返回",
+  "plan.overwrite.confirm": "确认覆盖并应用",
+  "plan.overwrite.refreshed": "流程或方案已变化，请核对更新后的差异并重新确认。",
   "res.evidence.invalid":
     "{n}条指标不一致的记录保留在原始表格中，但不进入性能统计。",
   "res.evidence.PARTIAL": "仅部分器件有实际条件记录。",

@@ -2,7 +2,7 @@
 
 import type { ExperimentStatus, Prisma } from "@prisma/client";
 import { queueTranslations } from "@/modules/translations/service";
-import { TestPlanStepError } from "@/modules/experiments/plan-routing";
+import { TestPlanStepError, TestPlanConfirmationError } from "@/modules/experiments/plan-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -350,13 +350,15 @@ export async function reviewAiSummary(
   return summary;
 }
 
-export async function applyTestPlan(experimentId: string, plan: TestPlan) {
+export async function applyTestPlan(experimentId: string, plan: TestPlan, confirmation?: string) {
   const actor = await requireSession();
   try {
-    const experiment = await applyTestPlanService(actor, experimentId, plan);
+    const experiment = await applyTestPlanService(actor, experimentId, plan, confirmation);
     revalidatePath(`/experiments/${experimentId}`);
     return { ok: true, experiment } as const;
   } catch (error) {
+    if (error instanceof TestPlanConfirmationError)
+      return { ok: false, error: "confirmation", confirmation: error.preview } as const;
     if (error instanceof TestPlanStepError)
       return { ok: false, error: error.code } as const;
     throw error;
