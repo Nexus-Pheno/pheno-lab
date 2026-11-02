@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "scope": "DOE overwrite confirmation with refreshed consent after concurrent edits",
+  "release": {
+    "releaseId": "20261102-001",
+    "applicationCommit": "06bef5daafd1cbf42d24701c209944b55aaaa8d7",
+    "artifactSha256": "23a2f87d52feaf8a8f1bc6684770a4d00fc660b6929d9c6d6c6f9fb96648d680",
+    "sourceCleanAtBuildAndAfterDeployment": true,
+    "trackedRuntimeFilesMatchedCommit": 498,
+    "previousPublishedFeaturesPreserved": true,
+    "databaseReady": true,
+    "cosReady": true,
+    "publicHttpsLiveness": true,
+    "httpToHttpsStatus": 301,
+    "serviceUser": "pheno",
+    "loopbackPort": 3457,
+    "automaticRestarts": 0,
+    "nginxActive": true,
+    "releaseDirectoriesRetained": 5,
+    "previousReleaseId": "20261030-001",
+    "prunedReleaseId": "20261029-001",
+    "temporaryEnvironmentBackupRemoved": true,
+    "readinessVerifiedAt": "2026-11-02T03:41:10.045Z",
+    "verifiedAt": "2026-11-02T03:41:15.785323+00:00"
+  },
+  "applicationCommitUrl": "https://github.com/Nexus-Pheno/pheno-lab/commit/06bef5daafd1cbf42d24701c209944b55aaaa8d7",
+  "applicationPullRequest": 133,
+  "localVerification": {
+    "unitTests": 315,
+    "guardedPostgresIntegrationTests": 181,
+    "microsoftEdgeTests": 61,
+    "typecheck": true,
+    "format": true,
+    "architecture": true,
+    "changedFileLintWarnings": 0,
+    "existingFullLintWarnings": 10,
+    "schemaDrift": false,
+    "productionBuild": true,
+    "nativeWindowsVerifyLimitation": "Hard-coded /bin/bash deployment check; covered by successful Linux PR/main CI and server verify"
+  },
+  "ci": [
+    {
+      "runId": 41382968161,
+      "commit": "1270d9707589e9b1959c5a4de7a4a0d1153334f7",
+      "conclusion": "success",
+      "goBridge": "success",
+      "requiredVerificationSteps": [
+        "Run pnpm run verify",
+        "Run pnpm run test:integration",
+        "Run pnpm run e2e",
+        "Run ./deploy/scripts/build-release.sh /tmp/pheno-lab-ci.tar.gz",
+        "Run cd /tmp && sha256sum --check pheno-lab-ci.tar.gz.sha256"
+      ]
+    },
+    {
+      "runId": 41383568903,
+      "commit": "06bef5daafd1cbf42d24701c209944b55aaaa8d7",
+      "conclusion": "success",
+      "goBridge": "success",
+      "requiredVerificationSteps": [
+        "Run pnpm run verify",
+        "Run pnpm run test:integration",
+        "Run pnpm run e2e",
+        "Run ./deploy/scripts/build-release.sh /tmp/pheno-lab-ci.tar.gz",
+        "Run cd /tmp && sha256sum --check pheno-lab-ci.tar.gz.sha256"
+      ]
+    }
+  ],
+  "deployment": {
+    "canonicalGithubPullBuildReleaseChain": true,
+    "sourcePulledAfterMainCiSuccess": true,
+    "serverFullVerify": true,
+    "canonicalBuildAndDeployExitCode": 0,
+    "appVersionBefore": "20261030-001",
+    "appVersionAfter": "20261102-001",
+    "onlyAppVersionEnvironmentChanged": true,
+    "otherEnvBytesOwnerGroupModeInodeAclPreserved": true,
+    "temporaryBackupRemoved": true,
+    "existingMigrations": 47,
+    "pendingMigrations": 0,
+    "legacyAiCredentialsEncrypted": 0,
+    "schemaMigrationAdded": false,
+    "historicalScientificDataBackfill": false
+  },
+  "aggregateDataChecks": {
+    "before": {
+      "experiment": 1113,
+      "sample": 20348,
+      "stepExecution": 8174,
+      "characterizationResult": 24661,
+      "attachment": 45846,
+      "jvMeasurement": 42598,
+      "testingRequest": 26
+    },
+    "after": {
+      "experiment": 1113,
+      "sample": 20348,
+      "stepExecution": 8174,
+      "characterizationResult": 24661,
+      "attachment": 45846,
+      "jvMeasurement": 42598,
+      "testingRequest": 26
+    },
+    "allComparedCountsUnchanged": true,
+    "userAccessDigestUnchanged": true,
+    "userCountBefore": 29,
+    "userCountAfter": 29,
+    "appliedMigrationsBefore": 47,
+    "appliedMigrationsAfter": 47,
+    "completeScientificDataUnchangedClaimed": false
+  },
+  "productionBrowser": {
+    "browser": "Microsoft Edge",
+    "publicRouteChecks": [
+      {
+        "width": 1600,
+        "path": "/login",
+        "status": "passed"
+      },
+      {
+        "width": 1600,
+        "path": "/experiments",
+        "status": "passed"
+      },
+      {
+        "width": 1600,
+        "path": "/testing",
+        "status": "passed"
+      },
+      {
+        "width": 1600,
+        "path": "/reports",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/login",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/experiments",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/testing",
+        "status": "passed"
+      },
+      {
+        "width": 390,
+        "path": "/reports",
+        "status": "passed"
+      }
+    ],
+    "anonymousReadinessDenied": true,
+    "loginCheckIntervalMs": 10000,
+    "pageErrors": 0,
+    "outerOverflow": false,
+    "authenticatedProductionUiAcceptance": false,
+    "sessionFabrication": false,
+    "scientificMutations": false
+  },
+  "productionBrowserInitialAttempt": {
+    "unexpectedResponseStatus": 503,
+    "existingLoginRateLimitRequestsPerMinute": 10,
+    "existingLoginRateLimitBurst": 5,
+    "nginxConfigurationChanged": false,
+    "pacedRepeatPassed": true
+  },
+  "journal": {
+    "journalLinesReviewed": 200,
+    "startupMarkerInWindow": true,
+    "currentStartupLines": 49,
+    "errorLinesSinceStartup": 10,
+    "serverActionVersionMismatch": 10,
+    "serverActionIdentifierLengths": {
+      "42": 10
+    },
+    "otherCriticalErrorsSinceStartup": 0,
+    "distinctMismatchedActions": 1,
+    "mismatchedActionsKnownToPreviousReleaseOnly": 10,
+    "mismatchedActionsKnownToCurrentRelease": 0,
+    "mismatchedActionsUnknownToBoth": 0
+  },
+  "acceptanceLimits": {
+    "authenticatedProductionUiAcceptance": false,
+    "humanAcceptanceClaimed": false,
+    "productionDoeApplyPerformed": false,
+    "sessionsFabricated": false,
+    "oldPagesNeedRefresh": true,
+    "codeRollbackDoesNotRollBackDatabaseOrCos": true
+  }
+}

@@ -2113,3 +2113,16 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - Edge 的 1600/390px 登录、实验、测试、报告匿名入口共 8 项检查通过，无页面脚本错误或外层溢出。公网 readiness 被既有 Nginx 规则以403拒绝，loopback 匿名为401，带现有运维凭据的 readiness 通过。首次自动页面检查等待 networkidle 超时，改为等待 DOM/可见登录表单；随后纠正了测试对公网 readiness 的401预期，使其符合已读的 Nginx403契约，最终全部通过。未制造生产 session、未登录真实账号或对真实实验应用 DOE；生产登录后及人类验收不作完成声明。
 - 发布前后实验、样品、工序执行、表征结果、附件、testing request 聚合计数相同，29 名用户的访问字段摘要一致。J-V 测量总数在在线服务窗口从42,492增至42,498；不把该聚合对照声明为完整科研数据不变证据。没有执行科研导入、修复或回填。
 - 聚合证据：[release-evidence/20261030-doe-plan-routing.json](release-evidence/20261030-doe-plan-routing.json)。本节及证据是独立文档补记，其 commit 与上述已部署应用 commit 分别记录，不再为文档重部署。回溯以应用 commit/release 为准，代码回滚不代表 PostgreSQL/COS 数据回滚。
+
+
+### 17.30 2026-11-02：DOE 覆盖确认与并发复核（001）
+
+- Louis 明确要求本次优化提交 GitHub 并部署上线。应用 PR [#133](https://github.com/Nexus-Pheno/pheno-lab/pull/133) 合并为 [`06bef5daafd1cbf42d24701c209944b55aaaa8d7`](https://github.com/Nexus-Pheno/pheno-lab/commit/06bef5daafd1cbf42d24701c209944b55aaaa8d7)，对应 release **`20261102-001`**。已测试的13个文件经散列核对后提交，合并后的代码树与本地验证版本一致。
+- 应用 DOE 方案覆盖已填写参数、移除旧分组值或材料参数前，新增中英文确认弹窗，展示工序、设备、器件层及当前/方案各组数值。取消保留编辑稿；未变化和空目标直接应用。服务端在加锁事务中计算差异，将确认绑定到 actor、方案和流程快照；期间流程或方案存在其他编辑时刷新差异并要求再次确认。预览会回滚临时创建工序等全部变更，确认后参数、样品、标签和审计同事务提交；新增审计字段仅记录确认状态/数量，不保存参数数值或确认 token。已有完整 scope 匹配、缺失工序自动创建及跨层保护保持。
+- 本机通过315单元、181个受保护 PostgreSQL 集成、61个 Microsoft Edge 浏览器测试、TypeScript、格式、架构边界、受影响文件零 warning 的 ESLint 和 production build；真实数据库覆盖取消不写入、过期确认、并发编辑、确认后仅创建一次工序及审计失败回滚。Windows完整verify在硬编码/bin/bash部署检查处停止。PR/main CI `41382968161`／`41383568903` 全绿，覆盖完整Linux verify、数据库/浏览器、Go Bridge及制品/checksum。10条既有全库ESLint warning保持。
+- 在两次CI均通过后，受限部署账户从GitHub fast-forward拉取已合并main，沿用既有build-release.sh和deploy-release.sh，二者完整流程退出0并输出 `deployed 20261102-001`。于北京时间 `2026-11-02 11:40:51`（`03:40:51Z`）完成切换。制品SHA256：`23a2f87d52feaf8a8f1bc6684770a4d00fc660b6929d9c6d6c6f9fb96648d680`。服务器498个受版本控制的运行文件与应用commit逐一匹配，source干净。
+- 仅现有APP_VERSION由 `20261030-001` 增至 `20261102-001`，其他env字节及owner/group/mode/inode/ACL保持，受保护临时备份移除。47个既有migration无待应用项，0个旧AI凭据需加密；没有新增schema migration、科研修复或历史回填。PostgreSQL/私有COS readiness、公网HTTPS liveness、HTTP301、非root pheno、loopback3457、Nginx active及零自动重启通过。标准retention保留五版，裁剪 `20261029-001`，**`20261030-001`** 保留为代码回滚目标。
+- 线上Edge在1600/390px对登录、实验、测试、报告匿名入口共8项检查通过，无页面脚本错误或外层溢出；公网readiness按既有Nginx规则403拒绝。首次快速匿名跳转出现503，核对既有登录限流为10次/分钟、burst5，本机及服务器随后登录GET均200；将检查间隔改为10秒后完整复测通过，未改变Nginx配置。未制造生产session，未对真实实验应用DOE，生产登录后及人类验收不作完成声明。
+- 验收后检查最近200行journal，包含本次启动：10条Server Action版本不匹配记录均对应仅上一版manifest存在的同一操作标识，无当前版或两版均未知标识，其他已匹配严重错误为0。旧页面需刷新后使用新版；不把总错误数记录为0。
+- 发布窗口七项聚合计数一致：1,113实验、20,348样品、8,174工序执行、24,661表征结果、45,846附件、42,598条J-V测量、26个testing request；29名用户访问字段摘要及47个已应用migration计数一致。这是有界聚合核对，不是完整科研数据逐字段校验。
+- 聚合证据：[release-evidence/20261102-doe-overwrite-confirmation.json](release-evidence/20261102-doe-overwrite-confirmation.json)。本节和证据是独立文档补记，其commit与上述应用commit分别记录，不为文档重新部署。回溯以明确的应用commit/release为准，代码回滚不代表PostgreSQL/COS数据回滚。
