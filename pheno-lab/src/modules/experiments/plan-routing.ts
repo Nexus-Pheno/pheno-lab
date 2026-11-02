@@ -2,6 +2,35 @@ import type { TestPlanVariable } from "@/lib/library";
 
 export type TestPlanApplyError = "ambiguous" | "duplicate" | "failed";
 
+export type PlanParameterValues = {
+  value: string;
+  unit: string;
+  groups: { group: string; value: string }[];
+};
+export type TestPlanOverwrite = {
+  parameterId: string;
+  stepName: string;
+  processName: string;
+  equipmentName: string;
+  layer: string;
+  parameter: string;
+  before: PlanParameterValues;
+  after: PlanParameterValues | null;
+};
+export type TestPlanConfirmation = {
+  token: string;
+  changes: TestPlanOverwrite[];
+};
+export type TestPlanApplyIssue =
+  | { code: TestPlanApplyError }
+  | ({ code: "confirmation" } & TestPlanConfirmation);
+
+export class TestPlanConfirmationError extends Error {
+  constructor(readonly preview: TestPlanConfirmation) {
+    super("Test plan overwrite confirmation required");
+  }
+}
+
 export class TestPlanStepError extends Error {
   constructor(readonly code: "ambiguous" | "duplicate") {
     super(`Test plan step routing: ${code}`);

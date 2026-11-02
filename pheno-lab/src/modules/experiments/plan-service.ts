@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import { publicMaterialSelect } from "@/modules/library/material-visibility";
 import { substrateCounts } from "@/lib/test-plan";
@@ -22,7 +23,12 @@ import {
   findTestPlanStep,
   planParameterKey,
   TestPlanStepError,
+  TestPlanConfirmationError,
 } from "./plan-routing";
+import {
+  previousPlanParameters,
+  testPlanOverwriteChanges,
+} from "./plan-overwrite";
 import { reconcileSamples } from "./sample-plan-service";
 import {
   characterizationDraftSchema,
@@ -32,6 +38,7 @@ import {
   stepDraftSchema,
   stepPresetPayloadSchema,
   testPlanSchema,
+  testPlanConfirmationSchema,
 } from "./schema";
 
 // ---- Process steps ----
@@ -535,9 +542,11 @@ export async function applyTestPlan(
   actor: Actor,
   rawExperimentId: unknown,
   rawPlan: unknown,
+  rawConfirmation?: unknown,
 ) {
   const experimentId = experimentIdSchema.parse(rawExperimentId);
   const plan = testPlanSchema.parse(rawPlan) as TestPlan;
+  const confirmation = testPlanConfirmationSchema.parse(rawConfirmation);
   await assertEdit(actor, experimentId);
   const counts = plan.substrates
     ? substrateCounts(plan.groups, plan.substrates.count, plan.assignments)
@@ -584,6 +593,22 @@ export async function applyTestPlan(
     });
     const oldPlan = (expBefore.metadata as { testPlan?: TestPlan } | null)
       ?.testPlan;
+    // Step editors replace parameters after updating their parent step. Lock
+    // those parents first so the confirmed snapshot remains stable until commit.
+    await tx.$queryRaw`SELECT "id" FROM "ProcessStep" WHERE "experimentId" = ${experimentId} ORDER BY "id" FOR UPDATE`;
+    await tx.$queryRaw`SELECT p."id" FROM "StepParameter" p JOIN "ProcessStep" s ON s."id" = p."stepId" WHERE s."experimentId" = ${experimentId} ORDER BY p."id" FOR UPDATE OF p`;
+    const beforeSteps = await tx.processStep.findMany({
+      where: { experimentId },
+      orderBy: { id: "asc" },
+      include: {
+        process: { select: { name: true } },
+        equipment: { select: { name: true } },
+        parameters: {
+          orderBy: { id: "asc" },
+          include: { variations: { orderBy: { variationGroup: "asc" } } },
+        },
+      },
+    });
 
     // Resolve every destination before reconciling samples or old variables.
     // Multiple steps with the same process can build entirely different layers.
@@ -650,39 +675,53 @@ export async function applyTestPlan(
 
     const resolvedSteps = await tx.processStep.findMany({
       where: { experimentId },
+      include: { equipment: { select: { name: true } } },
     });
     for (const { variable, stepId } of bindings) {
       if (findTestPlanStep(variable, resolvedSteps)?.id !== stepId)
         throw new TestPlanStepError("ambiguous");
     }
 
+    const removals = previousPlanParameters(
+      beforeSteps,
+      oldPlan?.variables ?? [],
+      destinations,
+    );
+    const overwrites = testPlanOverwriteChanges(
+      beforeSteps,
+      bindings,
+      groups,
+      control.label,
+      removals,
+      resolvedSteps,
+    );
+    if (overwrites.length) {
+      // Bind consent to this actor, plan and locked source state. Provisioned
+      // step IDs are excluded so a rolled-back preview can be confirmed later.
+      const token = createHash("sha256")
+        .update(
+          JSON.stringify({
+            actor: [actor.org, actor.uid],
+            experimentId,
+            plan,
+            oldPlan,
+            steps: beforeSteps,
+          }),
+        )
+        .digest("hex");
+      if (confirmation !== token)
+        throw new TestPlanConfirmationError({ token, changes: overwrites });
+    }
+
     // 1. Remove variations wired by the previous plan that are no longer part
     //    of the new plan (e.g. the tested process was changed).
-    for (const old of oldPlan?.variables ?? []) {
-      const oldSteps = await tx.processStep.findMany({
-        where: {
-          experimentId,
-          processId: old.processId,
-          ...(old.equipmentId ? { equipmentId: old.equipmentId } : {}),
-          ...(old.layer ? { layer: old.layer } : {}),
-        },
-        include: { parameters: true },
+    for (const { parameter: param } of removals) {
+      await tx.parameterVariation.deleteMany({
+        where: { parameterId: param.id },
       });
-      for (const st of oldSteps) {
-        if (destinations.has(planParameterKey(st.id, old.parameter))) continue;
-        const param = st.parameters.find(
-          (pp) =>
-            planParameterKey(st.id, pp.name) ===
-            planParameterKey(st.id, old.parameter),
-        );
-        if (!param) continue;
-        await tx.parameterVariation.deleteMany({
-          where: { parameterId: param.id },
-        });
-        if (param.source === "material") {
-          // material variable rows were created by the plan — remove entirely
-          await tx.stepParameter.delete({ where: { id: param.id } });
-        }
+      if (param.source === "material") {
+        // material variable rows were created by the plan — remove entirely
+        await tx.stepParameter.delete({ where: { id: param.id } });
       }
     }
 
@@ -785,6 +824,8 @@ export async function applyTestPlan(
           layer: variable.layer,
           parameter: variable.parameter,
         })),
+        overwriteConfirmed: overwrites.length > 0,
+        overwrittenParameters: overwrites.length,
       },
     });
     await syncAutoLabels(experimentId, tx);

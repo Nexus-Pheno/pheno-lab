@@ -172,6 +172,11 @@ export const testPlanSchema = z
     }
   });
 
+export const testPlanConfirmationSchema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/)
+  .optional();
+
 export const orderedIdsSchema = z
   .array(experimentIdSchema)
   .max(1_000)

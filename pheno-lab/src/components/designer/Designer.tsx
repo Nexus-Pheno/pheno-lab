@@ -339,12 +339,14 @@ export default function Designer({
     return m;
   };
 
-  const handleApplyTestPlan = async (plan: TestPlan) => {
-    const result = await track(applyTestPlan(exp.id, plan));
-    if (!result) return "failed" as const;
+  const handleApplyTestPlan = async (plan: TestPlan, confirmation?: string) => {
+    const result = await track(applyTestPlan(exp.id, plan, confirmation));
+    if (!result) return { code: "failed" } as const;
     if (!result.ok) {
+      if (result.error === "confirmation")
+        return { code: "confirmation", ...result.confirmation } as const;
       setSaveState("error");
-      return result.error;
+      return { code: result.error };
     }
     setExp(result.experiment as ExperimentFull);
     return null;

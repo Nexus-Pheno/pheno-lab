@@ -147,6 +147,13 @@ a uniquely compatible unassigned step may be completed, or a missing scoped
 step is added. Multiple matches or duplicate parameter targets reject the whole
 application and keep the editor draft. Reapplying/moving variables reconciles
 old variations within their previous scope in the same audited transaction.
+Replacing populated values (including removal of old grouped/material parameters)
+requires an authorized, server-generated difference preview and explicit confirmation.
+The dialog identifies the step, equipment, layer, and current/proposed group values;
+cancelling retains the draft. Consent is tied to the actor, plan and locked flow
+snapshot. Intervening edits refresh the preview and require renewed consent.
+Unchanged values and new/empty targets do not prompt for an overwrite. Preview
+requests roll back all provisional writes, including missing scoped steps.
 
 ## Security & backups
 
