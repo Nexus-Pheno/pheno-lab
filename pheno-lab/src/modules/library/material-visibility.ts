@@ -32,6 +32,7 @@ export function assertPublicSmiles(value: unknown) {
 
 /** Legacy intake/suggestion JSON may contain SMILES; never echo it publicly. */
 export function redactSmilesJson(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(redactSmilesJson);
   if (value && typeof value === "object")
     return Object.fromEntries(

@@ -25,7 +25,7 @@ Browser / mobile responsive routes / Go Bridge
 ```
 
 - Web、响应式移动采集页和 API Route 由同一个 Next.js 进程提供。
-- Go Bridge 是当前唯一独立的非浏览器客户端，继续调用 `/api/ingest/*`。
+- Go Bridge 调用 `/api/ingest/*`。独立科研分析客户端通过只读 `GET /api/research/v1` 及专用密钥访问同一应用，授权及使用方法见 pheno-lab/README.md。
 - 系统是一个部署单元、一个 PostgreSQL 数据库，不存在独立 Hono/API 服务。
 - COS 是生产文件事实来源；PostgreSQL 保存结构化数据与 object key，不保存附件二进制。
 - 向量索引目前不参与应用运行；如未来启用，它只能是可重建的派生数据。

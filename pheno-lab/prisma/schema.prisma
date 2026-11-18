@@ -105,7 +105,25 @@ model Project {
   @@unique([organizationId, name])
 }
 
+model ResearchReaderKey {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  sessionVersion Int
+  label          String
+  digest         String    @unique
+  reports        Boolean   @default(false)
+  chemistry      Boolean   @default(false)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, organizationId])
+}
+
 model User {
+  researchReaderKeys         ResearchReaderKey[]
   id                         String                   @id @default(cuid())
   organizationId             String
   organization               Organization             @relation(fields: [organizationId], references: [id])

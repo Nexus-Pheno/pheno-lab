@@ -34,6 +34,8 @@ export async function proxy(req: NextRequest) {
     pathname === "/onboard" ||
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
+    pathname === "/pheno_lab.py" ||
+    pathname === "/api/research/v1" ||
     pathname === "/api/health/live" ||
     pathname === "/api/health/ready" ||
     // Shared-tablet registration runs on a device nobody is signed in on;
