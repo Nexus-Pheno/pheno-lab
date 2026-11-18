@@ -2126,3 +2126,11 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - 验收后检查最近200行journal，包含本次启动：10条Server Action版本不匹配记录均对应仅上一版manifest存在的同一操作标识，无当前版或两版均未知标识，其他已匹配严重错误为0。旧页面需刷新后使用新版；不把总错误数记录为0。
 - 发布窗口七项聚合计数一致：1,113实验、20,348样品、8,174工序执行、24,661表征结果、45,846附件、42,598条J-V测量、26个testing request；29名用户访问字段摘要及47个已应用migration计数一致。这是有界聚合核对，不是完整科研数据逐字段校验。
 - 聚合证据：[release-evidence/20261102-doe-overwrite-confirmation.json](release-evidence/20261102-doe-overwrite-confirmation.json)。本节和证据是独立文档补记，其commit与上述应用commit分别记录，不为文档重新部署。回溯以明确的应用commit/release为准，代码回滚不代表PostgreSQL/COS数据回滚。
+
+### 17.31 2026-11-19：外部科研智能体只读访问（001）
+
+- Michael 同意测试通过后发布。应用 [PR #134](https://github.com/Nexus-Pheno/pheno-lab/pull/134) 于北京时间 11 月 19 日合入主分支，部署应用为 [234bfaf411dde1bf58356cbdebb75c09bfc8511a](https://github.com/Nexus-Pheno/pheno-lab/commit/234bfaf411dde1bf58356cbdebb75c09bfc8511a)，release 为 **20261119-001**。此前运行的是 20261102-001，仍可用于代码回滚。
+- 管理员可在个人设备上从个人资料进入智能体访问页，签发、查看或撤销有有效期的只读密钥。完整报告与受限分子定义分别要求签发者现有权限以及密钥所选范围。新表只保存密钥摘要、范围及生命周期，不回填科研数据，不为任何账号预置密钥。
+- 本机完整 verify、315 个单元测试、186 个受保护 PostgreSQL 集成测试、62 个浏览器测试均通过。浏览器端到端使用下载的 Python 脚本获取合成报告全文、对比文件内容，并验证撤销后立即拒绝访问。迁移无 schema drift。合并前及主分支 GitHub Actions 通过：[PR 验证](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/44355839186)、[main 验证](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/44357317383)。
+- 部署账号从 GitHub fast-forward，按既有脚本构建并校验制品、应用一项增量迁移、切换 current。01:29 北京时间完成服务验收。制品 SHA-256 为 `13aaf11eaa53ca0ac24a117dd00bd9d12cbb9ec310c6b9edefbcada4da13de02`。仅增量更新已有 APP_VERSION，其他 env 内容及文件权限保持。重启后的数据库和私有 COS readiness 通过，服务监听 loopback，自动重启数为零。复核运行版本的 460 个 src/prisma/public 受跟踪文件与应用 commit 一致。
+- 线上真实管理员会话已验证签发页面、可选的报告和化学权限以及下载入口。公网脚本逐字节匹配测试版本，未认证读取返回 401，POST 返回 405。未签发生产密钥、未将真实科研内容发送给外部智能体。此部署实录属于发布完成后的独立文档提交，未重新部署。
