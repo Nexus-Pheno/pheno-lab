@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { hasStewardship } from "@/modules/stewardship/service";
 import { requireSession } from "@/lib/auth";
-import { getT } from "@/lib/i18n/server";
+import { getLang, getT } from "@/lib/i18n/server";
 import { ProfileForms } from "@/components/profile/ProfileForms";
 import { Icon } from "@/components/ui";
 import { AiProviders } from "@/components/profile/AiProviders";
@@ -84,6 +84,12 @@ export default async function ProfilePage() {
             </p>
           </div>
         </div>
+
+        {session.role === "ADMIN" && !session.device && (
+          <Link href="/profile/agent-access" className="inline-block font-semibold text-brand-deep underline">
+            {(await getLang()) === "zh" ? "科研智能体访问" : "Research agent access"}
+          </Link>
+        )}
 
         {/* Stats */}
         <section>

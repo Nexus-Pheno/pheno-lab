@@ -155,6 +155,25 @@ snapshot. Intervening edits refresh the preview and require renewed consent.
 Unchanged values and new/empty targets do not prompt for an overwrite. Preview
 requests roll back all provisional writes, including missing scoped steps.
 
+## Read-only research access for external agents
+
+An organization administrator can open **Profile → Research agent access** on a personal device, download the standalone Python 3.9+ client, and issue a named key for 1, 7 or 30 days. Supply the script to Codex, Claude Code or another shell-capable agent. Configure its key separately on an approved research machine. Research access includes proprietary recipes and the contents of scientific attachments. Select **Include published reports** or **Include private molecular definitions** only when that workspace is approved to receive them. Each requires the issuer's existing grant. Credentials for the browser, database, instrument bridge and storage stay with their original systems.
+
+```sh
+python3 pheno_lab.py configure
+python3 pheno_lab.py catalog
+python3 pheno_lab.py list experiments --all --out experiments.jsonl
+python3 pheno_lab.py list results --experiment EXPERIMENT_ID --all
+python3 pheno_lab.py get evidence EXPERIMENT_ID
+python3 pheno_lab.py get report REPORT_ID --out report.html
+```
+
+For unattended use, inject `PHENO_LAB_TOKEN` with a secret manager or point `PHENO_LAB_TOKEN_FILE` at an owner-only key file. Provide the script and the research question in the agent prompt. Keep the key out of prompts and version control. Revoking a key stops subsequent reads. Data already downloaded stays in the recipient's workspace.
+
+The same interface accepts authenticated `GET /api/research/v1` requests with an `Authorization: Bearer …` header. `resource=catalog` lists the available collections and detail requests. Collections use `limit` (1–100) and `after`; pass back `nextCursor` until it is null. Search experiments by name or code with `--q`; the same filter searches names in the material, project and recipe collections and both report titles. Use `experiment` to narrow experiment-linked collections to an exact experiment ID. Use `resource=evidence|report|curve|attachment|original&id=…` for individual records. Attachment and original downloads require an explicit local output file. Reports return the complete published HTML.
+
+The client reads live pages. Record IDs, request timestamps and evidence source hashes with your analysis. Use `evidence` for the app's accepted-device comparison. Use `results`, `scans` and `curve` to inspect captured records and individual sweeps; multiple sweeps can belong to one physical device. Join `steps` (planned settings), `executions` (captured actuals), `runs` and `samples` by their IDs. Record run status and distinguish draft interpretations from measured results. The catalog covers real research and excludes recycled/test experiments. The API supplies research data only; it exposes no account-management, messaging, arbitrary-query or write commands.
+
 ## Security & backups
 
 - Sessions are signed JWTs in httpOnly cookies; passwords are bcrypt-hashed;

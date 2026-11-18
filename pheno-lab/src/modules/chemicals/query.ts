@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
+import type { Prisma } from "@prisma/client";
 
 import { db } from "@/infrastructure/db/client";
 import type { Actor } from "@/modules/authorization/actor";
@@ -151,6 +152,26 @@ export async function getChemicalForAnalysis(actor: Actor, rawId: unknown) {
   });
 }
 
+export function chemicalAnalysisDefinition(
+  row: Prisma.MaterialGetPayload<{ select: typeof chemicalSelect }>,
+) {
+  const validated =
+    !!row.chemistry &&
+    row.chemistry.inputSha256 ===
+      crypto.createHash("sha256").update(row.smiles).digest("hex");
+  return {
+    materialId: row.id,
+    name: row.name,
+    category: row.category,
+    smiles: row.smiles,
+    canonicalSmiles: validated ? row.chemistry!.canonicalSmiles : null,
+    validation: validated ? "VALIDATED_NOTATION" : "UNVALIDATED",
+    engineVersion: validated ? row.chemistry!.engineVersion : null,
+    definitionVersion: row.chemistry?.version ?? 0,
+    validatedAt: validated ? row.chemistry!.generatedAt.toISOString() : null,
+  };
+}
+
 /** Explicitly private agent input; never used by public catalogue/export paths. */
 export async function exportChemicalDefinitions(actor: Actor) {
   await requireChemicalAccess(actor);
@@ -174,25 +195,7 @@ export async function exportChemicalDefinitions(actor: Actor) {
       generatedAt: new Date().toISOString(),
       usage:
         "Restricted chemistry evidence for authorized analysis. Do not expose SMILES or molecular images in reports distributed to other managers, or upload private definitions to public search.",
-      materials: rows.map((row) => {
-        const validated =
-          !!row.chemistry &&
-          row.chemistry.inputSha256 ===
-            crypto.createHash("sha256").update(row.smiles).digest("hex");
-        return {
-          materialId: row.id,
-          name: row.name,
-          category: row.category,
-          smiles: row.smiles,
-          canonicalSmiles: validated ? row.chemistry!.canonicalSmiles : null,
-          validation: validated ? "VALIDATED_NOTATION" : "UNVALIDATED",
-          engineVersion: validated ? row.chemistry!.engineVersion : null,
-          definitionVersion: row.chemistry?.version ?? 0,
-          validatedAt: validated
-            ? row.chemistry!.generatedAt.toISOString()
-            : null,
-        };
-      }),
+      materials: rows.map(chemicalAnalysisDefinition),
     };
   });
 }
