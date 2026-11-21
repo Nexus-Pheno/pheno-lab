@@ -155,6 +155,28 @@ def reviewer_packet(doc, snapshot, private_facts, annex, literature, audit, chal
             'sourceCases':rows,'numericAudit':compact(audit),'materialReview':compact(science),'literature':compact(references)}
 
 
+def check_complete_capture(qa, row):
+    capture = row.get('fullPageCapture', {})
+    width, height = capture.get('width'), capture.get('height')
+    strips = capture.get('strips')
+    need(width == row['width'] and type(height) is int and height >= row['height'] and
+         isinstance(strips, list) and strips, 'FULL_PAGE_CAPTURE_MISSING')
+    stem = f"{row['lang']}-{width}"
+    top = 0
+    for index, strip in enumerate(strips, 1):
+        name = f"{stem}.png" if len(strips) == 1 else f"{stem}-strip-{index}.png"
+        length = strip.get('height')
+        need(strip.get('name') == name and strip.get('top') == top and type(length) is int and length > 0 and
+             file_hash(qa, name) == strip.get('sha256'), 'FULL_PAGE_CAPTURE_GAP_OR_CHANGED')
+        with checked_file(qa, name).open('rb') as image:
+            header = image.read(24)
+        need(len(header) == 24 and header[:8] == bytes.fromhex('89504e470d0a1a0a') and
+             (int.from_bytes(header[16:20],'big'), int.from_bytes(header[20:24],'big')) == (width, length),
+             'FULL_PAGE_CAPTURE_DIMENSIONS_INVALID')
+        top += length
+    need(top == height, 'FULL_PAGE_CAPTURE_INCOMPLETE')
+
+
 def images_for_review(output):
     qa = output / 'qa'
     verified = record(qa, 'verification.json')
@@ -173,6 +195,8 @@ def images_for_review(output):
             names.add(p['image'])
         need(file_hash(qa,language+'-print.pdf') == pages['languages'][language]['pdfSha256'], 'PRINT_PDF_HASH_MISMATCH')
     for r in cases:
+        if r['mode']=='offline':
+            check_complete_capture(qa,r)
         if r['mode']=='app-equivalent-csp-sandbox':
             need(r['cspViolations']==0 and r['cspConsoleErrors']==0 and r['opaqueOrigin'] and r['parentAccessBlocked'] and
                  r['storageBlocked'] and r['matchesOfflinePaintFontsGeometryAndLabels'], 'APP_SECURITY_CHECK_FAILED')

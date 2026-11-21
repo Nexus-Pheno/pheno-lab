@@ -61,8 +61,8 @@ class GateTests(unittest.TestCase):
             qa=root/'qa'
             qa.mkdir(mode=0o700)
             rows=[]; pages={}; expected=set()
-            def artifact(name):
-                path=qa/name;path.write_bytes(b'synthetic');path.chmod(0o600)
+            def artifact(name,data=b'synthetic'):
+                path=qa/name;path.write_bytes(data);path.chmod(0o600)
                 return gate.file_hash(qa,name)
             for lang in ('en','zh'):
                 for width in (1440,1024,390,320):
@@ -70,7 +70,18 @@ class GateTests(unittest.TestCase):
                         rows.append(dict(lang=lang,width=width,mode=mode,chartCount=2,
                             photographedCharts=2,photographedFigures=1,cspViolations=0,cspConsoleErrors=0,opaqueOrigin=True,
                             parentAccessBlocked=True,storageBlocked=True,matchesOfflinePaintFontsGeometryAndLabels=True))
-                    artifact(f'{lang}-{width}.png')
+                    rows[-2]['height']=700
+                    name=f'{lang}-{width}.png'
+                    png=bytes.fromhex('89504e470d0a1a0a0000000d49484452')+width.to_bytes(4,'big')+(700).to_bytes(4,'big')
+                    rows[-2]['fullPageCapture']={'width':width,'height':700,'strips':[
+                        {'name':name,'top':0,'height':700,'sha256':artifact(name,png)}]}
+                    gate.check_complete_capture(qa,rows[-2])
+                    broken=copy.deepcopy(rows[-2]);broken['fullPageCapture']['strips'][0]['top']=1
+                    with self.assertRaisesRegex(gate.Hold,'GAP_OR_CHANGED'):
+                        gate.check_complete_capture(qa,broken)
+                    incomplete=copy.deepcopy(rows[-2]);incomplete['fullPageCapture']['height']=701
+                    with self.assertRaisesRegex(gate.Hold,'INCOMPLETE'):
+                        gate.check_complete_capture(qa,incomplete)
                     name=f'{lang}-{width}-viewport.png'; artifact(name);expected.add('qa/'+name)
                     if width in (390,1440):
                         name=f'{lang}-{width}-csp-chart-1.png'; artifact(name);expected.add('qa/'+name)

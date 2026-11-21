@@ -1,4 +1,5 @@
 import { chromium, expect } from "@playwright/test";
+import { captureFullPage } from "./capture_full_page.mjs";
 import { tsImport } from "tsx/esm/api";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -225,10 +226,11 @@ try {
       baselines.set(lang + "-" + width, chartStates);
       expect(errors).toEqual([]);
       expect(requests).toEqual([]);
-      await page.screenshot({
-        path: qa + "/" + lang + "-" + width + ".png",
-        fullPage: true,
-      });
+      const fullPageCapture = await captureFullPage(
+        page,
+        qa,
+        lang + "-" + width,
+      );
       await page
         .getByRole("button", {
           name: lang === "en" ? "中文" : "English",
@@ -268,6 +270,7 @@ try {
       }
       cases.push({
         mode: "offline",
+        fullPageCapture,
         lang,
         width,
         height,
