@@ -529,20 +529,27 @@ def assemble_science(root):
             },
         )
     )
-    now = dt.datetime.now(dt.UTC).isoformat()
     end = packet["period"]["end"]
     document = {
         "titleEn": "Weekly R&D decisions · " + end[:10],
         "titleZh": "每周研发决策 · " + end[:10],
         "summaryEn": scientific["priorities"][0]["en"],
         "summaryZh": scientific["priorities"][0]["zh"],
-        "generatedAt": now,
         "snapshotAt": snap["snapshotAt"],
         "windowStart": packet["period"]["start"],
         "windowEnd": end,
         "sections": sections,
     }
-    save(root / "report-document-candidate.json", document)
+    candidate_path = root / "report-document-candidate.json"
+    if candidate_path.exists():
+        prior = read(candidate_path)
+        timestamp = prior.pop("generatedAt", None)
+        if not timestamp or prior != document:
+            raise ValueError("Assembled content differs from the saved report candidate")
+        document["generatedAt"] = timestamp
+    else:
+        document["generatedAt"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        save(candidate_path, document)
     sources = [
         "snapshot.json",
         "private-chemistry-descriptors.json",
