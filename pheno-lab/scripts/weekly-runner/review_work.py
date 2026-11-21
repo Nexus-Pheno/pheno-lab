@@ -57,12 +57,12 @@ def reviewed_ledger(work, prior):
             statement=body,
             owner=None,
             status="proposed",
-            sourceReportIds=[],
+            sourceReportIds=[base["publicationBaseline"]["reportId"]],
             evidenceIdentifiers=[code],
             reviewedBy="Independent scientific reviewer "
             + science_receipt["completionId"],
             reviewedAt=science_receipt["reviewedAt"],
-            decisionNote="Proposed controlled test. Execution has not been recorded.",
+            decisionNote="Proposed in this review using the preceding published baseline. Execution has not been recorded.",
         )
     for item in index.get("followupAssessments", []):
         if item["assessment"] == "no-new-direct-test":
