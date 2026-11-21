@@ -137,25 +137,62 @@ const svgStates = () =>
         };
       }),
     }));
-const documentState = () => ({
-  overflow: document.documentElement.scrollWidth > innerWidth,
-  brokenImages: [...document.images].filter(
-    (i) => !i.complete || !i.naturalWidth,
-  ).length,
-  sections: document.querySelectorAll("section").length,
-  visibleWrongLanguage: [...document.querySelectorAll("[data-lang]")].filter(
-    (e) => e.dataset.lang !== document.documentElement.lang && !e.hidden,
-  ).length,
-  buttonHeight: Math.min(
-    ...[...document.querySelectorAll("button")].map(
-      (b) => b.getBoundingClientRect().height,
+const documentState = () => {
+  const anchors = [...document.querySelectorAll("nav.toc a")];
+  const rectangles = anchors.map((anchor) => anchor.getBoundingClientRect());
+  const overlaps = rectangles.filter((a, i) =>
+    rectangles
+      .slice(i + 1)
+      .some(
+        (b) =>
+          Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1,
+      ),
+  ).length;
+  const incompleteLinks = anchors.filter((anchor, i) => {
+    const section = document.getElementById(anchor.hash.slice(1));
+    const box = rectangles[i];
+    return (
+      !anchor.innerText.trim() ||
+      section?.tagName !== "SECTION" ||
+      box.width < 1 ||
+      box.height < 1 ||
+      box.left < -1 ||
+      box.right > innerWidth + 1
+    );
+  }).length;
+  return {
+    overflow: document.documentElement.scrollWidth > innerWidth,
+    brokenImages: [...document.images].filter(
+      (i) => !i.complete || !i.naturalWidth,
+    ).length,
+    sections: document.querySelectorAll("section").length,
+    navigation: {
+      uniqueTargets: new Set(anchors.map((anchor) => anchor.hash)).size,
+      links: anchors.length,
+      overlaps,
+      incompleteLinks,
+    },
+    visibleWrongLanguage: [...document.querySelectorAll("[data-lang]")].filter(
+      (e) => e.dataset.lang !== document.documentElement.lang && !e.hidden,
+    ).length,
+    buttonHeight: Math.min(
+      ...[...document.querySelectorAll("button")].map(
+        (b) => b.getBoundingClientRect().height,
+      ),
     ),
-  ),
-});
+  };
+};
 const assertState = (state) => {
   expect(state.overflow).toBe(false);
   expect(state.brokenImages).toBe(0);
   expect(state.sections).toBeGreaterThan(0);
+  expect(state.navigation).toEqual({
+    uniqueTargets: state.sections,
+    links: state.sections,
+    overlaps: 0,
+    incompleteLinks: 0,
+  });
   expect(state.visibleWrongLanguage).toBe(0);
   expect(state.buttonHeight).toBeGreaterThanOrEqual(44);
 };
