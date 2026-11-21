@@ -154,7 +154,7 @@ def collect(snapshot, snapshot_hash, dossier, source, bindings, reviews):
     check(
         SHA.fullmatch(snapshot_hash)
         and source["files"]["snapshot.json"] == snapshot_hash
-        and dossier["snapshotAt"] == snapshot["snapshotAt"],
+        and dt(dossier["snapshotAt"]) == dt(snapshot["snapshotAt"]),
         "Project results refer to another measured snapshot",
     )
     app = snapshot["sharedAppEvidence"]

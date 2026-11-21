@@ -42,7 +42,7 @@ class ResultSources(TestCase):
             metrics={"pce": 21.2},
         )
         self.snapshot = dict(
-            snapshotAt="now",
+            snapshotAt="2026-10-01T13:14:15.001Z",
             sharedAppEvidence=dict(
                 experiments=[dict(experimentCode="A", evidence=e)],
                 asOf="later",
@@ -76,7 +76,7 @@ class ResultSources(TestCase):
             for k, v in [("strict", STRICT), ("shown", LIMITED)]
         ]
         self.ds = dict(
-            snapshotAt="now",
+            snapshotAt="2026-10-01T13:14:15.001000+00:00",
             projects=[
                 dict(
                     projectAlias="p",
