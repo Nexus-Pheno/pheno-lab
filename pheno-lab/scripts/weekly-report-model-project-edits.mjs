@@ -72,6 +72,14 @@ export function replayProjectEdit(previous, patch) {
     field(edit.key);
     out.issueAssessments[idx] = edit;
   }
+  if (patch.projectNameEn !== undefined) {
+    assert(
+      typeof patch.projectNameEn === "string" &&
+        patch.projectNameEn.trim().length > 0 &&
+        patch.projectNameEn.length <= 180,
+    );
+    out.projectNameEn = patch.projectNameEn;
+  }
   if (patch.confidenceLevel) {
     allowed(patch.confidenceLevel, ["LOW", "MODERATE", "HIGH"]);
     out.confidenceLevel = patch.confidenceLevel;

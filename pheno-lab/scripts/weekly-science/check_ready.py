@@ -16,6 +16,7 @@ import analyze_rd_snapshot
 import audit_device_results
 import period_scope
 from referee_project_sources import project_sources
+from project_names import names_from_source, verify_project_names
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
 import bind_final_review
@@ -244,6 +245,9 @@ def prepare(run, prior, output):
     need(readable_projects == display_project_text(record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
         record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"]), "DISPLAY_PROJECTS_DIFFER_FROM_REVIEWED_SOURCE")
     names.add("project-decisions-display.private.json")
+    project_labels = names_from_source(snap, record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"],
+                                       record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES))
+    verify_project_names(doc, project_labels)
     ids = record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]
     science = record(run, "science-interpretation.json", baseline.MAX_ARTIFACT_BYTES)
     public_cases = record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]
@@ -290,7 +294,7 @@ def prepare(run, prior, output):
     reviewer_audit = {**audit, "reviewCoverage": bind_final_review.peer_coverage(doc),
                       "baseline": {"windowEnd": previous["windowEnd"], "snapshotAt": previous["snapshotAt"],
                                    "snapshotSha256": prior_meta["snapshotSha256"], "dossierSha256": prior_meta["dossierPublishedSha256"]},
-                      "caseWeeklyScans": cases_timing, "projectSources": project_evidence}
+                      "caseWeeklyScans": cases_timing, "projectNames": project_labels, "projectSources": project_evidence}
     packet=reviewer_packet(doc,snap,facts,annex,literature,reviewer_audit,secret,html_hash)
     need(len(packet["numericAudit"].encode("utf-16-le")) // 2 <= 200_000, "FINAL_NUMERIC_AND_PROJECT_EVIDENCE_EXCEEDS_REVIEW_BOUND")
     packet['reviewChecks']=sorted(bind_final_review.CHECKS)

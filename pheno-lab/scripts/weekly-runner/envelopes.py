@@ -13,6 +13,7 @@ import sys
 
 SCI = Path(__file__).resolve().parents[1] / "weekly-science"
 sys.path.insert(0, str(SCI))
+from project_names import names_from_source, translate_project_names
 import validate_rd_document as public
 import validate_decision_report as decision
 import validate_academic_report as academic
@@ -1242,4 +1243,5 @@ def assemble(work, prior):
     doc["windowStart"] = snapshot["windowStart"]
     doc["windowEnd"] = snapshot["windowEnd"]
     doc["sections"] = [sections[k] for k in main + appendix]
+    translate_project_names(doc, names_from_source(snapshot, bmap, proj))
     return doc

@@ -524,3 +524,24 @@ it("automatically corrects actionable scientific blocks with bounded total and p
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("replays a source-checked English name correction without changing the project's binding or route disposition", async () => {
+  const { replayProjectEdit } =
+    await import("../scripts/weekly-report-model-project-edits.mjs");
+  const previous = {
+    project: "P2",
+    projectNameEn: "Pilot studies",
+    routeDisposition: "HOLD",
+  };
+  const corrected = replayProjectEdit(previous, {
+    overview: [],
+    intents: [],
+    issues: [],
+    projectNameEn: "Pilot Coating Group",
+  });
+  expect(corrected).toEqual({
+    ...previous,
+    projectNameEn: "Pilot Coating Group",
+  });
+  expect(previous.projectNameEn).toBe("Pilot studies");
+});
