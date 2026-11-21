@@ -1,7 +1,16 @@
 /** Backup only a reconciled four-file baseline in the organization's private COS namespace. */
 import { createHash } from "node:crypto";
-import { readFile, writeFile, mkdir, lstat } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  readFile,
+  lstat,
+  open,
+  readdir,
+  rename,
+  mkdtemp,
+  rm,
+} from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
 import { objectStorage } from "../../src/infrastructure/storage";
@@ -47,6 +56,134 @@ const manifest = z
   })
   .strict();
 
+type Receipt = {
+  reportId: string;
+  publicationKey: string;
+  contentSha256: string;
+};
+type ArchiveManifest = z.infer<typeof manifest>;
+function match(record: z.infer<typeof prior>, receipt: Receipt) {
+  if (
+    record.reportId !== receipt.reportId ||
+    record.publicationKey !== receipt.publicationKey ||
+    record.contentSha256 !== receipt.contentSha256
+  )
+    throw Error("Archived report identity differs");
+}
+async function syncDirectory(path: string) {
+  const folder = await open(path, "r");
+  try {
+    await folder.sync();
+  } finally {
+    await folder.close();
+  }
+}
+async function verifyRestored(
+  dir: string,
+  doc: ArchiveManifest,
+  receipt: Receipt,
+) {
+  const directoryInfo = await lstat(dir);
+  if (
+    !directoryInfo.isDirectory() ||
+    directoryInfo.mode & 0o077 ||
+    directoryInfo.uid !== process.getuid?.()
+  )
+    throw Error("Restore requires an owner-private directory");
+  const names = await readdir(dir);
+  if (
+    names.length !== files.length ||
+    !files.every((name) => names.includes(name))
+  )
+    throw Error("Existing baseline restore directory differs");
+  for (const entry of doc.files) {
+    const path = join(dir, entry.name),
+      info = await lstat(path);
+    if (
+      !info.isFile() ||
+      info.uid !== directoryInfo.uid ||
+      info.mode & 0o077 ||
+      info.nlink !== 1 ||
+      info.size !== entry.bytes ||
+      digest(await readFile(path)) !== entry.sha256
+    )
+      throw Error("Stored baseline bytes differ");
+  }
+  const record = prior.parse(
+    JSON.parse(await readFile(join(dir, files[0]), "utf8")),
+  );
+  match(record, receipt);
+  if (
+    doc.files[1].sha256 !== record.snapshotSha256 ||
+    doc.files[2].sha256 !== record.dossierPublishedSha256 ||
+    doc.files[3].sha256 !== record.contentSha256
+  )
+    throw Error("Archive manifest hashes differ from its report");
+}
+export async function restoreBaseline(
+  directory: string,
+  rawManifest: unknown,
+  receipt: Receipt,
+  get: (compressed: string) => Promise<Uint8Array | null>,
+) {
+  const doc = manifest.parse(rawManifest);
+  if (
+    doc.reportId !== receipt.reportId ||
+    doc.publicationKey !== receipt.publicationKey ||
+    !files.every((name, i) => name === doc.files[i].name)
+  )
+    throw Error("Archive identity or file list differs");
+  const destination = resolve(directory),
+    parent = dirname(destination);
+  const present = await lstat(destination).then(
+    () => true,
+    (error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+      return false;
+    },
+  );
+  if (present) {
+    await verifyRestored(destination, doc, receipt);
+    return;
+  }
+  const staging = await mkdtemp(
+    join(parent, "." + basename(destination) + "-restore-"),
+  );
+  try {
+    for (const entry of doc.files) {
+      const zipped = await get(entry.compressed);
+      if (!zipped || digest(zipped) !== entry.compressed)
+        throw Error("Archive object is unavailable or changed");
+      const bytes = gunzipSync(zipped, { maxOutputLength: entry.bytes });
+      if (bytes.length !== entry.bytes || digest(bytes) !== entry.sha256)
+        throw Error("Restored object differs");
+      const handle = await open(join(staging, entry.name), "wx", 0o600);
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+    }
+    await verifyRestored(staging, doc, receipt);
+    await syncDirectory(staging);
+    try {
+      await rename(staging, destination);
+    } catch (error) {
+      if (
+        !["ENOTEMPTY", "EEXIST"].includes(
+          (error as NodeJS.ErrnoException).code ?? "",
+        )
+      )
+        throw error;
+      // A concurrent restore may have installed the identical complete directory.
+      await verifyRestored(destination, doc, receipt);
+    }
+    await syncDirectory(parent);
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+}
 async function main() {
   process.umask(0o077);
   const [operation, directory, receiptFile] = process.argv.slice(2);
@@ -74,19 +211,11 @@ async function main() {
     const confirmed = await storage.get(key);
     if (!confirmed || digest(confirmed) !== hash) throw Error();
   }
-  function match(record: z.infer<typeof prior>) {
-    if (
-      record.reportId !== receipt.reportId ||
-      record.publicationKey !== receipt.publicationKey ||
-      record.contentSha256 !== receipt.contentSha256
-    )
-      throw Error();
-  }
   if (operation === "save") {
     const original = prior.parse(
       JSON.parse(await readFile(join(directory, files[0]), "utf8")),
     );
-    match(original);
+    match(original, receipt);
     const expected = [
       undefined,
       original.snapshotSha256,
@@ -121,35 +250,12 @@ async function main() {
   } else {
     const data = await storage.get(marker);
     if (!data || data.byteLength > 8192) throw Error();
-    const doc = manifest.parse(JSON.parse(Buffer.from(data).toString()));
-    if (
-      doc.reportId !== receipt.reportId ||
-      doc.publicationKey !== receipt.publicationKey ||
-      !files.every((name, i) => name === doc.files[i].name)
-    )
-      throw Error();
-    await mkdir(directory, { mode: 0o700 });
-    for (const item of doc.files) {
-      const zipped = await storage.get(prefix + item.compressed + ".gz");
-      if (!zipped || digest(zipped) !== item.compressed) throw Error();
-      const plain = gunzipSync(zipped, { maxOutputLength: item.bytes });
-      if (plain.length !== item.bytes || digest(plain) !== item.sha256)
-        throw Error();
-      await writeFile(join(directory, item.name), plain, {
-        mode: 0o600,
-        flag: "wx",
-      });
-    }
-    const original = prior.parse(
-      JSON.parse(await readFile(join(directory, files[0]), "utf8")),
+    await restoreBaseline(
+      directory,
+      JSON.parse(Buffer.from(data).toString()),
+      receipt,
+      (hash) => storage.get(prefix + hash + ".gz"),
     );
-    match(original);
-    if (
-      doc.files[1].sha256 !== original.snapshotSha256 ||
-      doc.files[2].sha256 !== original.dossierPublishedSha256 ||
-      doc.files[3].sha256 !== original.contentSha256
-    )
-      throw Error();
   }
   console.log(
     JSON.stringify({
@@ -158,9 +264,13 @@ async function main() {
     }),
   );
 }
-main().catch(() => {
-  console.error(
-    "Weekly private baseline transfer or integrity verification failed.",
-  );
-  process.exitCode = 1;
-});
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+)
+  main().catch(() => {
+    console.error(
+      "Weekly private baseline transfer or integrity verification failed.",
+    );
+    process.exitCode = 1;
+  });
