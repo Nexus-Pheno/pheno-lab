@@ -96,10 +96,11 @@ def prepare_source(run, prior):
     return snap, audit, prior_meta
 
 
-def reviewer_packet(doc, snapshot, annex, literature, audit, challenge, html_hash):
+def reviewer_packet(doc, snapshot, private_facts, annex, literature, audit, challenge, html_hash):
     # Send the actual complete final sections, and explicitly projected case facts.
     # Never send raw experiment narratives, recipe payloads, staff IDs or graph notation.
     reviewed = {item['experimentCode']: item for item in doc['evidenceMethodReview']['experiments']}
+    contexts={case['sourceHash']:case for case in private_facts['cases']}
     rows = []
     for source in snapshot['sharedAppEvidence']['experiments']:
         code = source['experimentCode']
@@ -107,14 +108,26 @@ def reviewer_packet(doc, snapshot, annex, literature, audit, challenge, html_has
             continue
         item = reviewed[code]
         ev = source['evidence']
-        arms = []
+        requested={}
         for contrast in item['comparisons']:
-            char = next(c for c in ev['characterizations'] if c['id'] == contrast['characterizationId'])
-            group = next(g for g in char['groups'] if g['label'] == contrast['group'])
-            arms.append({'characterization':char['name'], 'group':group['label'], 'metrics':group['metrics'],
-                         'deltaMean':group['deltaMean'], 'deltaBest':group['deltaBest']})
-        facts = {'sourceHash': ev['sourceHash'], 'conditionsEn': item['conditionSummaryEn'],
-                 'conditionsZh':item['conditionSummaryZh'], 'selectedReference':item['referenceGroup'], 'groups': arms}
+            labels=requested.setdefault(contrast['characterizationId'],set())
+            labels.add(contrast['group'])
+            if item['referenceGroup'] is not None:
+                labels.add(item['referenceGroup'])
+        arms=[]
+        for char in ev['characterizations']:
+            for group in char['groups']:
+                if group['label'] not in requested.get(char['id'],()):
+                    continue
+                arms.append({'characterization':char['name'], 'group':group['label'], 'metrics':group['metrics'],
+                             'deltaMean':group['deltaMean'], 'deltaBest':group['deltaBest']})
+        context=contexts.get(ev['sourceHash'])
+        need(isinstance(context,dict),'MISSING_CURRENT_REVIEWED_CASE_CONTEXT')
+        facts={'sourceHash':ev['sourceHash'],'declaredComparisonEn':item['conditionSummaryEn'],
+               'declaredComparisonZh':item['conditionSummaryZh'],'selectedReference':item['referenceGroup'],'groups':arms,
+               'recordedIntent':{k:context[k] for k in ('observation','question','hypothesis','conclusion')},
+               'groupLabels':context['recordedGroups'],'sourceConditions':context['conditions'],
+               'actualCaptures':context['actualCaptures'],'deviceStack':context['stack']}
         rows.append({'code': code, 'sourceHash': ev['sourceHash'], 'comparisonFacts': compact(facts)})
     science = [{'name': c.get('materialName'), 'status': c.get('status'), 'conclusion': c.get('reportSafeFutureSentence'),
                 'alternatives': c.get('competingExplanations'), 'controls': c.get('discriminatingControls')}
@@ -215,7 +228,7 @@ def prepare(run, prior, output):
     subprocess.run(['node',Path(__file__).with_name('verify_report.mjs'),run/'report-publish.html',output/'qa'],
                    cwd=Path(__file__).resolve().parents[2],check=True,timeout=1800,stdout=subprocess.DEVNULL)
     secret=secrets.token_hex(32)
-    packet=reviewer_packet(doc,snap,annex,literature,{**audit,'reviewCoverage':bind_final_review.peer_coverage(doc)},secret,html_hash)
+    packet=reviewer_packet(doc,snap,facts,annex,literature,{**audit,'reviewCoverage':bind_final_review.peer_coverage(doc)},secret,html_hash)
     packet['reviewChecks']=sorted(bind_final_review.CHECKS)
     save_new(output/'final-science-input.json',packet)
     outputs={name:file_hash(output,name) for name in ['numeric-audit.json','gates.json','final-science-input.json',

@@ -104,5 +104,5 @@ def audit(snapshot, previous):
     new = scans.keys() - prior_aliases
     return {'arithmeticChecks': count, 'arithmeticFailures': [], 'sourceCounts': dict(coverage),
             'newAliasesInHistory': len(new), 'newMeasuredInWeek': sum(scans[a].get('measuredInPeriod') is True for a in new),
-            'newReceivedOlderEligible': snapshot['ingestion']['receivedWithEarlierMeasurementInPeriod'],
+            'scansReceivedInPeriodWithEarlierMeasurementTime': snapshot['ingestion']['receivedWithEarlierMeasurementInPeriod'],
             'experiments': details}
