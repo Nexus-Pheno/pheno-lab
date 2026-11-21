@@ -302,6 +302,7 @@ def assemble_science(root):
                 for x in (case["reference"], case["comparator"])
                 if x
             ],
+            "conditionGroupLabels": [case_binding["groups"][row["group"]] for row in pub["conditions"]],
             "characterizationId": case_binding["characterizations"][
                 case["characterization"]
             ],
@@ -381,9 +382,10 @@ def assemble_science(root):
                 for t in src_case["characterizations"]
                 if t["id"] == case["characterization"]
             )
-            metrics = []
+            metrics, extra_components = [], []
+            condition_arms = {row["group"] for row in pub["conditions"]}
             for g in characterization["groups"]:
-                if g["id"] not in {case["reference"], case["comparator"]}:
+                if g["id"] not in condition_arms:
                     continue
                 for metric, unit in [
                     ("pce", "PCE (%)"),
@@ -393,7 +395,8 @@ def assemble_science(root):
                 ]:
                     m = g["stats"].get(metric)
                     if m:
-                        metrics.append(
+                        target = metrics if metric == "pce" or g["id"] in {case["reference"], case["comparator"]} else extra_components
+                        target.append(
                             [
                                 case_binding["groups"][g["id"]],
                                 unit,
@@ -406,12 +409,11 @@ def assemble_science(root):
                                 ],
                             ]
                         )
-            text += table(
-                ["组别", "指标", "器件数", "平均", "最高", "标准差"]
-                if zh
-                else ["Group", "Quantity", "Devices", "Mean", "Highest", "SD"],
-                metrics,
+            metric_headers = (
+                ["组别", "指标", "器件数", "平均", "最高", "标准差"] if zh
+                else ["Group", "Quantity", "Devices", "Mean", "Highest", "SD"]
             )
+            text += table(metric_headers, metrics)
             body[lang] = text
             t = "".join(
                 subsection(hz if zh else he, pub[f][lang])
@@ -480,6 +482,9 @@ def assemble_science(root):
                 )
                 + "</ul>"
             )
+            if extra_components:
+                t += "<h3>" + ("其他组别的器件参数" if zh else "Component measurements for the other groups") + "</h3>"
+                t += table(metric_headers, extra_components)
             test_body[lang] = t
         sections.append(
             section("case-" + key.lower(), pub["name"]["en"], pub["name"]["zh"], body)

@@ -437,7 +437,7 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
         policyVersion=e["policyVersion"],
         referenceGroup=e["reference"]["selectedGroup"],
         aiInterpretationUsed=False,
-        comparisons=comparisons(e, c["binding"]["characterizationId"], c["binding"]["groupLabels"]),
+        comparisons=comparisons(e, c["binding"]["characterizationId"], c["binding"].get("conditionGroupLabels", c["binding"]["groupLabels"])),
         **bi("conditionSummary", condition),
         **bi("selectionDefinition", SELECTION),
         **bi("judgment", p["judgment"]),
