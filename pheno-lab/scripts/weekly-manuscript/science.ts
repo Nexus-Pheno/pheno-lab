@@ -10,6 +10,7 @@ import {
 } from "../weekly-report-model";
 import {
   privateScienceInputSchema,
+  previousScienceDraftSchema,
   scienceInterpretationSchema,
   scienceReviewSchema,
   scienceSystem,
@@ -64,7 +65,11 @@ export function bindScience(evidence: Evidence, science: Science) {
       throw Error("Scientific condition rows don't match compared arms");
     const chem = c.chemical;
     if (chem.sources.some((k) => !evidence.articles.some((p) => p.id === k)))
-      throw Error("Public literature reference not supplied");
+      throw Error(
+        c.experiment +
+          " uses an experiment or unknown identifier in chemical.sources. Allowed primary-paper IDs: " +
+          evidence.articles.map((p) => p.id).join(", "),
+      );
     const recipes = new Set(source.recipes.map((r) => r.id));
     if (
       chem.recipes.length !== recipes.size ||
@@ -100,8 +105,20 @@ export function bindScience(evidence: Evidence, science: Science) {
 }
 
 async function main() {
-  if (process.argv.length !== 3)
-    throw Error("Usage: science.ts private-run-directory");
+  const after =
+    process.argv[3] === "--continue-after-review" ? Number(process.argv[4]) : 0;
+  if (
+    process.argv.length !== 3 &&
+    !(
+      process.argv.length === 5 &&
+      Number.isInteger(after) &&
+      after > 0 &&
+      after <= 3
+    )
+  )
+    throw Error(
+      "Usage: science.ts private-run-directory [--continue-after-review attempt]",
+    );
   const dir = resolve(process.argv[2]);
   const load = async (file: string) =>
     JSON.parse(await readFile(join(dir, file), "utf8"));
@@ -170,10 +187,54 @@ async function main() {
       );
     };
   const orgId = await getWeeklyReportOrganizationId();
-  let revision:
-    | { previous: Science; review: z.output<typeof scienceReviewSchema> }
-    | undefined;
-  for (let a = 1; a <= 3; a++) {
+  let revision: z.output<typeof privateScienceInputSchema>["revision"];
+  if (after) {
+    // Continue a genuine negative review under an improved contract, keeping
+    // the original response and every finding. An accepted or source-mismatched
+    // manuscript is never silently regenerated.
+    const original = await load(`scientist-attempt-${after}.json`);
+    const peer = await load(`scientific-peer-attempt-${after}.json`);
+    const source = hashWeeklyReportValue(evidence);
+    if (
+      original.evidenceHash !== source ||
+      peer.evidenceHash !== source ||
+      peer.role !== "chemist-reviewer" ||
+      original.role !== "scientist" ||
+      peer.authorCompletionId !== original.completionId ||
+      peer.completionId === original.completionId ||
+      peer.reviewedInterpretationHash !==
+        hashWeeklyReportValue(original.value) ||
+      peer.reviewedInterpretationHash !== original.outputHash ||
+      peer.inputHash !==
+        hashWeeklyReportValue({ evidence, interpretation: original.value }) ||
+      peer.outputHash !== hashWeeklyReportValue(peer.value) ||
+      peer.value.decision === "BLOCK" ||
+      (peer.value.decision === "PASS" && !peer.bindingFailure)
+    )
+      throw Error(
+        "Previous private revision is not eligible for renewed authoring",
+      );
+    const review = scienceReviewSchema.parse(peer.value);
+    if (peer.bindingFailure && review.findings.length < 25)
+      review.findings.push({
+        location: "chemical.sources and source binding",
+        severity: "blocking",
+        issue: peer.bindingFailure,
+        correction:
+          "Cite the supplied published work by its literature ID (e.g., LINKER, BURIED_CONTACT, LIGAND, S1 or S2), never by E experiment number. Name the limited relevance of the actual paper you selected.",
+      });
+    revision = {
+      previous: previousScienceDraftSchema.parse(original.value),
+      review,
+    };
+    await immutableWrite(join(dir, `continuation-from-review-${after}.json`), {
+      priorRequest: original.requestHash,
+      priorReview: peer.requestHash,
+      evidenceHash: source,
+      reviewedInterpretationHash: peer.reviewedInterpretationHash,
+    });
+  }
+  for (let a = after + 1; a <= (after ? after + 2 : 3); a++) {
     const basicInput = { evidence, ...(revision ? { revision } : {}) };
     const prefix = `nonpublishable-scientist-${a}-`;
     const rejected = async () => {

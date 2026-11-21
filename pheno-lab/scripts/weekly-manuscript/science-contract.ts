@@ -251,6 +251,17 @@ export const scienceReviewSchema = z.strictObject({
     }),
   ),
 });
+// Previous unapproved drafts may contain erroneous bibliography identifiers.
+// Preserve them as evidence for correction; only the new output uses paper IDs.
+export const previousScienceDraftSchema = scienceInterpretationSchema.extend({
+  cases: z.array(
+    interpretation.extend({
+      chemical: interpretation.shape.chemical.extend({
+        sources: z.array(short).min(1).max(6),
+      }),
+    }),
+  ),
+});
 export const privateScienceInputSchema = z.strictObject({
   evidence,
   formatRepair: z
@@ -266,7 +277,7 @@ export const privateScienceInputSchema = z.strictObject({
     .optional(),
   revision: z
     .strictObject({
-      previous: scienceInterpretationSchema,
+      previous: previousScienceDraftSchema,
       review: scienceReviewSchema,
     })
     .optional(),
