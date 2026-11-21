@@ -192,15 +192,31 @@ def collect(snapshot, snapshot_hash, dossier, source, bindings, reviews):
             ),
             "Accepted experiment source or inclusion status differs",
         )
-    scans = unique(
-        [
-            r
-            for r in snapshot["sampleMeasurements"]
-            + snapshot["historicalSampleMeasurements"]
-            if r.get("measurementAlias")
-        ],
-        "measurementAlias",
+    # A frozen scan can appear in both history windows. Its scientific identity
+    # and readings must agree even if the window-specific receipt flags differ.
+    scans = {}
+    match_fields = (
+        "sampleAlias",
+        "sourceLinked",
+        "experimentCode",
+        "group",
+        "direction",
+        "runAlias",
+        "instrumentAlias",
+        "measuredAt",
+        "metrics",
     )
+    for scan in (
+        snapshot["sampleMeasurements"] + snapshot["historicalSampleMeasurements"]
+    ):
+        alias = scan.get("measurementAlias")
+        if not alias:
+            continue
+        previous = scans.setdefault(alias, scan)
+        check(
+            all(previous.get(k) == scan.get(k) for k in match_fields),
+            "Conflicting snapshot records for the same measured scan",
+        )
     by_alias = {p["projectAlias"] or "UNASSIGNED": p for p in dossier["projects"]}
     by_review = unique(reviews, "projectAlias")
     out = []
@@ -268,6 +284,16 @@ def collect(snapshot, snapshot_hash, dossier, source, bindings, reviews):
                 )
                 or (case["hashBasis"] == "dossier-intent-route" and code not in cases),
                 "Wrong accepted-device attribution for a strict route",
+            )
+            check(
+                any(
+                    rt["routeId"] == case["representativeRouteId"]
+                    and any(
+                        v["sourcePeriod"] == case["sourcePeriod"] for v in rt["cohorts"]
+                    )
+                    for rt in case["routes"]
+                ),
+                "Lead project cohort has no measured source in the selected period",
             )
             for route in case["routes"]:
                 for value in route["cohorts"]:

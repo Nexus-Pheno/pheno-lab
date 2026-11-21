@@ -198,6 +198,19 @@ class ResultSources(TestCase):
         self.assertIn("unknown", render(result, "en"))
         self.assertIn("未知", render(result, "zh"))
 
+    def test_real_duplicate_scan_across_windows_is_counted_once(self):
+        row = dict(self.snapshot["sampleMeasurements"][0], receivedInPeriod=False)
+        self.snapshot["historicalSampleMeasurements"].append(row)
+        self.assertEqual(self.result()["projects"][0]["rows"][0]["scans"], 1)
+        row["group"] = "other"
+        with self.assertRaisesRegex(ValueError, "Conflicting snapshot records"):
+            self.result()
+
+    def test_project_lead_has_to_be_measured_in_the_selected_window(self):
+        self.src["projects"][0]["routeCases"][0]["sourcePeriod"] = PERIODS[1]
+        with self.assertRaisesRegex(ValueError, "Lead project cohort"):
+            self.result()
+
     def test_changed_frozen_source_fails(self):
         self.src["files"]["snapshot.json"] = "0" * 64
         with self.assertRaisesRegex(ValueError, "another measured snapshot"):
