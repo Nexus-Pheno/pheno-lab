@@ -5,6 +5,12 @@ import { access, lstat, readFile, realpath, writeFile } from "node:fs/promises";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import {
+  finishVisualReview,
+  verifyVisionBatch,
+  visionResult,
+  type VisionBatch,
+} from "./vision-batches";
 import { activeProvider } from "../../src/modules/ai/client";
 import { isOfficialDeepSeek } from "../../src/modules/ai/provider-policy";
 import { decryptCredential } from "../../src/infrastructure/crypto/credential-server";
@@ -24,18 +30,6 @@ const challengeSchema = z.object({
   contentSha256: hex,
   images: z.array(image).min(1).max(600),
 });
-const review = z.object({
-  canary: z.string().regex(/^\d{6}$/),
-  pages: z.array(
-    z.object({
-      index: z.number().int().positive(),
-      decision: z.enum(["PASS", "BLOCK"]),
-      observation: z.string().min(18).max(650),
-      defects: z.array(z.string()).max(12),
-      advisories: z.array(z.string()).max(12),
-    }),
-  ),
-});
 const asImage = (bytes: Buffer) => ({
   type: "image_url",
   image_url: {
@@ -52,7 +46,7 @@ async function main() {
   if (!provider || !isOfficialDeepSeek(provider))
     throw Error("Official vision provider missing.");
   const seen = new Set<string>();
-  const batches = [];
+  const batches: VisionBatch[] = [];
   const challengeSha256 = sha(raw);
   for (let start = 0; start < challenge.images.length; start += 3) {
     const images = challenge.images.slice(start, start + 3);
@@ -68,26 +62,13 @@ async function main() {
         },
       );
       if (!exists) break;
-      const saved = JSON.parse(await readFile(filename, "utf8"));
-      const verified =
-        saved.challengeSha256 === challengeSha256 &&
-        saved.canaryExpected === saved.canaryReceived &&
-        !seen.has(saved.canaryExpected) &&
-        saved.responseId &&
-        hex.safeParse(saved.requestHash).success &&
-        hex.safeParse(saved.responseHash).success &&
-        saved.images.length === images.length &&
-        saved.images.every(
-          (p: (typeof images)[number], i: number) =>
-            p.file === images[i].file && p.sha256 === images[i].sha256,
-        );
-      if (
-        !verified ||
-        saved.images.some((p: { decision: string }) => p.decision !== "PASS")
-      )
-        throw Error("Existing vision batch held or differs from the challenge");
-      seen.add(saved.canaryExpected);
-      if (saved.images.some((p: { defects: string[] }) => p.defects.length)) {
+      const { saved, verdict } = verifyVisionBatch(
+        JSON.parse(await readFile(filename, "utf8")),
+        challengeSha256,
+        images,
+        seen,
+      );
+      if (verdict === "clarify") {
         if (filename === clarification)
           throw Error(
             "Vision clarification still contains contradictory decisions",
@@ -106,7 +87,6 @@ async function main() {
     do {
       token = String(randomInt(1_000_000)).padStart(6, "0");
     } while (seen.has(token));
-    seen.add(token);
     const canary = execFileSync("python3", [
       "-B",
       join(dirname(filename), "canary.py"),
@@ -201,7 +181,7 @@ async function main() {
     }
     const completion = completionCheck.data;
     const decoded = JSON.parse(completion.choices[0].message.content);
-    const reviewCheck = review.safeParse(decoded);
+    const reviewCheck = visionResult.safeParse(decoded);
     if (!reviewCheck.success) {
       const fields = reviewCheck.error.issues
         .map((z) => z.path.join(".") + ":" + z.code)
@@ -228,30 +208,24 @@ async function main() {
       mode: 0o600,
       flag: "wx",
     });
-    if (
-      result.canary !== token ||
-      result.pages.length !== images.length ||
-      result.pages.some(
-        (p, i) =>
-          p.index !== i + 1 || p.decision !== "PASS" || p.defects.length,
-      )
-    )
-      throw Error("Rendered page inspection requires correction.");
-    batches.push(batch);
+    const { saved, verdict } = verifyVisionBatch(
+      batch,
+      challengeSha256,
+      images,
+      seen,
+    );
+    if (verdict === "clarify")
+      throw Error(
+        "Vision verdict contradicts its findings. The original response is preserved.",
+      );
+    batches.push(saved);
   }
-  await writeFile(
-    join(reviewDir, "visual-review.json"),
-    JSON.stringify({
-      schemaVersion: 1,
-      role: "visual",
-      challenge: challenge.challenge,
-      challengeSha256: sha(raw),
-      contentSha256: challenge.contentSha256,
-      completedAt: new Date().toISOString(),
-      model: "deepseek-flash",
-      batches,
-    }),
-    { mode: 0o600, flag: "wx" },
+  await finishVisualReview(
+    reviewDir,
+    challenge.challenge,
+    challengeSha256,
+    challenge.contentSha256,
+    batches,
   );
 }
 main()
