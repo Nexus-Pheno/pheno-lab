@@ -54,6 +54,7 @@ cp -a \
   src \
   package.json \
   pnpm-lock.yaml \
+  tsconfig.json \
   next.config.ts \
   .node-version \
   "$STAGING/pheno-lab/"
