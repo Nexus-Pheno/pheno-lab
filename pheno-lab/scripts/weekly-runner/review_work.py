@@ -1,7 +1,10 @@
 """Generate one fresh paper, require independent scientific and visual review, and keep the reviewed bytes."""
 
 from __future__ import annotations
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import os
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -113,11 +116,44 @@ def reviewed_ledger(work, prior):
     write(work / "rd-dossier-reviewed.json", source)
 
 
-def workflow(work, prior):
+def render_reviewed(work):
+    names = ("report-publish.html", "report-publish.metadata.json")
+    if all((work / name).is_file() for name in names):
+        return
+    # A power loss between writing HTML and metadata can recover the same bytes.
+    with tempfile.TemporaryDirectory(prefix=".weekly-render-", dir=work) as temp:
+        stage = Path(temp)
+        run(
+            sys.executable,
+            "-B",
+            SCI / "render_report.py",
+            work / "report-document-publish.json",
+            stage / names[0],
+        )
+        for name in names:
+            original, target = stage / name, work / name
+            if target.exists():
+                if target.read_bytes() != original.read_bytes():
+                    raise ValueError(
+                        "Partial render conflicts with the frozen manuscript."
+                    )
+            else:
+                os.link(original, target)
+        fd = os.open(work, os.O_DIRECTORY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def review_projects(work):
     if not (work / "project-decisions-review.json").exists():
         ts(APP / "scripts/weekly-report-model-projects.ts", work, timeout=14400)
     if not (work / "project-attainment.json").exists():
         ts(APP / "scripts/weekly-report-model-attainment.ts", work, timeout=7200)
+
+
+def review_materials(work):
     if not (work / "private-chemistry-descriptors.json").exists():
         run(
             "node",
@@ -129,6 +165,15 @@ def workflow(work, prior):
         run(sys.executable, "-B", AUTHOR / "private_science.py", work)
     if not (work / "independent-material-science-review.json").exists():
         ts(AUTHOR / "science.ts", work, timeout=10800)
+
+
+def workflow(work, prior):
+    # Both teams use the frozen source packet. They write distinct receipts.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        projects = executor.submit(review_projects, work)
+        materials = executor.submit(review_materials, work)
+        projects.result()
+        materials.result()
     if not (work / "science-public-index.private.json").exists():
         run(sys.executable, "-B", AUTHOR / "assemble_science.py", work)
     reviewed_ledger(work, prior)
@@ -136,14 +181,7 @@ def workflow(work, prior):
         document = assemble(work, prior)
         period_scope.add_scope_note(document, read(work / "snapshot.json"))
         write(work / "report-document-publish.json", document)
-    if not (work / "report-publish.html").exists():
-        run(
-            sys.executable,
-            "-B",
-            SCI / "render_report.py",
-            work / "report-document-publish.json",
-            work / "report-publish.html",
-        )
+    render_reviewed(work)
     gate = work / "gate"
     reviews = work / "reviews"
     reviews.mkdir(mode=0o700, exist_ok=True)
