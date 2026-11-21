@@ -141,3 +141,110 @@ it("recovers the exact interrupted author once, and refuses altered frozen input
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+it("seals exactly the scientific edit and both independent reviews, and detects a changed leaf", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { hashWeeklyReportValue: hash } =
+    await import("../scripts/weekly-report-model");
+  const { verifyScienceEditChain } =
+    await import("../scripts/weekly-manuscript/replay-science-edit.mjs");
+  const dir = await mkdtemp(join(tmpdir(), "pheno-edit-test-"));
+  const save = (file: string, value: unknown) =>
+    writeFile(join(dir, file), JSON.stringify(value));
+  try {
+    const facts = { cases: [] },
+      packet = { period: "test" },
+      evidence = { ...facts, publicEvidence: packet, publicDraft: null };
+    const evidenceHash = hash(evidence);
+    function record(role: string, id: string, body: unknown, value: unknown) {
+      return {
+        role,
+        model: "deepseek-v4-pro",
+        provider: "deepseek",
+        providerHost: "api.deepseek.com",
+        requestId: "req-" + id,
+        completionId: id,
+        evidenceHash,
+        inputHash: hash(body),
+        outputHash: hash(value),
+        promptHash: "test-prompt",
+        requestHash: "test-request",
+        value,
+      };
+    }
+    const base = record("scientist", "author", { evidence }, original);
+    const problem = {
+      decision: "REVISE",
+      findings: [{ severity: "blocking" }],
+    };
+    const prior = {
+      ...record(
+        "chemist-reviewer",
+        "review-before",
+        { evidence, interpretation: original },
+        problem,
+      ),
+      bindingFailure: null,
+      authorCompletionId: base.completionId,
+      reviewedInterpretationHash: base.outputHash,
+    };
+    const change = {
+      changes: [{ path: "cases.0.public.judgment", replacement }],
+    };
+    const editor = record(
+      "scientific-reviser",
+      "editor",
+      { evidence, revision: { previous: original, review: problem } },
+      change,
+    );
+    const updated = replayScienceEdit(original, change);
+    const reviewer = record(
+      "chemist-reviewer",
+      "review-after",
+      { evidence, interpretation: updated },
+      { decision: "PASS", findings: [] },
+    );
+    const seal = {
+      ...reviewer,
+      authorCompletionId: "editor",
+      reviewedInterpretationHash: hash(updated),
+      targetedScienceBaseAttempt: 3,
+      targetedScienceEdits: 1,
+    };
+    const files: Record<string, unknown> = {
+      "science-source-selection.json": { evidenceHash, publicDraftHash: null },
+      "private-scientific-facts.json": facts,
+      "provider-packet.json": packet,
+      "scientific-edit-anchor.json": {
+        baseAttempt: 3,
+        evidenceHash,
+        baseOutputHash: base.outputHash,
+        priorReviewHash: prior.outputHash,
+      },
+      "scientist-attempt-3.json": base,
+      "scientific-peer-attempt-3.json": prior,
+      "science-edit-3-1-provider.json": editor,
+      "science-edit-3-1-peer.json": reviewer,
+      "science-interpretation.json": updated,
+    };
+    await Promise.all(
+      Object.entries(files).map(([name, value]) => save(name, value)),
+    );
+    const chain = await verifyScienceEditChain(dir, seal);
+    expect(chain.files.sort()).toEqual(Object.keys(files).sort());
+    expect(chain.completionIds).toEqual([
+      "author",
+      "review-before",
+      "editor",
+      "review-after",
+    ]);
+    const changed = structuredClone(updated);
+    changed.cases[0].public.result.en = "Unreviewed result";
+    await save("science-interpretation.json", changed);
+    await expect(verifyScienceEditChain(dir, seal)).rejects.toThrow();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
