@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import argparse
+from contextlib import contextmanager
 import datetime as dt
 import fcntl
 import hashlib
@@ -250,6 +251,42 @@ def deliver(state, work):
     finish(state, work, inspect(state, key))
 
 
+@contextmanager
+def staged_output(path):
+    """Only a complete, synced file becomes a resumable source checkpoint."""
+    with tempfile.TemporaryDirectory(prefix=".pending-", dir=path.parent) as scratch:
+        staged = Path(scratch) / path.name
+        yield staged
+        if staged.is_symlink() or not staged.is_file():
+            raise ValueError("Missing completed source file.")
+        with staged.open("rb") as file:
+            os.fsync(file.fileno())
+        os.link(staged, path)
+        fd = os.open(path.parent, os.O_DIRECTORY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def recover_prior_publications(state, current_key):
+    for envelope in sorted(
+        (state / "work").glob("materials-process-weekly-*/publication-envelope.json")
+    ):
+        earlier = envelope.parent
+        if (
+            earlier.name >= current_key
+            or (state / "baselines" / earlier.name / "run-result.json").is_file()
+        ):
+            continue
+        receipt = inspect(state, earlier.name)
+        if receipt["status"] != "PUBLISHED":
+            raise ValueError(
+                "An earlier frozen delivery must be reconciled before a new week can start."
+            )
+        finish(state, earlier, receipt)
+
+
 def collect(state, work, slot):
     roster = read(state / "roster.json")
     reader = (state / "evidence-reader").read_text().strip()
@@ -263,52 +300,55 @@ def collect(state, work, slot):
         return (slot - dt.timedelta(days=days)).astimezone(UTC).isoformat()
 
     if not (work / "baseline-selection.json").exists():
+        with staged_output(work / "baseline-selection.json") as staged:
+            run(
+                sys.executable,
+                "-B",
+                SCI / "select_published_baseline.py",
+                "--root",
+                state / "baselines",
+                "--output",
+                staged,
+            )
+    with staged_output(work / "snapshot.json") as staged:
         run(
             sys.executable,
             "-B",
-            SCI / "select_published_baseline.py",
-            "--root",
-            state / "baselines",
-            "--output",
+            SCI / "collect_snapshot.py",
+            "--local-operator",
+            "--with-app-evidence",
+            "--baseline-selection",
             work / "baseline-selection.json",
+            "--start",
+            stamp(30),
+            "--end",
+            stamp(0),
+            "--period-start",
+            stamp(7),
+            "--history-start",
+            stamp(90),
+            "--evidence-reader-email",
+            reader,
+            *flags,
+            "--output",
+            staged,
         )
-    run(
-        sys.executable,
-        "-B",
-        SCI / "collect_snapshot.py",
-        "--local-operator",
-        "--with-app-evidence",
-        "--baseline-selection",
-        work / "baseline-selection.json",
-        "--start",
-        stamp(30),
-        "--end",
-        stamp(0),
-        "--period-start",
-        stamp(7),
-        "--history-start",
-        stamp(90),
-        "--evidence-reader-email",
-        reader,
-        *flags,
-        "--output",
-        work / "snapshot.json",
-    )
 
 
 def prepare_dossier(work, prior):
     if not (work / "rd-dossier.json").exists():
-        run(
-            sys.executable,
-            "-B",
-            SCI / "analyze_rd_snapshot.py",
-            work / "snapshot.json",
-            work / "rd-dossier.json",
-            "--previous-snapshot",
-            prior / "snapshot.json",
-            "--prior-ledger",
-            prior / "rd-dossier-published.json",
-        )
+        with staged_output(work / "rd-dossier.json") as staged:
+            run(
+                sys.executable,
+                "-B",
+                SCI / "analyze_rd_snapshot.py",
+                work / "snapshot.json",
+                staged,
+                "--previous-snapshot",
+                prior / "snapshot.json",
+                "--prior-ledger",
+                prior / "rd-dossier-published.json",
+            )
     run(
         sys.executable,
         "-B",
@@ -363,8 +403,9 @@ def rehearse(state, archive, predecessor, attempt):
         snapshot = target / "snapshot.json"
         if not snapshot.exists():
             with (
+                staged_output(snapshot) as staged,
                 (archive / "snapshot.json").open("rb") as source,
-                snapshot.open("xb") as frozen,
+                staged.open("xb") as frozen,
             ):
                 shutil.copyfileobj(source, frozen)
                 frozen.flush()
@@ -494,6 +535,7 @@ def main():
                     )
             print("Verified existing publication and five notices.")
             return
+        recover_prior_publications(state, key)
         work.mkdir(mode=0o700, parents=True, exist_ok=True)
         if (work / "publication-envelope.json").exists():
             deliver(state, work)

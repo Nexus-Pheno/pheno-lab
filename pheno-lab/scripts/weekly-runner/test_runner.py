@@ -69,6 +69,44 @@ class WeeklyScheduleTests(TestCase):
                     runner.main()
                 deliver.assert_not_called()
 
+    def test_partial_source_is_never_visible_to_a_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "snapshot.json"
+            with self.assertRaises(InterruptedError):
+                with runner.staged_output(target) as staged:
+                    staged.write_text("partial")
+                    raise InterruptedError()
+            self.assertFalse(target.exists())
+            with runner.staged_output(target) as staged:
+                staged.write_text("complete")
+            with self.assertRaises(FileExistsError):
+                with runner.staged_output(target) as staged:
+                    staged.write_text("different")
+            self.assertEqual(target.read_text(), "complete")
+
+    def test_earlier_unarchived_delivery_is_reconciled_before_new_collection(self):
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            earlier = state / "work/materials-process-weekly-2026-11-21-v1"
+            earlier.mkdir(parents=True)
+            (earlier / "publication-envelope.json").write_text("{}")
+            later = "materials-process-weekly-2026-11-28-v1"
+            with (
+                mock.patch.object(
+                    runner,
+                    "inspect",
+                    side_effect=[{"status": "ABSENT"}, {"status": "PUBLISHED"}],
+                ),
+                mock.patch.object(runner, "finish") as finish,
+                mock.patch.object(runner, "deliver") as publish,
+            ):
+                with self.assertRaisesRegex(ValueError, "earlier frozen delivery"):
+                    runner.recover_prior_publications(state, later)
+                finish.assert_not_called()
+                runner.recover_prior_publications(state, later)
+                finish.assert_called_once_with(state, earlier, {"status": "PUBLISHED"})
+                publish.assert_not_called()
+
     def test_reanalysis_preserves_notices_even_when_a_draft_is_rejected(self):
         import sys
 
@@ -238,15 +276,30 @@ class WeeklyScheduleTests(TestCase):
 
     def test_group_facts_and_charts_only_cover_reviewed_measured_arms(self):
         from envelopes import comparisons, pce_figure
+
         stats = {"n": 2, "mean": 12.1, "best": 12.4, "sd": 0.4}
-        groups = [{"label": label, "metrics": {"pce": numbers}, "judgment": "exploratory",
-                   "evidenceConfidence": "limited"}
-                  for label, numbers in [("Test", stats), ("Empty", {**stats, "n": 0, "mean": None, "best": None}),
-                                         ("Unreviewed", stats)]]
+        groups = [
+            {
+                "label": label,
+                "metrics": {"pce": numbers},
+                "judgment": "exploratory",
+                "evidenceConfidence": "limited",
+            }
+            for label, numbers in [
+                ("Test", stats),
+                ("Empty", {**stats, "n": 0, "mean": None, "best": None}),
+                ("Unreviewed", stats),
+            ]
+        ]
         char = {"id": "one", "groups": groups}
         reviewed = ["Test", "Empty"]
-        self.assertEqual([r["group"] for r in comparisons({"characterizations": [char]}, "one", reviewed)],
-                         reviewed)
+        self.assertEqual(
+            [
+                r["group"]
+                for r in comparisons({"characterizations": [char]}, "one", reviewed)
+            ],
+            reviewed,
+        )
         svg = pce_figure(char, reviewed, "zh")
         self.assertIn(">Test</text>", svg)
         self.assertNotIn(">Empty</text>", svg)
