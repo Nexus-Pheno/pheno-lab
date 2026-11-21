@@ -13,6 +13,7 @@ import {
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { replayProjectEdit } from "./weekly-report-model-project-edits.mjs";
 import {
   callWeeklyProjectReview,
   callWeeklyProjectPatch,
@@ -383,36 +384,7 @@ export function applyProjectPatch(
   previous: Approval,
   patch: z.output<typeof projectPatchSchema>,
 ): Approval {
-  const out = structuredClone(previous);
-  const changed = new Set<string>();
-  function field(key: string) {
-    if (changed.has(key)) throw Error("Duplicate project patch field");
-    changed.add(key);
-  }
-  for (const edit of patch.overview) {
-    field(edit.field);
-    out[edit.field] = edit.value;
-  }
-  for (const edit of patch.intents) {
-    const row = out.routeIntents.find(
-      (x) => x.experimentCode === edit.experimentCode,
-    );
-    if (!row) throw Error("Project patch references a different experiment");
-    field(edit.experimentCode + "." + edit.field);
-    row[edit.field] = edit.value;
-  }
-  for (const edit of patch.issues) {
-    const idx = out.issueAssessments.findIndex((x) => x.key === edit.key);
-    if (idx < 0)
-      throw Error("Project patch references a different prior issue");
-    field(edit.key);
-    out.issueAssessments[idx] = edit;
-  }
-  if (patch.confidenceLevel) out.confidenceLevel = patch.confidenceLevel;
-  if (patch.routeDisposition) out.routeDisposition = patch.routeDisposition;
-  if (hashWeeklyReportValue(previous) === hashWeeklyReportValue(out))
-    throw Error("Peer corrections failed to change the project manuscript");
-  return projectJudgmentSchema.parse(out);
+  return projectJudgmentSchema.parse(replayProjectEdit(previous, patch));
 }
 const editReceipt = z.object({
   base: projectJudgmentSchema,
@@ -570,32 +542,13 @@ async function reviewOne(
       r.inputHash !== hashWeeklyReportValue({ evidence: e, candidate: w.value })
     )
       throw new Error("Project peer review binding differs");
-    let corrected = r.value;
-    try {
-      checkBindings(e, w.value);
-    } catch (error) {
-      corrected = {
-        ...r.value,
-        decision: "REVISE",
-        findings: [
-          ...r.value.findings.slice(0, 15),
-          {
-            severity: "blocking",
-            issue:
-              error instanceof Error
-                ? error.message
-                : "Source bindings or inventory differ.",
-            correction:
-              "Return one entry per supplied case and prior issue in identical order. Copy binding fields exactly. Only cite genuinely matching current-period measured experiment codes for direct/partial prior-issue tests.",
-          },
-        ],
-      };
-    }
+    const corrected = r.value;
     await immutable(join(dir, "project-attempt-" + w.requestId + ".json"), {
       author: w,
       reviewer: r,
       ...(patch ? { patch } : {}),
     });
+    checkBindings(e, w.value);
     if (
       corrected.decision === "PASS" &&
       !corrected.findings.some((f) => f.severity === "blocking")

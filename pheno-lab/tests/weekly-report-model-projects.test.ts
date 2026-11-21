@@ -320,3 +320,105 @@ it("only binds direct tests to experiments with newly measured evidence", () => 
     ),
   ).not.toThrow();
 });
+
+it("replays every project correction against the original actual rejected independent review", async () => {
+  const { verifyProjectAuthorship, replayProjectEdit } =
+    await import("../scripts/weekly-report-model-project-edits.mjs");
+  const { hashWeeklyReportValue: hash } =
+    await import("../scripts/weekly-report-model");
+  const evidence = { project: "P1" },
+    old = { project: "P1", next: { en: "Existing reference", zh: "已有参照" } };
+  const critique = {
+    decision: "REVISE",
+    findings: [{ severity: "blocking", issue: "Control not verified." }],
+  };
+  const envelope = (
+    role: string,
+    id: string,
+    input: unknown,
+    value: unknown,
+  ) => ({
+    role,
+    completionId: id,
+    inputHash: hash(input),
+    value,
+    outputHash: hash(value),
+    evidenceHash: hash(evidence),
+  });
+  const before = {
+    author: envelope("project-author", "original", { evidence }, old),
+    reviewer: envelope(
+      "project-reviewer",
+      "critic",
+      { evidence, candidate: old },
+      critique,
+    ),
+  };
+  const edit = {
+    overview: [
+      {
+        field: "next",
+        value: { en: "Establish a matched control.", zh: "先设置匹配对照。" },
+      },
+    ],
+    intents: [],
+    issues: [],
+  };
+  const value = replayProjectEdit(old, edit);
+  const raw = envelope(
+    "project-reviser",
+    "actual-edit",
+    { evidence, revision: { previous: old, review: critique } },
+    edit,
+  );
+  const corrected = {
+    patch: { base: old, provider: raw },
+    author: {
+      ...raw,
+      value,
+      authorship: "APPLIED_TARGETED_MODEL_EDIT",
+      priorDraftHash: hash(old),
+      outputHash: hash(value),
+      providerOutputHash: raw.outputHash,
+    },
+  };
+  const pool = new Map([
+    ["original", { file: "original.json", attempt: before }],
+  ]);
+  const seal = vi.fn(),
+    completion = (
+      record: { role: string; value: unknown; outputHash: string },
+      role: string,
+    ) => {
+      expect(record.role).toBe(role);
+      expect(record.outputHash).toBe(hash(record.value));
+    };
+  expect(() =>
+    verifyProjectAuthorship(corrected, evidence, pool, {
+      hash,
+      seal,
+      completion,
+    }),
+  ).not.toThrow();
+  expect(seal).toHaveBeenCalledWith("original.json");
+  const altered = structuredClone(corrected);
+  altered.author.value.next.en = "Altered after review";
+  altered.author.outputHash = hash(altered.author.value);
+  expect(() =>
+    verifyProjectAuthorship(altered, evidence, pool, {
+      hash,
+      seal,
+      completion,
+    }),
+  ).toThrow();
+  const forged = structuredClone(before);
+  forged.reviewer.value = { ...critique, decision: "BLOCK", findings: [] };
+  expect(() =>
+    verifyProjectAuthorship(
+      corrected,
+      evidence,
+      new Map([["original", { file: "original.json", attempt: forged }]]),
+      { hash, seal, completion },
+    ),
+  ).toThrow("original project review");
+});
