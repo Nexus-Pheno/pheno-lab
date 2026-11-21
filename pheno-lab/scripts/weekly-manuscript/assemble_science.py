@@ -9,6 +9,7 @@ from html import escape
 from pathlib import Path
 
 from prepare import read, save
+from ledger_audience import LedgerAudience
 from proposal_revision import revised_proposal, source_revisions
 
 
@@ -599,6 +600,11 @@ def assemble_science(root, presentation_source=None):
         section("project-purposes", "Project objectives", "各项目研发目标", objectives)
     )
     if scientific["followupAssessments"]:
+        manager_ledger = LedgerAudience(read(root / "rd-dossier.json")["ledgerEntries"])
+        public_followups = [
+            manager_ledger.followup(maps[h["experiment"]]["ledger"][h["id"]]["entryId"], h["assessment"],
+                display_case_groups(h["rationale"], names["cases"][h["experiment"]]["groups"], names["cases"]))
+            for h in scientific["followupAssessments"]]
         sections.append(
             section(
                 "prior-action-review",
@@ -607,8 +613,8 @@ def assemble_science(root, presentation_source=None):
                 {
                     l: "<ul>"
                     + "".join(
-                        "<li>" + escape(display_case_groups(h["rationale"], names["cases"][h["experiment"]]["groups"], names["cases"])[l]) + "</li>"
-                        for h in scientific["followupAssessments"]
+                        "<li>" + escape(wording[l]) + "</li>"
+                        for wording in public_followups
                     )
                     + "</ul>"
                     for l in ("en", "zh")

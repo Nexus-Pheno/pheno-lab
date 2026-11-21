@@ -15,6 +15,7 @@ SCI = Path(__file__).resolve().parents[1] / "weekly-science"
 sys.path.insert(0, str(SCI))
 from literature_appendix import source_appendix
 from project_names import names_from_source, translate_project_names
+from ledger_audience import LedgerAudience
 import validate_rd_document as public
 import validate_decision_report as decision
 import validate_academic_report as academic
@@ -978,6 +979,7 @@ def assemble(work, prior):
     issues = []
     previous = read(prior / "rd-dossier-published.json")
     ledger = {e["entryId"]: e for e in previous["ledgerEntries"]}
+    manager_ledger = LedgerAudience(ds["ledgerEntries"])
     project_candidates = proj["projects"]
     attainment = {
         (r["project"], r["experimentCode"], r["sourceHash"]): r
@@ -1043,6 +1045,7 @@ def assemble(work, prior):
             old = ledger[ident]
             new = verified_changes[ident]
             changed = old != new
+            wording = manager_ledger.followup(ident, follow["assessment"], follow["rationale"])
             item = dict(
                 entryId=ident,
                 sectionId="context",
@@ -1059,10 +1062,10 @@ def assemble(work, prior):
                 ]
                 if changed
                 else [],
-                **bi("analysis", follow["rationale"]),
+                **bi("analysis", wording),
             )
             issues.append(item)
-            append(sections["context"], follow["rationale"])
+            append(sections["context"], wording)
     issue_scope = dict(
         selectedEntryIds=[r["entryId"] for r in issues],
         omittedUnchangedCount=len(ledger) - len(issues),

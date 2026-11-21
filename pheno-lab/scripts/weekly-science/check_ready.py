@@ -16,6 +16,7 @@ import analyze_rd_snapshot
 import audit_device_results
 import period_scope
 from referee_project_sources import project_sources
+from ledger_audience import LedgerAudience, verify_manager_html
 from project_names import names_from_source, verify_project_names
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
@@ -281,7 +282,10 @@ def prepare(run, prior, output):
         need(Path(name).name==name and file_hash(run,name)==item['sha256'],'PRIVATE_ANNEX_SOURCE_MISMATCH')
         names.add(name)
     inputs={n:file_hash(run,n) for n in sorted(names)}
-    html_hash=sha(render_report.render(doc).encode())
+    final_html = render_report.render(doc)
+    reviewed_dossier = record(run, "rd-dossier-reviewed.json", baseline.MAX_ARTIFACT_BYTES)
+    verify_manager_html(final_html, LedgerAudience(reviewed_dossier["ledgerEntries"]))
+    html_hash=sha(final_html.encode())
     need(html_hash==inputs['report-publish.html'],'FINAL_HTML_DIFFERS_FROM_REVIEWED_MANUSCRIPT')
     need(bind_final_review.is_unsigned(doc,snap['sharedAppEvidence']['asOf']), 'UNSIGNED_CURRENT_REVIEW_REQUIRED')
     gates=run_science_gates(run,prior,output)
@@ -295,7 +299,7 @@ def prepare(run, prior, output):
     timing = {code: {"inWindow": n, "firstSeenInWindow": fresh.get(code, 0)} for code,n in measured.items()}
     cases_timing = {item["experimentCode"]: timing.get(item["experimentCode"], {"inWindow": 0, "firstSeenInWindow": 0})
                     for item in doc["evidenceMethodReview"]["experiments"]}
-    project_evidence = project_sources(doc, record(run, "rd-dossier-reviewed.json", baseline.MAX_ARTIFACT_BYTES),
+    project_evidence = project_sources(doc, reviewed_dossier,
         record(run, "project-source-packet.private.json", baseline.MAX_ARTIFACT_BYTES),
         record(run, "project-attainment.json", baseline.MAX_ARTIFACT_BYTES),
         record(run, "project-decisions-review.json", baseline.MAX_ARTIFACT_BYTES),
