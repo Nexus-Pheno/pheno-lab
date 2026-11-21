@@ -478,6 +478,8 @@ async function callPinnedModel<T extends z.ZodType>(
               "author",
               "scientist",
               "project-author",
+              "project-reviewer",
+              "project-reviser",
               "reviewer",
               "chemist-reviewer",
             ].includes(options.role)
@@ -525,7 +527,9 @@ async function callPinnedModel<T extends z.ZodType>(
   try {
     raw = await readCompletion(response);
   } catch {
-    throw new Error("Weekly provider returned an incomplete response");
+    throw new Error(
+      "Weekly provider returned an incomplete response (" + options.role + ")",
+    );
   }
   const parsedCompletion = completionSchema.safeParse(raw);
   if (!parsedCompletion.success) {
@@ -539,16 +543,24 @@ async function callPinnedModel<T extends z.ZodType>(
       hint.data.choices.some((c) => c.finish_reason === "length")
     )
       throw new Error(
-        "Weekly model reached its output budget before completing the review",
+        "Weekly model reached its output budget before completing the review (" +
+          options.role +
+          ")",
       );
-    throw new Error("Weekly model identity or completion contract invalid");
+    throw new Error(
+      "Weekly model identity or completion contract invalid (" +
+        options.role +
+        ")",
+    );
   }
   const completionId = parsedCompletion.data.id;
   let content: unknown;
   try {
     content = JSON.parse(parsedCompletion.data.choices[0].message.content);
   } catch {
-    throw new Error("Weekly model returned incomplete JSON");
+    throw new Error(
+      "Weekly model returned incomplete JSON (" + options.role + ")",
+    );
   }
   const output = options.schema.safeParse(content);
   if (!output.success) {

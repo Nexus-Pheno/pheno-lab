@@ -395,6 +395,50 @@ const editReceipt = z.object({
     completionId: string,
   }),
 });
+const modelStamp = z.object({
+  role: z.enum(["project-author", "project-reviser"]),
+  model: z.literal("deepseek-v4-pro"),
+  provider: z.literal("deepseek"),
+  providerHost: z.literal("api.deepseek.com"),
+  requestId: z.uuid(),
+  completionId: z.string().min(1),
+  inputHash: string,
+  outputHash: string,
+  evidenceHash: string,
+  requestHash: string,
+  promptHash: string,
+});
+async function draftCheckpoint<T extends z.ZodType>(
+  dir: string,
+  e: Evidence,
+  role: "project-author" | "project-reviser",
+  schema: T,
+  payload: unknown,
+  request: () => Promise<unknown>,
+) {
+  const inputHash = hashWeeklyReportValue(payload);
+  const path = join(
+    dir,
+    "pending-" + role + "-" + e.project + "-" + inputHash + ".json",
+  );
+  const cached = await existing(path);
+  const received = cached ?? (await request());
+  const value = schema.parse(
+    z.object({ value: z.unknown() }).parse(received).value,
+  );
+  const receipt = { ...modelStamp.parse(received), value };
+  if (
+    receipt.role !== role ||
+    receipt.inputHash !== inputHash ||
+    receipt.evidenceHash !== hashWeeklyReportValue(e) ||
+    receipt.outputHash !== hashWeeklyReportValue(receipt.value)
+  )
+    throw Error(
+      "Project model checkpoint differs from the exact pending draft",
+    );
+  if (cached === undefined) await immutable(path, receipt);
+  return receipt;
+}
 async function reviewOne(
   dir: string,
   orgId: string,
@@ -507,10 +551,18 @@ async function reviewOne(
     const patch = revision
       ? {
           base: revision.previous,
-          provider: await callWeeklyProjectPatch({
-            orgId,
-            payload: { evidence: e, revision },
-          }),
+          provider: await draftCheckpoint(
+            dir,
+            e,
+            "project-reviser",
+            projectPatchSchema,
+            { evidence: e, revision },
+            () =>
+              callWeeklyProjectPatch({
+                orgId,
+                payload: { evidence: e, revision },
+              }),
+          ),
         }
       : undefined;
     const w = patch
@@ -525,11 +577,19 @@ async function reviewOne(
             priorDraftHash: hashWeeklyReportValue(patch.base),
           };
         })()
-      : await callWeeklyProjectReview({
-          orgId,
-          role: "project-author",
-          payload: { evidence: e, ...(revision ? { revision } : {}) },
-        });
+      : await draftCheckpoint(
+          dir,
+          e,
+          "project-author",
+          projectJudgmentSchema,
+          { evidence: e },
+          () =>
+            callWeeklyProjectReview({
+              orgId,
+              role: "project-author",
+              payload: { evidence: e },
+            }),
+        );
     const r = await callWeeklyProjectReview({
       orgId,
       role: "project-reviewer",
