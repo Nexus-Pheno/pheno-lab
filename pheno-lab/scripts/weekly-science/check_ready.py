@@ -16,7 +16,8 @@ import analyze_rd_snapshot
 import audit_device_results
 import period_scope
 from referee_project_sources import project_sources
-from ledger_audience import LedgerAudience, verify_manager_html
+from ledger_audience import LedgerAudience, verify_manager_html, verify_inactive_followups
+from manager_material_names import ManagerMaterialNames
 from project_names import names_from_source, verify_project_names
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
@@ -285,6 +286,10 @@ def prepare(run, prior, output):
     final_html = render_report.render(doc)
     reviewed_dossier = record(run, "rd-dossier-reviewed.json", baseline.MAX_ARTIFACT_BYTES)
     verify_manager_html(final_html, LedgerAudience(reviewed_dossier["ledgerEntries"]))
+    ManagerMaterialNames(snap, readable_projects).verify(final_html)
+    verify_inactive_followups(final_html, record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-decisions-review.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES), read_list(run, "reviewed-updates.json"))
     html_hash=sha(final_html.encode())
     need(html_hash==inputs['report-publish.html'],'FINAL_HTML_DIFFERS_FROM_REVIEWED_MANUSCRIPT')
     need(bind_final_review.is_unsigned(doc,snap['sharedAppEvidence']['asOf']), 'UNSIGNED_CURRENT_REVIEW_REQUIRED')

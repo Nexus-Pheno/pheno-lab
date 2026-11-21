@@ -85,7 +85,11 @@ def project_sources(doc, dossier, source, attainment, receipts, decisions, bindi
             else:
                 row["statement"] = item["statement"]
                 if entry_id in visible_issues or decision["testedExperimentCodes"]:
-                    row.update(entryId=entry_id, previousDecision=item["previousDecision"], rationale=decision["rationale"])
+                    row["entryId"] = entry_id
+                    if decision["assessment"] == "no-new-direct-test" and item["status"] == after["status"]:
+                        row.update(sourceRecordSha256=record_hash(after), reviewedAssessmentSha256=record_hash(decision))
+                    else:
+                        row.update(previousDecision=item["previousDecision"], rationale=decision["rationale"])
             prior.append(row)
         result.append({
             **selected_fields(evidence, ("project", "name", "assigned", "measuredScans", "earlierReceipts", "firstSeenSources", "scope")),

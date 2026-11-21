@@ -605,6 +605,18 @@ def assemble_science(root, presentation_source=None):
             manager_ledger.followup(maps[h["experiment"]]["ledger"][h["id"]]["entryId"], h["assessment"],
                 display_case_groups(h["rationale"], names["cases"][h["experiment"]]["groups"], names["cases"]))
             for h in scientific["followupAssessments"]]
+        # Multiple unchanged historical items have the same reviewed state; show it once per experiment.
+        pending = {}
+        active = []
+        for assessment, wording in zip(scientific["followupAssessments"], public_followups, strict=True):
+            if assessment["assessment"] == "no-new-direct-test":
+                code = names["cases"][assessment["experiment"]]["code"]
+                pending[code] = pending.get(code, 0) + 1
+            else:
+                active.append(wording)
+        public_followups = active + [
+            {"en": f"{code} — no new direct test was recorded for {n} earlier research " + ("question." if n == 1 else "questions."),
+             "zh": f"{code}：本周没有针对 {n} 项前期问题的直接验证记录。"} for code,n in pending.items()]
         sections.append(
             section(
                 "prior-action-review",

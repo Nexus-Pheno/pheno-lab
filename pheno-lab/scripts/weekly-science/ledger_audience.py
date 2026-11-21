@@ -85,9 +85,12 @@ class LedgerAudience:
         normalized = match_text(text)
         return any(term and term in normalized for term in self.fingerprints)
 
-    def followup(self, entry_id, assessment, wording):
+    def followup(self, entry_id, assessment, wording, changed=False):
         if entry_id in self.restricted or any(self.matches(wording[lang]) for lang in ("en", "zh")):
             return STATUSES[assessment]
+        if assessment == "no-new-direct-test" and not changed:
+            return {"en": "No new direct test of this earlier question was recorded this week.",
+                    "zh": "本周没有记录直接检验这一前期问题的新实验。"}
         return wording
 
 
@@ -109,7 +112,7 @@ class ManagerText(HTMLParser):
         if tag in {"p","section","li","td","th","h1","h2","h3","h4","caption","figcaption","text","title","desc"}:
             self.flush()
         if not self.suppressed:
-            self.fragments.extend(v for k,v in attrs if v and (k in {"alt","title","aria-label","href"} or k.startswith("data-")))
+            self.fragments.extend(v for k,v in attrs if v and (k in {"alt","title","aria-label","href"} or (tag == "meta" and k == "content") or k.startswith("data-")))
 
     def handle_endtag(self, tag):
         if tag in {"p","section","li","td","th","h1","h2","h3","h4","caption","figcaption","text","title","desc"}:
@@ -134,3 +137,21 @@ def verify_manager_html(html, policy):
     if (any(policy.matches(s) for s in parser.fragments)
             or any(term in joined for term in policy.identifiers if len(term) >= 6)):
         raise ValueError("Restricted historical research appears in manager-facing report text or link")
+
+
+def verify_inactive_followups(html, decisions, receipts, source_index, updated):
+    """Reconcile inactive assessments privately; the full old rationale is unnecessary in the manager paper."""
+    revised = {r["entryId"] for r in updated}
+    links = {r["project"]: {b["key"]: b["entryId"] for b in r["issueBindings"]} for r in receipts["projects"]}
+    rows = [(links[p["project"]][a["key"]], a) for p in decisions["projects"] for a in p["issueAssessments"]]
+    rows.extend((a["entryId"], a) for a in source_index["followupAssessments"])
+    inactive, substantive = set(), set()
+    for ident, assessment in rows:
+        choices = inactive if ident not in revised and assessment["assessment"] == "no-new-direct-test" else substantive
+        for lang, passage in assessment["rationale"].items():
+            text = match_text(passage)
+            if len(text) >= (36 if lang == "zh" else 88): choices.add(text)
+    parser = ManagerText(); parser.feed(html); parser.close(); parser.flush()
+    blocks = [match_text(block) for block in parser.fragments]
+    if any(phrase in block for phrase in inactive - substantive for block in blocks):
+        raise ValueError("A long historical no-new-test rationale was copied into the manager report")

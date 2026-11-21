@@ -16,6 +16,7 @@ sys.path.insert(0, str(SCI))
 from literature_appendix import source_appendix
 from project_names import names_from_source, translate_project_names
 from ledger_audience import LedgerAudience
+from manager_material_names import ManagerMaterialNames
 import validate_rd_document as public
 import validate_decision_report as decision
 import validate_academic_report as academic
@@ -1045,7 +1046,11 @@ def assemble(work, prior):
             old = ledger[ident]
             new = verified_changes[ident]
             changed = old != new
-            wording = manager_ledger.followup(ident, follow["assessment"], follow["rationale"])
+            wording = manager_ledger.followup(ident, follow["assessment"], follow["rationale"], changed=changed)
+            if follow["assessment"] == "no-new-direct-test" and not changed:
+                name = p.get("projectName")
+                wording = {"en": (name or "Unassigned experiments") + " — " + wording["en"],
+                           "zh": (name or "未分配项目的实验") + "：" + wording["zh"]}
             item = dict(
                 entryId=ident,
                 sectionId="context",
@@ -1247,4 +1252,5 @@ def assemble(work, prior):
     doc["windowEnd"] = snapshot["windowEnd"]
     doc["sections"] = [sections[k] for k in main + appendix]
     translate_project_names(doc, names_from_source(snapshot, bmap, proj))
+    ManagerMaterialNames(snapshot, proj).project(doc)
     return doc

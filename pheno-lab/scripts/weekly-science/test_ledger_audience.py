@@ -29,7 +29,9 @@ class ManagerLedgerTests(unittest.TestCase):
         wording={"en":"A matched repeat is planned.","zh":"计划在相同工艺下复测。"}
         status=policy.followup("private-2","no-new-direct-test",wording)
         self.assertIn("restricted research proposal",status["en"])
-        self.assertEqual(policy.followup("open","no-new-direct-test",wording),wording)
+        self.assertNotEqual(policy.followup("open","no-new-direct-test",wording),wording)
+        self.assertEqual(policy.followup("open","no-new-direct-test",wording,changed=True),wording)
+        self.assertEqual(policy.followup("open","direct-test",wording),wording)
         self.assertEqual(self.ledger,frozen)
         self.assertEqual(record_hash(self.secret),record_hash(frozen[0]))
 
