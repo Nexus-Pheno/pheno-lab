@@ -41,7 +41,7 @@ def reviewed_ledger(work, prior):
     changes = {}
     for row in index["cases"]:
         code = row["binding"]["experimentCode"]
-        body = row["public"]["nextStep"]["en"]
+        body = row["displayPublic"]["nextStep"]["en"]
         project = by_code[code]["projectAlias"] or "UNASSIGNED"
         ident = (
             "weekly-next-"
