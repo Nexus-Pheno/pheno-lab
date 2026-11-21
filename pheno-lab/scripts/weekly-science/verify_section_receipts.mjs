@@ -297,6 +297,13 @@ async function main() {
         .filter(Boolean)
         .map((key) => bound.groups[key]),
     );
+    assert.deepEqual(
+      paper.binding.conditionGroupLabels,
+      reviewed.public.conditions.map((row) => {
+        assert(Object.hasOwn(bound.groups, row.group));
+        return bound.groups[row.group];
+      }),
+    );
     assert.equal(paper.sectionId, "case-" + reviewed.experiment.toLowerCase());
     assert.equal(
       paper.testSectionId,
