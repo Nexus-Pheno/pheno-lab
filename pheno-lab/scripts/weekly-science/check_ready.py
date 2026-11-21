@@ -211,9 +211,15 @@ def prepare(run, prior, output):
          'PRIVATE_PEER_REVIEW_PREDATES_CURRENT_EVIDENCE')
     doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
     previous = record(prior, "snapshot.json", baseline.MAX_ARTIFACT_BYTES)
-    period_scope.verify_scope_note(doc, snap, previous)
-    period_scope.verify_followup_timing(snap, previous, record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES),
-        record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES), record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES))
+    try:
+        period_scope.verify_scope_note(doc, snap, previous)
+    except ValueError as error:
+        raise Hold("MISSING_OR_INCORRECT_CASE_MEASUREMENT_TIMING_NOTE") from error
+    try:
+        period_scope.verify_followup_timing(snap, previous, record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES),
+            record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES), record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES))
+    except ValueError as error:
+        raise Hold("PRIOR_FOLLOWUP_LACKS_NEW_MEASUREMENTS_IN_CITED_EXPERIMENT") from error
     annex=record(run,'private-material-review.json')
     literature={'sources':read_list(run,'article-refresh.json')}
     need(all(x in doc for x in ('rdReview','decisionReview','academicReview','evidenceMethodReview','collaboratorReview','languageReview')),
