@@ -8,6 +8,8 @@ import { checkGoalEvidence } from "../scripts/weekly-report-model-attainment";
 import {
   applyProjectPatch,
   draftCheckpoint,
+  reserveProjectCall,
+  projectCorrectionBudget,
   checkBindings,
   projectEvidence,
 } from "../scripts/weekly-report-model-projects";
@@ -481,6 +483,43 @@ it("resumes the exact completed author stage after a referee interruption and re
       draftCheckpoint(dir, e, role, schema, data, fetch),
     ).rejects.toThrow("exact pending draft");
     expect(fetch).toHaveBeenCalledTimes(1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("automatically corrects actionable scientific blocks with bounded total and per-stage retries", async () => {
+  const critique = {
+    decision: "BLOCK" as const,
+    coverage: "The matched control has been checked.",
+    findings: [
+      {
+        severity: "blocking" as const,
+        issue: "The control is missing.",
+        correction:
+          "Hold the treatment decision and state which control is needed.",
+      },
+    ],
+  };
+  expect(projectCorrectionBudget(1, 0, critique)).toBe(true);
+  expect(
+    projectCorrectionBudget(3, 2, { ...critique, decision: "REVISE" }),
+  ).toBe(true);
+  expect(projectCorrectionBudget(9, 3, critique)).toBe(false);
+  expect(projectCorrectionBudget(5, 4, critique)).toBe(false);
+  expect(projectCorrectionBudget(1, 0, { ...critique, findings: [] })).toBe(
+    false,
+  );
+  const dir = await mkdtemp(join(tmpdir(), "pheno-synthetic-stage-limit-"));
+  try {
+    for (let i = 0; i < 3; i++)
+      await reserveProjectCall(dir, "common", "project-reviewer", "same");
+    await expect(
+      reserveProjectCall(dir, "common", "project-reviewer", "same"),
+    ).rejects.toThrow("attempt limit");
+    await expect(
+      reserveProjectCall(dir, "common", "project-reviewer", "revised"),
+    ).resolves.toBeUndefined();
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

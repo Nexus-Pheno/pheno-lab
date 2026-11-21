@@ -408,6 +408,49 @@ const modelStamp = z.object({
   requestHash: string,
   promptHash: string,
 });
+// Cap paid provider attempts across process restarts, including calls interrupted
+// after the provider received them but before a response was recorded.
+export async function reserveProjectCall(
+  dir: string,
+  evidenceHash: string,
+  role: string,
+  inputHash: string,
+) {
+  const stem = ["project-call", evidenceHash, role, inputHash].join("-");
+  for (let n = 1; n <= 3; n++) {
+    try {
+      await writeFile(
+        join(dir, stem + "-" + n + ".json"),
+        JSON.stringify({ evidenceHash, role, inputHash, attempt: n }),
+        { mode: 0o600, flag: "wx" },
+      );
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+  }
+  throw Error(
+    "Project model attempt limit reached for this exact stage; inspect the preserved receipts",
+  );
+}
+type Feedback = z.output<typeof projectCritiqueSchema>;
+export function projectCorrectionBudget(
+  reviews: number,
+  edits: number,
+  feedback: Feedback | undefined,
+) {
+  if (!feedback) return reviews === 0;
+  if (
+    feedback.decision === "PASS" &&
+    !feedback.findings.some((f) => f.severity === "blocking")
+  )
+    return false;
+  return (
+    reviews < 9 &&
+    edits < 4 &&
+    feedback.findings.some((f) => f.correction.trim().length > 0)
+  );
+}
 export async function draftCheckpoint<T extends z.ZodType>(
   dir: string,
   e: Evidence,
@@ -422,6 +465,8 @@ export async function draftCheckpoint<T extends z.ZodType>(
     "pending-" + role + "-" + e.project + "-" + inputHash + ".json",
   );
   const cached = await existing(path);
+  if (cached === undefined)
+    await reserveProjectCall(dir, hashWeeklyReportValue(e), role, inputHash);
   const received = cached ?? (await request());
   const value = schema.parse(
     z.object({ value: z.unknown() }).parse(received).value,
@@ -439,12 +484,7 @@ export async function draftCheckpoint<T extends z.ZodType>(
   if (cached === undefined) await immutable(path, receipt);
   return receipt;
 }
-async function reviewOne(
-  dir: string,
-  orgId: string,
-  e: Evidence,
-  remediateBlocked = false,
-) {
+async function reviewOne(dir: string, orgId: string, e: Evidence) {
   const eh = hashWeeklyReportValue(e);
   const path = join(dir, "project-" + e.project + "-" + eh + ".json");
   const attemptFiles = await Promise.all(
@@ -533,21 +573,46 @@ async function reviewOne(
       );
     return o;
   }
-  let revision:
-    | { previous: Approval; review: z.output<typeof projectCritiqueSchema> }
-    | undefined;
-  if (history[0]?.review.decision === "BLOCK" && !remediateBlocked)
-    throw Error(
-      "Project " +
-        e.project +
-        " was blocked by its referee; review the findings before a targeted repair.",
-    );
+  type Stamp = {
+    completionId: string;
+    requestHash: string;
+    outputHash?: string;
+  };
+  async function accept(row: Approval, author: Stamp, reviewer: Stamp) {
+    checkBindings(e, row);
+    const result = {
+      row,
+      receipt: {
+        project: e.project,
+        evidenceHash: eh,
+        outputHash: hashWeeklyReportValue(row),
+        authorCompletionId: author.completionId,
+        reviewerCompletionId: reviewer.completionId,
+        reviewDecision: "PASS" as const,
+        authorRequestHash: author.requestHash,
+        reviewerRequestHash: reviewer.requestHash,
+      },
+    };
+    await immutable(path, result);
+    return result;
+  }
+  const latest = history[0];
   if (
-    history[0]?.review.decision === "REVISE" ||
-    (history[0]?.review.decision === "BLOCK" && remediateBlocked)
+    latest?.review.decision === "PASS" &&
+    latest.review.findings.every((f) => f.severity !== "blocking")
   )
-    revision = { previous: history[0].previous, review: history[0].review };
-  for (let attempt = 0; attempt < 3; attempt++) {
+    return accept(
+      latest.previous,
+      latest.envelope.author,
+      latest.envelope.reviewer,
+    );
+  let revision: { previous: Approval; review: Feedback } | undefined = latest
+    ? { previous: latest.previous, review: latest.review }
+    : undefined;
+  const examined = new Set(history.map((h) => h.envelope.author.outputHash));
+  let reviews = history.length,
+    edits = history.filter((h) => h.envelope.patch).length;
+  while (projectCorrectionBudget(reviews, edits, revision?.review)) {
     const patch = revision
       ? {
           base: revision.previous,
@@ -590,10 +655,21 @@ async function reviewOne(
               payload: { evidence: e },
             }),
         );
+    if (examined.has(w.outputHash))
+      throw Error(
+        "A previously reviewed project manuscript cannot be submitted again",
+      );
+    const peerPayload = { evidence: e, candidate: w.value };
+    await reserveProjectCall(
+      dir,
+      eh,
+      "project-reviewer",
+      hashWeeklyReportValue(peerPayload),
+    );
     const r = await callWeeklyProjectReview({
       orgId,
       role: "project-reviewer",
-      payload: { evidence: e, candidate: w.value },
+      payload: peerPayload,
     });
     if (
       w.completionId === r.completionId ||
@@ -613,27 +689,17 @@ async function reviewOne(
       corrected.decision === "PASS" &&
       !corrected.findings.some((f) => f.severity === "blocking")
     ) {
-      const result = {
-        row: w.value,
-        receipt: {
-          project: e.project,
-          evidenceHash: eh,
-          outputHash: w.outputHash,
-          authorCompletionId: w.completionId,
-          reviewerCompletionId: r.completionId,
-          reviewDecision: "PASS" as const,
-          authorRequestHash: w.requestHash,
-          reviewerRequestHash: r.requestHash,
-        },
-      };
-      await immutable(path, result);
-      return result;
+      return accept(w.value, w, r);
     }
-    if (corrected.decision === "BLOCK" || !corrected.findings.length) break;
+    examined.add(w.outputHash);
+    reviews++;
+    if (patch) edits++;
     revision = { previous: w.value, review: corrected };
   }
   throw new Error(
-    "Project " + e.project + " decision requires scientific review",
+    "Project " +
+      e.project +
+      " requires scientific review; the referee findings are preserved in its project-attempt file. The candidate was withheld.",
   );
 }
 async function main() {
@@ -641,10 +707,9 @@ async function main() {
     process.argv.length !== 3 &&
     !(
       process.argv.length === 4 &&
-      (["--check-projection-only", "--save-projection-only"].includes(
+      ["--check-projection-only", "--save-projection-only"].includes(
         process.argv[3],
-      ) ||
-        /^--repair-blocked=P[1-9][0-9]*$/.test(process.argv[3]))
+      )
     )
   )
     throw new Error("Expected private report run directory");
@@ -725,12 +790,7 @@ async function main() {
     while (next < evidence.length && !failures.length) {
       const i = next++;
       try {
-        result[i] = await reviewOne(
-          dir,
-          org,
-          evidence[i],
-          process.argv[3] === "--repair-blocked=" + evidence[i].project,
-        );
+        result[i] = await reviewOne(dir, org, evidence[i]);
       } catch (e) {
         failures.push(e);
       }
