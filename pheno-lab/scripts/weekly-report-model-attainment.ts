@@ -69,7 +69,11 @@ export function checkGoalEvidence(e: E, candidate: A) {
   }
 }
 async function main() {
-  if (process.argv.length !== 3)
+  const parallelResearch = process.argv[3] === "--research-only";
+  if (
+    process.argv.length !== 3 &&
+    !(process.argv.length === 4 && parallelResearch)
+  )
     throw Error("Expected private report run directory");
   const dir = resolve(process.argv[2]);
   const load = async (f: string) =>
@@ -80,31 +84,11 @@ async function main() {
       projects: z.array(projectEvidenceSchema),
     })
     .parse(await load("project-source-packet.private.json"));
-  const decisions = z
-    .object({ projects: z.array(projectJudgmentSchema) })
-    .parse(await load("project-decisions.json"));
-  const meta = z
-    .object({
-      files: z.record(z.string(), z.string()),
-      decisionBundleSha256: z.string(),
-      projects: z.array(
-        z.object({
-          project: z.string(),
-          evidenceHash: z.string(),
-          outputHash: z.string(),
-          reviewDecision: z.literal("PASS"),
-        }),
-      ),
-    })
-    .parse(await load("project-decisions-review.json"));
   if (
-    meta.decisionBundleSha256 !==
-      (await fileHash(join(dir, "project-decisions.json"))) ||
-    hashWeeklyReportValue(meta.files) !== hashWeeklyReportValue(source.files) ||
-    meta.files["rd-dossier.json"] !==
-      (await fileHash(join(dir, "rd-dossier.json")))
+    source.files["rd-dossier.json"] !==
+    (await fileHash(join(dir, "rd-dossier.json")))
   )
-    throw Error("Previously reviewed project sources changed");
+    throw Error("Frozen purpose source changed");
   const d = indexes.parse(await load("rd-dossier.json"));
   const physical = new Map(
     d.projects.flatMap((p) =>
@@ -133,23 +117,8 @@ async function main() {
       measures: Map<string, string[]>;
     }
   >();
-  for (const [i, proj] of source.projects.entries()) {
-    const seen = decisions.projects[i],
-      receipt = meta.projects[i];
-    if (
-      proj.project !== seen.project ||
-      receipt.project !== proj.project ||
-      hashWeeklyReportValue(proj) !== receipt.evidenceHash ||
-      hashWeeklyReportValue(seen) !== receipt.outputHash
-    )
-      throw Error("Referred project judgments lack source-linked approval");
-    for (const [j, caseSource] of proj.routeCases.entries()) {
-      const intent = seen.routeIntents[j];
-      if (
-        intent.experimentCode !== caseSource.experimentCode ||
-        intent.sourceHash !== caseSource.sourceHash
-      )
-        throw Error("Project experiment binding changed");
+  for (const proj of source.projects) {
+    for (const caseSource of proj.routeCases) {
       const caseKey = "C" + (data.cases.length + 1);
       const measures = new Map<string, string[]>();
       const comparisons = caseSource.routes.flatMap((r) =>
@@ -175,8 +144,6 @@ async function main() {
       data.cases.push({
         key: caseKey,
         source: caseSource,
-        reviewedPurpose: intent.purpose,
-        reviewedAttainment: intent.attainment,
         comparisons,
       });
       local.set(caseKey, {
@@ -187,27 +154,27 @@ async function main() {
       });
     }
   }
-  try {
-    const saved = z
-      .object({
-        authorRequestId: z.uuid(),
-        reviewDecision: z.literal("PASS"),
-        decisionBundleSha256: z.string(),
-        evidenceHash: z.string(),
-        authorCompletionId: z.string(),
-        reviewerCompletionId: z.string(),
-      })
-      .parse(await load("project-attainment.json"));
+  const markerSchema = z.object({
+    authorRequestId: z.uuid(),
+    authorCompletionId: z.string(),
+    reviewerCompletionId: z.string(),
+    evidenceHash: z.string(),
+  });
+  async function finish(saved: z.output<typeof markerSchema>) {
     const attempt = z
       .object({
         author: z.object({
           completionId: z.string(),
           value: goalJudgmentSchema,
+          requestHash: z.string(),
+          outputHash: z.string(),
+          evidenceHash: z.string(),
         }),
         reviewer: z.object({
           completionId: z.string(),
           value: projectCritiqueSchema,
           inputHash: z.string(),
+          requestHash: z.string(),
         }),
       })
       .parse(
@@ -215,24 +182,116 @@ async function main() {
           "purpose-assessment-attempt-" + saved.authorRequestId + ".json",
         ),
       );
+    const { author, reviewer } = attempt;
     if (
-      saved.decisionBundleSha256 !== meta.decisionBundleSha256 ||
       saved.evidenceHash !== hashWeeklyReportValue(data) ||
-      saved.authorCompletionId === saved.reviewerCompletionId ||
-      saved.authorCompletionId !== attempt.author.completionId ||
-      saved.reviewerCompletionId !== attempt.reviewer.completionId ||
-      attempt.reviewer.value.decision !== "PASS" ||
-      attempt.reviewer.inputHash !==
-        hashWeeklyReportValue({
-          evidence: data,
-          candidate: attempt.author.value,
-        })
+      author.evidenceHash !== saved.evidenceHash ||
+      author.outputHash !== hashWeeklyReportValue(author.value) ||
+      author.completionId === reviewer.completionId ||
+      saved.authorCompletionId !== author.completionId ||
+      saved.reviewerCompletionId !== reviewer.completionId ||
+      reviewer.value.decision !== "PASS" ||
+      reviewer.value.findings.some((f) => f.severity === "blocking") ||
+      reviewer.inputHash !==
+        hashWeeklyReportValue({ evidence: data, candidate: author.value })
     )
-      throw Error("Prior purpose review changed");
-    checkGoalEvidence(data, attempt.author.value);
+      throw Error("Purpose assessment lacks matching scientific review");
+    checkGoalEvidence(data, author.value);
+    if (parallelResearch) {
+      console.log(
+        "Blinded purpose review passed for " +
+          author.value.cases.length +
+          " experiments.",
+      );
+      return;
+    }
+    const decisions = z
+      .object({ projects: z.array(projectJudgmentSchema) })
+      .parse(await load("project-decisions.json"));
+    const meta = z
+      .object({
+        files: z.record(z.string(), z.string()),
+        decisionBundleSha256: z.string(),
+        projects: z.array(
+          z.object({
+            project: z.string(),
+            evidenceHash: z.string(),
+            outputHash: z.string(),
+            reviewDecision: z.literal("PASS"),
+          }),
+        ),
+      })
+      .parse(await load("project-decisions-review.json"));
+    if (
+      meta.decisionBundleSha256 !==
+        (await fileHash(join(dir, "project-decisions.json"))) ||
+      hashWeeklyReportValue(meta.files) !==
+        hashWeeklyReportValue(source.files) ||
+      meta.files["rd-dossier.json"] !==
+        (await fileHash(join(dir, "rd-dossier.json")))
+    )
+      throw Error("Previously reviewed project sources changed");
+    for (const [i, proj] of source.projects.entries()) {
+      const seen = decisions.projects[i],
+        receipt = meta.projects[i];
+      if (
+        proj.project !== seen.project ||
+        receipt.project !== proj.project ||
+        hashWeeklyReportValue(proj) !== receipt.evidenceHash ||
+        hashWeeklyReportValue(seen) !== receipt.outputHash
+      )
+        throw Error("Referred project judgments lack source-linked approval");
+      for (const [j, caseSource] of proj.routeCases.entries()) {
+        const intent = seen.routeIntents[j];
+        if (
+          intent.experimentCode !== caseSource.experimentCode ||
+          intent.sourceHash !== caseSource.sourceHash
+        )
+          throw Error("Project experiment binding changed");
+      }
+    }
+    const rows = author.value.cases.map((c) => {
+      const l = local.get(c.key)!;
+      const evidenceIds = Array.from(
+        new Set(c.evidenceKeys.map((k) => l.measures.get(k)![0])),
+      );
+      return {
+        project: l.project,
+        experimentCode: l.experimentCode,
+        sourceHash: l.sourceHash,
+        status: c.status,
+        goalBasis: c.goalBasis,
+        reason: c.reason,
+        evidenceIds,
+      };
+    });
+    await immutable(join(dir, "project-attainment.json"), {
+      schemaVersion: 1,
+      decisionBundleSha256: meta.decisionBundleSha256,
+      evidenceHash: author.evidenceHash,
+      authorRequestId: saved.authorRequestId,
+      authorCompletionId: author.completionId,
+      reviewerCompletionId: reviewer.completionId,
+      authorRequestHash: author.requestHash,
+      reviewerRequestHash: reviewer.requestHash,
+      reviewDecision: "PASS",
+      rows,
+    });
+    console.log(
+      "Bound " +
+        rows.length +
+        " independently reviewed experiment purposes to approved project decisions.",
+    );
+  }
+  let saved: z.output<typeof markerSchema> | undefined;
+  try {
+    saved = markerSchema.parse(await load("purpose-reviewed.private.json"));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+  if (saved) {
+    await finish(saved);
     return;
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
   }
   const orgId = await getWeeklyReportOrganizationId();
   let revision:
@@ -285,38 +344,14 @@ async function main() {
       critique.decision === "PASS" &&
       !critique.findings.some((f) => f.severity === "blocking")
     ) {
-      const rows = author.value.cases.map((c) => {
-        const l = local.get(c.key)!;
-        const evidenceIds = Array.from(
-          new Set(c.evidenceKeys.map((k) => l.measures.get(k)![0])),
-        );
-        return {
-          project: l.project,
-          experimentCode: l.experimentCode,
-          sourceHash: l.sourceHash,
-          status: c.status,
-          goalBasis: c.goalBasis,
-          reason: c.reason,
-          evidenceIds,
-        };
-      });
-      await immutable(join(dir, "project-attainment.json"), {
-        schemaVersion: 1,
-        decisionBundleSha256: meta.decisionBundleSha256,
-        evidenceHash: author.evidenceHash,
+      const marker = {
         authorRequestId: author.requestId,
         authorCompletionId: author.completionId,
         reviewerCompletionId: reviewer.completionId,
-        authorRequestHash: author.requestHash,
-        reviewerRequestHash: reviewer.requestHash,
-        reviewDecision: "PASS",
-        rows,
-      });
-      console.log(
-        "Independently verified " +
-          rows.length +
-          " experiment purpose appraisals.",
-      );
+        evidenceHash: author.evidenceHash,
+      };
+      await immutable(join(dir, "purpose-reviewed.private.json"), marker);
+      await finish(marker);
       return;
     }
     if (critique.decision === "BLOCK" || !critique.findings.length) break;
