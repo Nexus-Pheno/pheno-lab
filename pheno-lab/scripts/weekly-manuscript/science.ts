@@ -221,7 +221,7 @@ async function main() {
         severity: "blocking",
         issue: peer.bindingFailure,
         correction:
-          "Cite the supplied published work by its literature ID (e.g., LINKER, BURIED_CONTACT, LIGAND, S1 or S2), never by E experiment number. Name the limited relevance of the actual paper you selected.",
+          "Cite the supplied published work by its literature ID (e.g., LINKER, BURIED_CONTACT, LIGAND, S1 or S2), never by E experiment number. Name the limited relevance of the actual paper you selected. For IDENTITY_UNRESOLVED use empty compatibility/graph arrays and put any recipe mismatch under limitations. For a verified graph copy the exact registered name and descriptor/motif key spelling from the selected material, never a paraphrase.",
       });
     revision = {
       previous: previousScienceDraftSchema.parse(original.value),
