@@ -881,7 +881,7 @@ free -h
 
 应用发布包包含 `scripts/weekly-runner`、`scripts/weekly-manuscript` 和 `scripts/weekly-science`。定时任务使用现有数据库和私有 COS、已有组织 DeepSeek 凭据和应用的已接受器件结果口径。后台撰写与独立科研复核使用 `deepseek-v4-pro`，图像复核使用支持图片输入的 `deepseek-flash`。批准的私有材料结构和原始研究问题只进入所选案例的科研审阅，管理者报告正文只包含经复核的分析。不要把环境文件、原始研究记录、名单或模型输出提交到 Git。
 
-1. 使用现有发布流程构建应用。确认 Linux 可运行仓库锁定版本的 Playwright Chromium（`PLAYWRIGHT_BROWSERS_PATH=/var/lib/pheno-lab-weekly/browsers`）、Poppler 和中文字体。系统已有 Poppler 时无需另装；服务也支持 `/var/lib/pheno-lab-weekly/tools/poppler/runtime` 内解包的发行版组件。不要修改系统的 SSH、浏览器或安全策略来跳过图像检查。
+1. 使用现有发布流程构建应用。确认 Linux 可运行仓库锁定版本的 Playwright Chromium（`PLAYWRIGHT_BROWSERS_PATH=/var/lib/pheno-lab-weekly/browsers`）、Poppler 和中文字体。Linux 构建脚本优先使用 PATH 中的 `pdftoppm`（Ubuntu/Debian 的 `poppler-utils`）。找不到时，脚本使用周报服务现有的 `/var/lib/pheno-lab-weekly/tools/poppler/runtime/usr/bin` 和同一目录树下的 `usr/lib/x86_64-linux-gnu`。缺少可用渲染器时构建会停止。不要修改系统的 SSH、浏览器或安全策略来跳过图像检查。
 2. `/var/lib/pheno-lab-weekly` 归 `deploy_pheno_lab` 所有，目录模式 0700，文件 0600。`roster.json` 从已经核实的五位接收人的当前报告授权建立，固定组织、账号 ID 和邮箱。`evidence-reader` 填写名单内获准读取科研证据的账号邮箱。沿用 `/etc/pheno-lab/pheno-lab.env`。每次收集及推送前重新核实资格，访问撤销时任务停止。
 3. 首次迁移应当先复查原报告的 COS 内容、五条通知和一条发布审计。用 `scripts/weekly-runner/archive.ts save` 备份核实的两期基准，再通过 `restore` 下载核验全部字节，使用 `scripts/weekly-science/import_verified_baseline.py` 安装到 `baselines`。私有基准不通过报告页面分发。磁盘故障时重复恢复、核验和安装步骤。
 4. `python3 -B scripts/weekly-runner/run.py replay --frozen <已归档的完整周报目录> --prior <上一基准目录>` 重新执行历史校验，前后对比同一份报告、收件人、通知、审计和 COS 内容。新稿验收使用 `python3 -B scripts/weekly-runner/run.py rehearse --frozen <本期已安装基准> --prior <原上一基准>`。如需恢复同一稿件，使用 `--attempt` 指向 `acceptance` 中对应的私有目录。此命令用正式分析流程重写报告，验证原始快照、前期台账和五条通知，保留原报告和新稿的两份哈希。只有独立科研复核、数值、隐私、网页和打印检查都通过时才交接正式排程。历史复查和新稿验收均不能发布。
