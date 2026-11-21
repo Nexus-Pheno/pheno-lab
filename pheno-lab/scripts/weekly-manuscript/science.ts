@@ -116,6 +116,22 @@ async function main() {
     publicEvidence: await load("provider-packet.json"),
     publicDraft,
   });
+  const preserveRejected =
+    (role: string, attempt: number) =>
+    async (draft: unknown, paths: string[], completionId: string) => {
+      const safeId = hashWeeklyReportValue(completionId);
+      await immutableWrite(
+        join(dir, `nonpublishable-${role}-${attempt}-${safeId}.json`),
+        {
+          classification: "PRIVATE_REJECTED_MODEL_DRAFT_DO_NOT_PUBLISH",
+          completionId,
+          role,
+          evidenceHash: hashWeeklyReportValue(evidence),
+          paths,
+          draft,
+        },
+      );
+    };
   const orgId = await getWeeklyReportOrganizationId();
   let revision:
     | { previous: Science; review: z.output<typeof scienceReviewSchema> }
@@ -132,6 +148,7 @@ async function main() {
         callWeeklyScienceModel({
           orgId,
           role: "scientist",
+          onInvalidOutput: preserveRejected("scientist", a),
           payload: writerInput,
         }),
     );
@@ -156,6 +173,7 @@ async function main() {
         callWeeklyScienceModel({
           orgId,
           role: "chemist-reviewer",
+          onInvalidOutput: preserveRejected("chemist-reviewer", a),
           payload,
         }),
     );
