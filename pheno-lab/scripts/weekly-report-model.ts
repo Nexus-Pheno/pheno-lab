@@ -156,13 +156,20 @@ export async function callWeeklyReportModel<T extends z.ZodType>(
 }
 
 type PrivateRole = "scientist" | "chemist-reviewer";
+type PrivateSchemaFailure = (
+  draft: unknown,
+  paths: string[],
+  completionId: string,
+) => Promise<void>;
 type PrivateCall = {
+  onInvalidOutput?: PrivateSchemaFailure;
   orgId: string;
   role: PrivateRole;
   payload: unknown;
   signal?: AbortSignal;
 };
 type PinnedOptions<T extends z.ZodType> = {
+  onInvalidOutput?: PrivateSchemaFailure;
   orgId: string;
   role:
     | WeeklyModelCall<z.ZodType>["role"]
@@ -332,21 +339,18 @@ function shapeDiagnostic(
     for (const value of Object.values(o)) visit(value);
   };
   visit(schema);
-  return issues
-    .slice(0, 12)
-    .map((issue) => {
-      const path = issue.path
-        .map((k) =>
-          typeof k === "number"
-            ? String(k)
-            : typeof k === "string" && fields.has(k)
-              ? k
-              : "[field]",
-        )
-        .join(".");
-      return (path || "root") + ":" + issue.code;
-    })
-    .join(", ");
+  return issues.slice(0, 12).map((issue) => {
+    const path = issue.path
+      .map((k) =>
+        typeof k === "number"
+          ? String(k)
+          : typeof k === "string" && fields.has(k)
+            ? k
+            : "[field]",
+      )
+      .join(".");
+    return (path || "root") + ":" + issue.code;
+  });
 }
 
 function checkSensitiveContent(value: string) {
@@ -455,11 +459,17 @@ async function callPinnedModel<T extends z.ZodType>(
     throw new Error("Weekly model identity, completion or JSON invalid");
   }
   const output = options.schema.safeParse(content);
-  if (!output.success)
+  if (!output.success) {
+    const paths = shapeDiagnostic(outputShape, output.error.issues);
+    if (
+      options.onInvalidOutput &&
+      (options.role === "scientist" || options.role === "chemist-reviewer")
+    )
+      await options.onInvalidOutput(content, paths, completionId);
     throw new Error(
-      "Weekly model output contract rejected at " +
-        shapeDiagnostic(outputShape, output.error.issues),
+      "Weekly model output contract rejected at " + paths.join(", "),
     );
+  }
   return {
     value: output.data as z.output<T>,
     role: options.role,

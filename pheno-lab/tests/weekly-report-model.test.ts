@@ -233,6 +233,28 @@ describe("private researcher and whole-paper referee", () => {
     ],
     articles: [],
   };
+  it("can preserve a private malformed draft with safe paths and its true completion ID", async () => {
+    const draft = { untrusted: "private sentinel" };
+    mocks.fetch.mockResolvedValueOnce(complete(draft));
+    const onInvalidOutput = vi.fn().mockResolvedValue(undefined);
+    await expect(
+      callWeeklyScienceModel({
+        orgId: "test-org",
+        role: "scientist",
+        payload: { evidence: scienceEvidence },
+        onInvalidOutput,
+      }),
+    ).rejects.toThrow("contract rejected");
+    expect(onInvalidOutput).toHaveBeenCalledOnce();
+    const [raw, paths, completion] = onInvalidOutput.mock.calls[0];
+    expect(raw).toEqual(draft);
+    expect(paths).toContain("cases:invalid_type");
+    expect(JSON.stringify(paths)).not.toContain("untrusted");
+    expect(completion).toMatch(/^[a-z\d-]+$/);
+    expect(JSON.stringify(onInvalidOutput.mock.calls)).not.toContain(
+      "synthetic-private-reasoning",
+    );
+  });
   it("separates approved private science calls and excludes account/credential data", async () => {
     const interpretation = {
       followupAssessments: [],
