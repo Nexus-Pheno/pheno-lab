@@ -211,6 +211,9 @@ def prepare(run, prior, output):
     need(baseline.timestamp(snap['sharedAppEvidence']['asOf'])<=baseline.timestamp(private_review['reviewedAt'])<=now()+dt.timedelta(minutes=1),
          'PRIVATE_PEER_REVIEW_PREDATES_CURRENT_EVIDENCE')
     doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
+    if "reportingWeekStart" in doc:
+        need(doc["reportingWeekStart"] == snap["periodStart"] and doc["windowStart"] == snap["windowStart"] and
+             doc["windowEnd"] == snap["windowEnd"], "DISPLAYED_PERIOD_DIFFERS_FROM_SOURCE")
     previous = record(prior, "snapshot.json", baseline.MAX_ARTIFACT_BYTES)
     try:
         period_scope.verify_scope_note(doc, snap, previous)
@@ -231,6 +234,12 @@ def prepare(run, prior, output):
            'report-publish.html','private-material-review.json','science-interpretation.json',
            'independent-material-science-review.json','private-scientific-facts.json','article-refresh.json',
            'provider-packet.json','manuscript-candidate.json','private-science-bindings.json'}
+    # Legacy science receipts may have a separate reviewed literature supplement.
+    # Fresh runs bind those bilingual notes via the scientific interpretation itself.
+    supplement = "literature-editorial-notes.private.json"
+    if (run / supplement).exists() or (run / supplement).is_symlink():
+        file_hash(run, supplement)
+        names.add(supplement)
     readable_projects = record(run, "project-decisions-display.private.json", baseline.MAX_ARTIFACT_BYTES)
     need(readable_projects == display_project_text(record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
         record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"]), "DISPLAY_PROJECTS_DIFFER_FROM_REVIEWED_SOURCE")
