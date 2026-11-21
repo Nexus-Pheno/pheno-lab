@@ -84,6 +84,18 @@ async function main() {
     accepted++;
   }
   assert.equal(accepted, 1);
+  if (process.argv[3] === "--public-only") {
+    console.log(
+      JSON.stringify({
+        publicManuscriptAccepted: true,
+        publicationReady: false,
+        records: sealed.size,
+        distinctCompletions: seen.size,
+      }),
+    );
+    return;
+  }
+  assert.equal(process.argv.length, 3);
   const projects = await data("project-source-packet.private.json");
   const bundle = await data("project-decisions.json");
   const summary = await data("project-decisions-review.json");
