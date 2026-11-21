@@ -2134,3 +2134,10 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - 本机完整 verify、315 个单元测试、186 个受保护 PostgreSQL 集成测试、62 个浏览器测试均通过。浏览器端到端使用下载的 Python 脚本获取合成报告全文、对比文件内容，并验证撤销后立即拒绝访问。迁移无 schema drift。合并前及主分支 GitHub Actions 通过：[PR 验证](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/44355839186)、[main 验证](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/44357317383)。
 - 部署账号从 GitHub fast-forward，按既有脚本构建并校验制品、应用一项增量迁移、切换 current。01:29 北京时间完成服务验收。制品 SHA-256 为 `13aaf11eaa53ca0ac24a117dd00bd9d12cbb9ec310c6b9edefbcada4da13de02`。仅增量更新已有 APP_VERSION，其他 env 内容及文件权限保持。重启后的数据库和私有 COS readiness 通过，服务监听 loopback，自动重启数为零。复核运行版本的 460 个 src/prisma/public 受跟踪文件与应用 commit 一致。
 - 线上真实管理员会话已验证签发页面、可选的报告和化学权限以及下载入口。公网脚本逐字节匹配测试版本，未认证读取返回 401，POST 返回 405。未签发生产密钥、未将真实科研内容发送给外部智能体。此部署实录属于发布完成后的独立文档提交，未重新部署。
+
+### 17.32 2026-11-21：服务器端每周研发报告（001）
+
+- 本次按批准将每周报告迁至 Pheno Lab 生产服务器。应用 PR [#135](https://github.com/Nexus-Pheno/pheno-lab/pull/135) 合并为 [c6504c248c3e6ef72215c1a2969412f1a834bde7](https://github.com/Nexus-Pheno/pheno-lab/commit/c6504c248c3e6ef72215c1a2969412f1a834bde7)，对应 release **20261121-001**。受限部署账号从 GitHub 快进拉取，运行既有构建、制品校验与发布脚本。制品 SHA-256 为 `9fe851d2ead294bd8d5cfafdb0ff7ea5c2a537455b7c5e8a9bec5bcedfc96858`；部署后数据库、私有对象存储和公网健康检查通过。
+- 用冻结的 11 月 21 日证据在服务器完成了历史复查和一次完整的中英文重新分析。两份稿件分开保留。逐项核对原报告字节、原来的五名接收人、五条原通知和唯一发布审计；演练及上线验收均未另发通知。新稿经过独立科研复核、数值核对和中英文网页、打印图像检查。
+- 沿用组织已有的加密 DeepSeek 凭据。后台科研分析及独立科研复核使用 `deepseek-v4-pro`，图像复核使用 `deepseek-flash`。科研校验、名单授权或交付核对失败时保留私有草稿，等待重试或人工核对。
+- 从上述应用提交安装并核对正式定时器和服务；以正式服务执行本周任务，识别已发布周期并核实原有五条通知。定时器已启用，下一次为 **2026-11-28 09:00 Asia/Shanghai（01:00 UTC）**。原 Mac 周报任务已暂停并重新读取确认。基准、运行状态、渲染工具和访问凭据均在服务器端。此部署实录为发布后的独立文档提交。
