@@ -1,4 +1,5 @@
 import { chromium, expect } from "@playwright/test";
+import { captureViewportBoundary } from "./capture_viewport_boundary.mjs";
 import { captureFullPage } from "./capture_full_page.mjs";
 import { tsImport } from "tsx/esm/api";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
@@ -14,7 +15,15 @@ const { reportContentSecurityPolicy } = await tsImport(
   policySource,
   import.meta.url,
 );
-const [inputPath, qaPath] = process.argv.slice(2);
+const [inputPath, qaPath, mode, reviews, original] = process.argv.slice(2);
+const boundaryMode = mode === "--viewport-boundary";
+if (
+  mode &&
+  (!boundaryMode ||
+    !reviews ||
+    !/^qa\/(en|zh)-(320|390|1024|1440)-viewport\.png$/.test(original))
+)
+  throw Error("Invalid viewport evidence arguments.");
 if (!inputPath || !qaPath)
   throw new Error(
     "Usage: node verify_report.mjs report.html private-qa-directory",
@@ -22,7 +31,7 @@ if (!inputPath || !qaPath)
 const input = resolve(inputPath),
   qa = resolve(qaPath),
   html = await readFile(input, "utf8");
-await mkdir(qa, { mode: 0o700 });
+if (!boundaryMode) await mkdir(qa, { mode: 0o700 });
 const policy = reportContentSecurityPolicy(html);
 expect(policy).not.toContain("unsafe-inline");
 expect(policy).not.toContain("allow-same-origin");
@@ -198,7 +207,7 @@ const assertState = (state) => {
   expect(state.buttonHeight).toBeGreaterThanOrEqual(44);
 };
 try {
-  for (const lang of ["en", "zh"])
+  for (const lang of boundaryMode ? [] : ["en", "zh"])
     for (const [width, height] of [
       [1440, 900],
       [1024, 768],
@@ -291,6 +300,8 @@ try {
       [390, 844],
       [320, 700],
     ]) {
+      if (boundaryMode && original !== `qa/${lang}-${width}-viewport.png`)
+        continue;
       const context = await browser.newContext({ viewport: { width, height } }),
         page = await context.newPage(),
         errors = [],
@@ -352,6 +363,23 @@ try {
       await expect(frame.locator("html")).toHaveAttribute("lang", lang);
       const state = await frame.evaluate(documentState);
       assertState(state);
+      if (boundaryMode) {
+        await captureViewportBoundary({
+          page,
+          frame,
+          qa,
+          reviews,
+          original,
+          html,
+          policy,
+          sandbox,
+          errors,
+          requests,
+          cspErrors,
+        });
+        await context.close();
+        continue;
+      }
       await page.screenshot({
         path: qa + "/" + lang + "-" + width + "-viewport.png",
         fullPage: false,
@@ -485,6 +513,7 @@ try {
 } finally {
   await browser.close();
 }
+if (boundaryMode) process.exit(0);
 const printInspector = fileURLToPath(
   new URL("./inspect_print_pages.py", import.meta.url),
 );
