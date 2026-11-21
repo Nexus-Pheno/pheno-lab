@@ -154,8 +154,6 @@ try {
       {
         key: "C1",
         source: src,
-        reviewedPurpose: "a",
-        reviewedAttainment: "b",
         comparisons: [
           {
             key: "V1",
@@ -205,6 +203,12 @@ try {
     rows: [row],
   };
   await write("project-attainment.json", attainment);
+  await write("purpose-reviewed.private.json", {
+    authorRequestId: ga.requestId,
+    authorCompletionId: ga.completionId,
+    reviewerCompletionId: gr.completionId,
+    evidenceHash: ga.evidenceHash,
+  });
   await write("report-document-candidate.json", candidate);
   await write("science-interpretation.json", {
     cases: [],

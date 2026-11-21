@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyProjectAuthorship } from "../weekly-report-model-project-edits.mjs";
 import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -123,7 +124,11 @@ async function main() {
       c = bundle.projects[i];
     const { file, attempt } = pool.get(meta.authorCompletionId);
     const { author, reviewer } = attempt;
-    completion(author, "project-author");
+    verifyProjectAuthorship(attempt, e, pool, {
+      hash,
+      completion,
+      seal: (name) => sealed.add(name),
+    });
     completion(reviewer, "project-reviewer");
     pass(reviewer);
     sealed.add(file);
@@ -154,6 +159,14 @@ async function main() {
   }
 
   const goal = await data("project-attainment.json");
+  const blinded = await data("purpose-reviewed.private.json");
+  for (const k of [
+    "authorRequestId",
+    "authorCompletionId",
+    "reviewerCompletionId",
+    "evidenceHash",
+  ])
+    assert.equal(blinded[k], goal[k]);
   assert(request.test(goal.authorRequestId));
   const { author, reviewer } = await data(
     "purpose-assessment-attempt-" + goal.authorRequestId + ".json",
@@ -212,8 +225,6 @@ async function main() {
       cases.push({
         key,
         source: src,
-        reviewedPurpose: intent.purpose,
-        reviewedAttainment: intent.attainment,
         comparisons,
       });
       const assessment = author.value.cases[rows.length];
