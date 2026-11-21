@@ -1238,6 +1238,7 @@ def assemble(work, prior):
         experiments=rows["primary"],
         omittedExperimentCount=len(ex) - len(rows["primary"]),
     )
+    doc["reportingWeekStart"] = snapshot["periodStart"]
     doc["windowStart"] = snapshot["windowStart"]
     doc["windowEnd"] = snapshot["windowEnd"]
     doc["sections"] = [sections[k] for k in main + appendix]

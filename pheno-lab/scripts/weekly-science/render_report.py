@@ -169,7 +169,14 @@ def render(document):
     local = lambda v: v.astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')
     header = f'<div class="top"><div class="wrap bar"><img class="logo" src="{logo}" alt="Pheno"><span class="private">' + bi('INTERNAL RESEARCH REPORT','内部研究报告') + '</span><div class="controls"><button data-set-lang="en" aria-pressed="true">English</button><button data-set-lang="zh" aria-pressed="false">中文</button><button id="print">'+bi('Print / save PDF','打印 / 保存 PDF')+'</button></div></div></div>'
     hero = '<div class="hero"><div class="eyebrow">Pheno Lab</div><h1>'+bi(html.escape(document['titleEn']),html.escape(document['titleZh']))+'</h1>'+bi(html.escape(document['summaryEn']),html.escape(document['summaryZh']),'p')
-    hero += '<div class="meta">'+bi('Generated','生成时间')+': '+local(generated)+' · '+bi('Snapshot','快照')+': '+local(snapshot)+' · '+bi('Window','窗口')+': '+local(start)+' → '+local(end)+' (UTC+8)</div><nav class="toc" aria-label="Report contents">'+''.join(navigation)+'</nav></div>'
+    window = bi('Window','窗口')+': '+local(start)+' → '+local(end)
+    if 'reportingWeekStart' in document:
+        week = date(document['reportingWeekStart'])
+        if not start <= week < end:
+            raise ValueError('The reporting week must fall inside the context period.')
+        window = (bi('Reporting week','本周统计时段')+': '+local(week)+' → '+local(end)+' · '+
+                  bi('Context period','历史参考时段')+': '+local(start)+' → '+local(end))
+    hero += '<div class="meta">'+bi('Generated','生成时间')+': '+local(generated)+' · '+bi('Snapshot','快照')+': '+local(snapshot)+' · '+window+' (UTC+8)</div><nav class="toc" aria-label="Report contents">'+''.join(navigation)+'</nav></div>'
     footer = '<footer><div class="wrap">'+bi('Confidential internal analysis. Proposed experiments require human authorization.','内部保密分析。实验建议需经人工授权后执行。','p')+'</div></footer>'
     return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>'+html.escape(document['titleEn'])+'</title><style>'+css+'</style></head><body>'+header+'<main class="wrap">'+hero+''.join(rendered)+'</main>'+footer+'<script>'+script+'</script></body></html>'
 

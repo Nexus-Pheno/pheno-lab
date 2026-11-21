@@ -32,6 +32,22 @@ def document():
 
 
 class SvgRendering(unittest.TestCase):
+    def test_week_and_context_use_distinct_source_dates_in_both_languages(self):
+        data = document()
+        original = renderer.render(data)
+        self.assertIn('>Window<', original)
+        self.assertNotIn('本周统计时段', original)
+        data['windowStart'] = '2026-09-13T02:00:00Z'
+        data['reportingWeekStart'] = '2026-10-06T02:00:00Z'
+        page = renderer.render(data)
+        self.assertIn('Reporting week', page)
+        self.assertIn('本周统计时段</span>: 2026-10-06 10:00 → 2026-10-13 10:00', page)
+        self.assertIn('Context period', page)
+        self.assertIn('历史参考时段</span>: 2026-09-13 10:00 → 2026-10-13 10:00', page)
+        data['reportingWeekStart'] = '2026-08-13T00:00:00Z'
+        with self.assertRaises(ValueError):
+            renderer.render(data)
+
     def test_compact_chart_layout_is_opt_in_for_new_reports(self):
         legacy = document()
         rule = 'figure.weekly-device-pce svg{'
