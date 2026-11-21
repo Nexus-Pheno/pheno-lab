@@ -11,6 +11,7 @@ from envelopes import assemble
 
 sys.path.insert(0, str(SCI))
 import analyze_rd_snapshot
+import period_scope
 
 
 def reviewed_ledger(work, prior):
@@ -130,7 +131,9 @@ def workflow(work, prior):
         run(sys.executable, "-B", AUTHOR / "assemble_science.py", work)
     reviewed_ledger(work, prior)
     if not (work / "report-document-publish.json").exists():
-        write(work / "report-document-publish.json", assemble(work, prior))
+        document = assemble(work, prior)
+        period_scope.add_scope_note(document, read(work / "snapshot.json"))
+        write(work / "report-document-publish.json", document)
     if not (work / "report-publish.html").exists():
         run(
             sys.executable,

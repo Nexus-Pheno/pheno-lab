@@ -14,6 +14,7 @@ import tempfile
 
 import analyze_rd_snapshot
 import audit_device_results
+import period_scope
 import bind_final_review
 from import_verified_baseline import existing_directory
 from replay_frozen_report import checked_file, check_published_run, record, save_new, run_science_gates
@@ -81,12 +82,16 @@ def prepare_source(run, prior):
          baseline.timestamp(previous['windowEnd']) < baseline.timestamp(snap['windowEnd']) and
          baseline.timestamp(snap['periodStart']) < baseline.timestamp(snap['windowEnd']),
          'NEW_PERIOD_AND_FRESH_CAPTURE_REQUIRED')
-    shared_app_evidence.validate_export(snap['sharedAppEvidence'], snap, shared_app_evidence.selected_experiment_codes(snap))
+    prior_dossier = record(prior, 'rd-dossier-published.json', baseline.MAX_ARTIFACT_BYTES)
+    scope = period_scope.derive(snap, previous, prior_dossier, prior_meta)
+    # Older, already frozen rehearsals with newly measured sources used the identical default scope.
+    if 'weeklyCollectionScope' in snap or scope['mode'] == 'CARRIED_FORWARD':
+        need(snap.get('weeklyCollectionScope') == scope, 'WEEKLY_SELECTION_DIFFERS_FROM_VERIFIED_PRIOR_OR_CURRENT_WINDOW')
+    shared_app_evidence.validate_export(snap['sharedAppEvidence'], snap, scope['requestedExperimentCodes'])
     primary = shared_app_evidence.dossier_primary_evidence(snap)
     dossier = record(run, 'rd-dossier-reviewed.json', baseline.MAX_ARTIFACT_BYTES)
     need(primary == dossier['primaryExperimentEvidence'], 'PRIMARY_EVIDENCE_DIFFERS_FROM_APP_EXPORT')
     need(baseline.timestamp(dossier['snapshotAt']) == baseline.timestamp(snap['snapshotAt']), 'SOURCE_CUTOFF_MISMATCH')
-    prior_dossier = record(prior, 'rd-dossier-published.json', baseline.MAX_ARTIFACT_BYTES)
     ledger = analyze_rd_snapshot.update_ledger([prior_dossier], read_list(run, 'reviewed-updates.json'))
     need(ledger == sorted(dossier['ledgerEntries'], key=lambda e:(e['projectAlias'],e['entryId'])),
          'APPEND_ONLY_PRIOR_LEDGER_MISMATCH')
@@ -203,6 +208,7 @@ def prepare(run, prior, output):
     need(baseline.timestamp(snap['sharedAppEvidence']['asOf'])<=baseline.timestamp(private_review['reviewedAt'])<=now()+dt.timedelta(minutes=1),
          'PRIVATE_PEER_REVIEW_PREDATES_CURRENT_EVIDENCE')
     doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
+    period_scope.verify_scope_note(doc, snap)
     annex=record(run,'private-material-review.json')
     literature={'sources':read_list(run,'article-refresh.json')}
     need(all(x in doc for x in ('rdReview','decisionReview','academicReview','evidenceMethodReview','collaboratorReview','languageReview')),

@@ -27,6 +27,11 @@ class ProjectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             prepare.moments({"pce": {"n": True}})
 
+    def test_open_questions_rank_before_unrelated_late_receipts(self):
+        rows = [{"id": "E" + str(i), "project": "P" + str(i), "newlyMeasuredSources": 0,
+                 "newSourceAliases": 20 if i == 1 else 0, "eligible": i != 5} for i in range(1, 6)]
+        self.assertEqual(prepare.cases_for_detail(rows, ["E4", "E5", "E3"]), ["E4", "E3", "E1"])
+
     def test_select_by_scientific_coverage(self):
         inputs = [
             {

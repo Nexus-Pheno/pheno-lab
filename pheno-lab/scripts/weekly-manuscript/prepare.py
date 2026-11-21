@@ -315,11 +315,14 @@ def actual_factors(evidence, labels):
     return factors
 
 
-def cases_for_detail(rows):
+def cases_for_detail(rows, followup_order=()):
     # Coverage is explicit: all exported experiments are in the inventory.
     # Give each project a turn before taking a second case from the same project.
+    priority = {case: index for index, case in enumerate(followup_order)}
+    selected = [r["id"] for r in sorted(rows, key=lambda r: priority.get(r["id"], len(priority)))
+                if r["id"] in priority and r["eligible"]]
     eligible = sorted(
-        (r for r in rows if r["eligible"]),
+        (r for r in rows if r["eligible"] and r["id"] not in priority),
         key=lambda r: (-r["newlyMeasuredSources"], -r["newSourceAliases"], r["id"]),
     )
     ordered = []
@@ -333,7 +336,7 @@ def cases_for_detail(rows):
                 ordered.append(row["id"])
                 seen.add(row["project"])
         eligible = deferred
-    return ordered[:3]
+    return (selected + ordered)[:3]
 
 
 def snapshot_sources(snapshot):
@@ -481,7 +484,12 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
                 "eligible": eligible,
             }
         )
-    select = cases_for_detail(rows)
+    scope = snapshot.get("weeklyCollectionScope", {})
+    aliases = {entry["experimentCode"]: row["id"] for entry, row in zip(entries, rows)}
+    followups = [aliases[item["experimentCode"]] for item in scope.get("followups", [])]
+    select = cases_for_detail(rows, followups)
+    if scope.get("mode") == "CARRIED_FORWARD" and not select:
+        raise ValueError("No prior or current case has accepted device results available for a reviewed follow-up.")
     for entry, row in zip(entries, rows):
         code, e = entry["experimentCode"], entry["evidence"]
         selected = row["id"] in select
@@ -551,6 +559,7 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
             "start": date(snapshot["periodStart"]),
             "end": date(snapshot["windowEnd"]),
             "acceptedAsOf": date(export["asOf"]),
+            **({"carriedForward": scope["mode"] == "CARRIED_FORWARD"} if scope else {}),
         },
         "method": export["methodVersion"],
         "projects": projects,

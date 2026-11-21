@@ -87,11 +87,15 @@ def main():
                         help='Use the deployed shared device-result policy for the 28 October method revision.')
     parser.add_argument('--evidence-code', action='append', default=None,
                         help='Explicit primary experiment scope; repeat for each reviewed case. Default: current-period measured/new/updated cases.')
+    parser.add_argument('--baseline-selection', type=Path,
+                        help='Verified previous publication. Automatically include justified prior cases during a quiet week.')
     parser.add_argument('--recipient-email', action='append', required=True,
                         help='Existing approved recipient; once per member of the fixed weekly roster.')
     parser.add_argument('--evidence-reader-email', required=True,
                         help='Existing authorized report/experiment reader; no grant is added.')
     args = parser.parse_args()
+    if args.baseline_selection and (not args.with_app_evidence or args.evidence_code):
+        parser.error('--baseline-selection requires --with-app-evidence and automatic case selection')
     recipients = args.recipient_email
     if (len(recipients) != 5 or len(set(recipients)) != 5
             or args.evidence_reader_email not in recipients
@@ -121,8 +125,13 @@ def main():
     if args.evidence_code and not args.with_app_evidence:
         parser.error('--evidence-code requires --with-app-evidence')
     if args.with_app_evidence:
-        snapshot['sharedAppEvidence'] = collect_app_evidence(
-            snapshot, args.evidence_code, args.evidence_reader_email)
+        codes = args.evidence_code
+        if args.baseline_selection:
+            import period_scope
+            scope = period_scope.from_verified_selection(args.baseline_selection, snapshot)
+            snapshot['weeklyCollectionScope'] = scope
+            codes = scope['requestedExperimentCodes']
+        snapshot['sharedAppEvidence'] = collect_app_evidence(snapshot, codes, args.evidence_reader_email)
     args.output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with os.fdopen(os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as stream:
         json.dump(snapshot, stream, ensure_ascii=False, indent=2)
