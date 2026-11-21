@@ -17,6 +17,7 @@ import {
   scienceReviewerSystem,
 } from "./science-contract";
 import { immutableWrite, checkpoint } from "./checkpoint";
+import { resumeScientificAuthor } from "./saved-science-author";
 
 type Evidence = z.output<typeof privateScienceInputSchema>["evidence"];
 type Science = z.output<typeof scienceInterpretationSchema>;
@@ -128,19 +129,33 @@ export function bindScience(evidence: Evidence, science: Science) {
 async function main() {
   const after =
     process.argv[3] === "--continue-after-review" ? Number(process.argv[4]) : 0;
+  let resume =
+    process.argv[3] === "--review-saved" ? Number(process.argv[4]) : 0;
   if (
     process.argv.length !== 3 &&
     !(
       process.argv.length === 5 &&
-      Number.isInteger(after) &&
-      after > 0 &&
-      after <= 3
+      ((Number.isInteger(after) && after > 0 && after <= 3) ||
+        (Number.isInteger(resume) && resume > 0 && resume <= 5))
     )
   )
     throw Error(
-      "Usage: science.ts private-run-directory [--continue-after-review attempt]",
+      "Usage: science.ts private-run-directory [--continue-after-review attempt | --review-saved attempt]",
     );
   const dir = resolve(process.argv[2]);
+  if (!after && !resume) {
+    const files = await readdir(dir);
+    const pending = [1, 2, 3].filter(
+      (n) =>
+        files.includes(`scientist-attempt-${n}.json`) &&
+        !files.includes(`scientific-peer-attempt-${n}.json`),
+    );
+    if (pending.length > 1)
+      throw Error(
+        "More than one interrupted scientific reviewer requires reconciliation",
+      );
+    resume = pending[0] ?? 0;
+  }
   const load = async (file: string) =>
     JSON.parse(await readFile(join(dir, file), "utf8"));
   let publicDraft;
@@ -255,7 +270,8 @@ async function main() {
       reviewedInterpretationHash: peer.reviewedInterpretationHash,
     });
   }
-  for (let a = after + 1; a <= (after ? after + 2 : 3); a++) {
+  const limit = after ? after + 2 : Math.max(3, resume);
+  for (let a = resume || after + 1; a <= limit; a++) {
     const basicInput = { evidence, ...(revision ? { revision } : {}) };
     const prefix = `nonpublishable-scientist-${a}-`;
     const rejected = async () => {
@@ -338,15 +354,27 @@ async function main() {
     };
     let formatRepair = await rejected();
     let author;
-    try {
-      author = await getAuthor(formatRepair);
-    } catch (error) {
-      if (formatRepair) throw error;
-      formatRepair = await rejected();
-      if (!formatRepair) throw error;
-      author = await getAuthor(formatRepair);
-    }
+    if (resume === a) {
+      author = await resumeScientificAuthor(dir, a, evidence);
+    } else
+      try {
+        author = await getAuthor(formatRepair);
+      } catch (error) {
+        if (formatRepair) throw error;
+        formatRepair = await rejected();
+        if (!formatRepair) throw error;
+        author = await getAuthor(formatRepair);
+      }
     await immutableWrite(join(dir, `scientist-attempt-${a}.json`), author);
+    await immutableWrite(
+      join(dir, `scientific-author-pending-review-${a}.json`),
+      {
+        sourceHash: author.evidenceHash,
+        inputHash: author.inputHash,
+        outputHash: author.outputHash,
+        completionId: author.completionId,
+      },
+    );
     // Even a binding error is presented to the independent reviewer. A positive
     // assessment cannot override the local deterministic evidence check.
     let bindingFailure: string | null = null;
@@ -425,7 +453,7 @@ async function main() {
     }
     if (peer.value.decision === "BLOCK") break;
     if (
-      a === (after ? after + 2 : 3) &&
+      a === limit &&
       !bindingFailure &&
       peer.value.decision === "REVISE" &&
       peer.value.findings.length

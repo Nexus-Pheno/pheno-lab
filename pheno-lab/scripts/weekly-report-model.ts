@@ -497,7 +497,7 @@ async function callPinnedModel<T extends z.ZodType>(
     reasoning_effort: "high",
     response_format: { type: "json_object" },
     max_tokens:
-      options.role === "final-reviewer"
+      options.role === "final-reviewer" || options.role === "chemist-reviewer"
         ? 65_536
         : [
               "author",
@@ -507,7 +507,6 @@ async function callPinnedModel<T extends z.ZodType>(
               "project-reviewer",
               "project-reviser",
               "reviewer",
-              "chemist-reviewer",
             ].includes(options.role)
           ? 32_768
           : 16_384,
