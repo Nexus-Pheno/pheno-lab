@@ -10,6 +10,7 @@ import re
 import secrets
 import subprocess
 import sys
+import tempfile
 
 import analyze_rd_snapshot
 import audit_device_results
@@ -151,14 +152,35 @@ def images_for_review(output):
             if r['width'] in (390,1440):
                 matching=list(qa.glob(f"{r['lang']}-{r['width']}-csp-chart-*.png"))
                 originals=[p for p in matching if not p.stem.endswith('-right')]
-                need(len(originals)==r['chartCount'], 'CHART_IMAGE_MISSING')
+                need(len(originals)==r['photographedFigures'] and r['photographedCharts']==r['chartCount'] and
+                     (not r['chartCount'] or bool(originals)), 'CHART_IMAGE_MISSING')
                 names.update(p.name for p in matching)
     return [{'file':'qa/'+name,'sha256':file_hash(qa,name)} for name in sorted(names)]
 
 
+def preserve_or_save(path, value):
+    if path.exists():
+        need(record(path.parent,path.name,baseline.MAX_ARTIFACT_BYTES)==value,'EXISTING_GATE_RECEIPT_CONFLICT')
+    else:
+        save_new(path,value)
+
+
 def prepare(run, prior, output):
-    need(not output.exists() and not output.is_symlink(), 'NEW_GATE_DIRECTORY_REQUIRED')
+    need(not output.is_symlink(), 'NEW_GATE_DIRECTORY_REQUIRED')
+    started={'schemaVersion':1,'operation':'PREPARE_WEEKLY_GATE','run':str(run),'prior':str(prior)}
+    if output.exists():
+        existing_directory(output)
+        need(record(output,'attempt.json')==started, 'NEW_GATE_DIRECTORY_REQUIRED')
+        if (output/'challenge.json').exists():
+            ch=record(output,'challenge.json')
+            need(all(file_hash(run,n)==v for n,v in ch['inputs'].items()) and
+                 all(file_hash(output,n)==v for n,v in ch['outputs'].items()) and images_for_review(output)==ch['images'],
+                 'SEALED_GATE_BYTES_CHANGED')
+            return {'status':'AWAITING_INDEPENDENT_REVIEWS','images':len(ch['images']),'reusedChallenge':True}
+        # Preserve the incomplete attempt, including gate findings and captures.
+        output.rename(output.with_name('UNPUBLISHED-incomplete-'+output.name+'-'+secrets.token_hex(8)))
     output.mkdir(mode=0o700)
+    save_new(output/'attempt.json',started)
     snap, audit, prior_meta = prepare_source(run, prior)
     need(not (run/'run-result.json').exists(), 'FRESH_UNPUBLISHED_RUN_REQUIRED')
     private_review = require_private_attestation(run)
@@ -275,18 +297,28 @@ def verify(run,prior,output,reviews):
     approved=bind_final_review.attach(doc,science)
     signed=output/'report-document-reviewed.json'
     need(sha(render_report.render(approved).encode())==ch['contentSha256'],'APPROVAL_CHANGED_VISIBLE_PAPER')
-    save_new(signed,approved)
+    preserve_or_save(signed,approved)
     final_output=output/'approved'
-    final_output.mkdir(mode=0o700)
-    gates=run_science_gates(run,prior,final_output,signed)
-    save_new(final_output/'gates.json',gates)
-    need(all(g['passed'] for g in gates.values()),'FINAL_SIGNED_SCIENTIFIC_GATE_FAILED')
+    final_output.mkdir(mode=0o700,exist_ok=True)
+    # Recompute on every final check, even if an earlier run finished writing receipts.
+    # A crash between individual gate outputs can therefore recover without overwriting evidence.
+    with tempfile.TemporaryDirectory(prefix='final-check-',dir=output) as scratch:
+        fresh=Path(scratch)
+        gates=run_science_gates(run,prior,fresh,signed)
+        need(all(g['passed'] for g in gates.values()),'FINAL_SIGNED_SCIENTIFIC_GATE_FAILED')
+        for label in gates:
+            name=label+'-gate.json'
+            preserve_or_save(final_output/name,record(fresh,name))
+    preserve_or_save(final_output/'gates.json',gates)
     result={'status':'READY_FOR_AUTHORIZED_PUBLICATION','passed':True,'publicationPerformed':False,
             'contentSha256':ch['contentSha256'],'challengeSha256':digest,
             'signedDocumentSha256':file_hash(output,signed.name), 'finalGatesSha256':file_hash(final_output,'gates.json'),
             'verifiedArtifactHashes':ch['inputs'],'reviewHashes':{n:file_hash(reviews,n) for n in ('scientific-review.json','visual-review.json')},
             'verifiedAt':now().isoformat()}
-    save_new(output/'ready.json',result)
+    if (output/'ready.json').exists():
+        previous=record(output,'ready.json')
+        result['verifiedAt']=previous.get('verifiedAt')
+    preserve_or_save(output/'ready.json',result)
     return {'status':result['status'],'contentSha256':ch['contentSha256'],'publicationPerformed':False}
 
 

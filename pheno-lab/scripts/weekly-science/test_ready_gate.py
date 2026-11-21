@@ -2,6 +2,8 @@
 import copy
 import datetime as dt
 import unittest
+import tempfile
+from pathlib import Path
 
 import check_ready as gate
 import audit_device_results as audit
@@ -11,7 +13,8 @@ import bind_final_review as bind
 class GateTests(unittest.TestCase):
     def test_missing_reviewer_can_be_prepared_but_substantive_or_runtime_failures_cannot(self):
         self.assertTrue(bind.may_prepare({'x':{'passed':False,'codes':{'MISSING_CLARITY_OR_SCIENTIFIC_SCOPE_CHECK':1}}}))
-        for codes in ({}, {'UNKNOWN_OR_REPEATED_PRIMARY_GROUP_COMPARISON':1}, {'UNRESOLVED_SCIENTIFIC_PEER_REVIEW_BLOCKER':1}):
+        self.assertTrue(bind.may_prepare({'public':{'passed':False,'codes':{'PUBLIC_GATE_MISSING_REVIEW_TIME':1}}}))
+        for codes in ({}, {'PUBLIC_GATE_INVALID_CONTENT':1},{'UNKNOWN_OR_REPEATED_PRIMARY_GROUP_COMPARISON':1}, {'UNRESOLVED_SCIENTIFIC_PEER_REVIEW_BLOCKER':1}):
             self.assertFalse(bind.may_prepare({'x':{'passed':False,'codes':codes}}))
 
     def test_scientific_approval_without_real_provider_response_is_rejected(self):
@@ -51,6 +54,35 @@ class GateTests(unittest.TestCase):
                 gate.visual_receipt(bad,challenge)
         with self.assertRaisesRegex(gate.Hold,'INCOMPLETE_VISUAL_REVIEW'):
             gate.visual_receipt(review,{'images':[file,{'file':'qa/zh-page-1.png','sha256':'1'*64}]})
+
+    def test_challenge_has_eight_viewports_all_chart_figures_and_prints_without_long_pages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp).resolve()
+            qa=root/'qa'
+            qa.mkdir(mode=0o700)
+            rows=[]; pages={}; expected=set()
+            def artifact(name):
+                path=qa/name;path.write_bytes(b'synthetic');path.chmod(0o600)
+                return gate.file_hash(qa,name)
+            for lang in ('en','zh'):
+                for width in (1440,1024,390,320):
+                    for mode in ('offline','app-equivalent-csp-sandbox'):
+                        rows.append(dict(lang=lang,width=width,mode=mode,chartCount=2,
+                            photographedCharts=2,photographedFigures=1,cspViolations=0,cspConsoleErrors=0,opaqueOrigin=True,
+                            parentAccessBlocked=True,storageBlocked=True,matchesOfflinePaintFontsGeometryAndLabels=True))
+                    artifact(f'{lang}-{width}.png')
+                    name=f'{lang}-{width}-viewport.png'; artifact(name);expected.add('qa/'+name)
+                    if width in (390,1440):
+                        name=f'{lang}-{width}-csp-chart-1.png'; artifact(name);expected.add('qa/'+name)
+                name=f'{lang}-page-1.png'
+                pages[lang]={'pdfSha256':artifact(lang+'-print.pdf'),'pages':[{'image':name,'imageSha256':artifact(name)}]}
+                expected.add('qa/'+name)
+            gate.save_new(qa/'verification.json',{'passed':True,'cases':rows,'renderedPrintPages':{'en':1,'zh':1}})
+            gate.save_new(qa/'print-pages.json',{'allPagesRendered':True,'languages':pages})
+            found={row['file'] for row in gate.images_for_review(root)}
+            self.assertEqual(found,expected)
+            self.assertEqual(sum(name.endswith('-viewport.png') for name in found),8)
+            self.assertEqual(len(found),14)
 
     def test_independent_device_arithmetic_uses_each_quantity_and_denominator(self):
         self.assertEqual(audit.metric_values({'Voc (V)':'1.00','Efficiency (%)':21,'fill factor (%)':80}),

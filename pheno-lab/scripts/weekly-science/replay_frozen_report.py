@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 import import_verified_baseline as relocate
 import render_report
@@ -33,9 +34,17 @@ def require(condition, code):
 
 
 def save_new(path, value):
-    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as output:
-        json.dump(value, output, ensure_ascii=False, indent=2)
-        output.write('\n')
+    descriptor, temporary = tempfile.mkstemp(prefix='.pending-', dir=path.parent)
+    try:
+        with os.fdopen(descriptor,'w') as output:
+            json.dump(value, output, ensure_ascii=False, indent=2)
+            output.write('\n')
+            output.flush()
+            os.fsync(output.fileno())
+        os.link(temporary,path)
+    finally:
+        os.unlink(temporary)
+    relocate.fsync_dir(path.parent)
 
 
 def check_published_run(folder):

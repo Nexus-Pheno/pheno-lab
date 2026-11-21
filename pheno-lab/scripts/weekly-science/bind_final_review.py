@@ -56,7 +56,8 @@ def is_unsigned(doc, as_of):
 
 
 def may_prepare(gates):
-    return all(g['passed'] or bool(g['codes']) and set(g['codes']) <= PENDING_ERRORS for g in gates.values())
+    return all(g['passed'] or bool(g['codes']) and
+               {code.removeprefix('PUBLIC_GATE_') for code in g['codes']} <= PENDING_ERRORS for g in gates.values())
 
 
 def attach(document, receipt):

@@ -49,6 +49,17 @@ const digest = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 // Compare the complete rendered chart state, rather than element existence. This
 // catches CSP-blocked SVG paint/fonts even when the page has no pageerror.
+const openAppendices = () => {
+  const details = [...document.querySelectorAll("details")];
+  const previous = details.map((node) => node.open);
+  for (const node of details) node.open = true;
+  return previous;
+};
+const restoreAppendices = (previous) => {
+  [...document.querySelectorAll("details")].forEach(
+    (node, i) => (node.open = previous[i]),
+  );
+};
 const svgStates = () =>
   [...document.querySelectorAll("figure svg")]
     .filter(
@@ -171,13 +182,12 @@ try {
       await expect(page.locator("html")).toHaveAttribute("lang", lang);
       const state = await page.evaluate(documentState);
       assertState(state);
+      const openStates = await page.evaluate(openAppendices);
       const chartStates = await page.evaluate(svgStates);
+      await page.evaluate(restoreAppendices, openStates);
       baselines.set(lang + "-" + width, chartStates);
       expect(errors).toEqual([]);
       expect(requests).toEqual([]);
-      await page.screenshot({
-        path: qa + "/" + lang + "-" + width + "-viewport.png",
-      });
       await page.screenshot({
         path: qa + "/" + lang + "-" + width + ".png",
         fullPage: true,
@@ -302,6 +312,11 @@ try {
       await expect(frame.locator("html")).toHaveAttribute("lang", lang);
       const state = await frame.evaluate(documentState);
       assertState(state);
+      await page.screenshot({
+        path: qa + "/" + lang + "-" + width + "-viewport.png",
+        fullPage: false,
+      });
+      const openStates = await frame.evaluate(openAppendices);
       const chartStates = await frame.evaluate(svgStates),
         baseline = baselines.get(lang + "-" + width);
       if (digest(chartStates) !== digest(baseline))
@@ -336,11 +351,16 @@ try {
         parentAccessBlocked: true,
         storageBlocked: true,
       });
+      let photographedFigures = 0;
+      let photographedCharts = 0;
       if (width === 1440 || width === 390) {
         const figures = frame.locator("figure:visible");
         for (let index = 0; index < (await figures.count()); index++) {
           const figure = figures.nth(index);
-          if (!(await figure.locator("svg").count())) continue;
+          const visibleCharts = await figure.locator("svg:visible").count();
+          if (!visibleCharts) continue;
+          photographedFigures++;
+          photographedCharts += visibleCharts;
           await figure.evaluate((node) => (node.scrollLeft = 0));
           await figure.screenshot({
             path:
@@ -375,7 +395,9 @@ try {
             });
           }
         }
+        expect(photographedCharts).toBe(chartStates.length);
       }
+      await frame.evaluate(restoreAppendices, openStates);
       await frame
         .getByRole("button", {
           name: lang === "en" ? "中文" : "English",
@@ -402,6 +424,8 @@ try {
       expect(requests).toEqual([]);
       cases.push({
         mode: "app-equivalent-csp-sandbox",
+        photographedFigures,
+        photographedCharts,
         lang,
         width,
         height,
