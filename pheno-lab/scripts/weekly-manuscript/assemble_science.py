@@ -38,7 +38,7 @@ def table(headers, rows):
         )
         + "</tbody>"
     )
-    return "<table>" + head + body + "</table>"
+    return '<div class="table-wrap"><table>' + head + body + "</table></div>"
 
 
 def subsection(title, text):
