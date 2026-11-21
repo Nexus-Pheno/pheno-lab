@@ -9,6 +9,7 @@ from html import escape
 from pathlib import Path
 
 from prepare import read, save
+from proposal_revision import revised_proposal, source_revisions
 
 
 def canonical(value):
@@ -197,6 +198,7 @@ def digest(path):
 
 def assemble_science(root, presentation_source=None):
     scientific = read(root / "science-interpretation.json")
+    proposal_changes = source_revisions(root, scientific)
     peer = read(root / "independent-material-science-review.json")
     if (
         peer["value"]["decision"] != "PASS"
@@ -330,6 +332,7 @@ def assemble_science(root, presentation_source=None):
         ):
             raise ValueError("Independent case/source audit unresolved")
         pub = display_case_groups(case["public"], case_binding["groups"], names["cases"], aging_record_evidence(snap, case_binding))
+        pub = revised_proposal(key, pub, proposal_changes)
         chem = case["chemical"]
         mapping = maps[key]
         graph = chem["status"] == "CURRENT_VERIFIED_GRAPH"

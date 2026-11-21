@@ -3,6 +3,7 @@ import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { measuredReference } from "./contract";
+import { assertPhysicalDiscriminators } from "./signature-measurements";
 import {
   getWeeklyReportOrganizationId,
   callWeeklyScienceModel,
@@ -100,6 +101,7 @@ export function bindScience(evidence: Evidence, science: Science) {
       [...mentioned].some((x) => !groups.some((g) => g.id === x))
     )
       throw Error("Scientific condition rows don't match compared arms");
+    assertPhysicalDiscriminators(c.public.signatures, c.public.discriminator);
     const chem = c.chemical;
     if (chem.sources.some((k) => !evidence.articles.some((p) => p.id === k)))
       throw Error(

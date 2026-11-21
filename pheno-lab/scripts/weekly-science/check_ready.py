@@ -19,6 +19,7 @@ from referee_project_sources import project_sources
 from project_names import names_from_source, verify_project_names
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
+from proposal_revision import revised_proposal, source_revisions
 import bind_final_review
 from import_verified_baseline import existing_directory
 from replay_frozen_report import checked_file, check_published_run, record, save_new, run_science_gates
@@ -260,10 +261,11 @@ def prepare(run, prior, output):
     science = record(run, "science-interpretation.json", baseline.MAX_ARTIFACT_BYTES)
     public_cases = record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]
     originals = {entry["experiment"]: entry["public"] for entry in science["cases"]}
+    proposal_changes = source_revisions(run, science)
     for case in public_cases:
         name = case["case"]
         aging_status = aging_record_evidence(snap, ids[name])
-        need(case.get("displayPublic") == display_case_groups(originals[name], ids[name]["groups"], ids, aging_status),
+        need(case.get("displayPublic") == revised_proposal(name, display_case_groups(originals[name], ids[name]["groups"], ids, aging_status), proposal_changes),
              "CASE_DISPLAY_DIFFERS_FROM_OFFICIAL_SCIENTIFIC_TEXT_AND_GROUP_LABELS")
 
     section_reviews = json.loads(subprocess.run(
