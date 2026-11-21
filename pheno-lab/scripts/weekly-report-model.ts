@@ -36,6 +36,8 @@ import {
   goalAuthorSystem,
   goalReviewerSystem,
   goalJudgmentSchema,
+  projectPatchSchema,
+  projectPatchSystem,
   projectAuthorInput,
   projectReviewInput,
   projectAuthorSystem,
@@ -181,6 +183,7 @@ type PinnedOptions<T extends z.ZodType> = {
     | PrivateRole
     | "final-reviewer"
     | "project-author"
+    | "project-reviser"
     | "project-reviewer"
     | "goal-assessor"
     | "goal-reviewer";
@@ -273,6 +276,26 @@ export async function callWeeklyProjectReview(options: ProjectCall) {
     evidence: result.data.evidence,
     policySystem: projectReviewerSystem,
     schema: projectCritiqueSchema,
+  });
+}
+
+export async function callWeeklyProjectPatch(options: {
+  orgId: string;
+  payload: unknown;
+  signal?: AbortSignal;
+}) {
+  const v = projectAuthorInput.safeParse(options.payload);
+  if (!v.success || !v.data.revision)
+    throw Error(
+      "Targeted revision requires its prior draft and actual peer findings",
+    );
+  return callPinnedModel({
+    ...options,
+    role: "project-reviser",
+    policySystem: projectPatchSystem,
+    data: v.data,
+    evidence: v.data.evidence,
+    schema: projectPatchSchema,
   });
 }
 

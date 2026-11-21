@@ -1,6 +1,10 @@
 import { expect, it, vi } from "vitest";
 import { checkGoalEvidence } from "../scripts/weekly-report-model-attainment";
-import { projectEvidence } from "../scripts/weekly-report-model-projects";
+import {
+  applyProjectPatch,
+  checkBindings,
+  projectEvidence,
+} from "../scripts/weekly-report-model-projects";
 vi.mock("@/infrastructure/db/client", () => ({ db: {} }));
 const base = {
   id: "P1",
@@ -199,4 +203,120 @@ it("removes incidental contacts, staff identifiers and links from private projec
   expect(output.routeCases[0].observation).not.toMatch(
     /@|13900000000|https|cabcdefghijkl/,
   );
+});
+
+it("applies a bounded scientific correction without altering source metadata or unaffected fields", () => {
+  const bi = { en: "Read the control.", zh: "查看对照。" };
+  const row = {
+    project: "P1",
+    purpose: bi,
+    decision: bi,
+    priorIssues: bi,
+    next: bi,
+    confidence: bi,
+    routeDisposition: "ADJUST" as const,
+    confidenceLevel: "LOW" as const,
+    issueAssessments: [],
+    routeIntents: [],
+  };
+  const replacement = {
+    en: "First establish a matched control.",
+    zh: "先设置匹配对照。",
+  };
+  const patch = {
+    overview: [{ field: "next" as const, value: replacement }],
+    intents: [],
+    issues: [],
+  };
+  const updated = applyProjectPatch(row, patch);
+  expect(updated).toEqual({ ...row, next: replacement });
+  expect(row.next).toEqual(bi);
+  expect(() =>
+    applyProjectPatch(row, {
+      ...patch,
+      overview: [patch.overview[0], patch.overview[0]],
+    }),
+  ).toThrow("Duplicate");
+  expect(() => applyProjectPatch(row, { ...patch, overview: [] })).toThrow(
+    "failed to change",
+  );
+  expect(() =>
+    applyProjectPatch(row, {
+      ...patch,
+      intents: [{ experimentCode: "other", field: "next", value: bi }],
+    }),
+  ).toThrow("different experiment");
+});
+it("only binds direct tests to experiments with newly measured evidence", () => {
+  const e = projectEvidence(
+    {
+      projectAlias: "p",
+      projectName: "Synthetic",
+      assigned: true,
+      experiments: [exp("A")],
+      ledgerEntries: [
+        {
+          entryId: "prior",
+          statement: "Repeat",
+          status: "proposed",
+          history: [],
+        },
+      ],
+      periodPerformance: {
+        routeCohorts: [route("A", "CURRENT_PERIOD", "a", 20)],
+      },
+    },
+    { ...base, freshMeasuredScans: 0 },
+    new Map(),
+    new Set(),
+    new Map([["A", 0]]),
+  );
+  const bi = { en: "Test the control.", zh: "测试对照。" };
+  const source = e.routeCases[0];
+  const row = {
+    project: e.project,
+    purpose: bi,
+    decision: bi,
+    priorIssues: bi,
+    next: bi,
+    confidence: bi,
+    routeDisposition: "ADJUST" as const,
+    confidenceLevel: "LOW" as const,
+    issueAssessments: [
+      {
+        key: "L1",
+        assessment: "direct-test" as const,
+        testedExperimentCodes: ["A"],
+        rationale: bi,
+      },
+    ],
+    routeIntents: [
+      {
+        experimentCode: source.experimentCode,
+        sourceHash: source.sourceHash,
+        hashBasis: source.hashBasis,
+        representativeRouteId: source.representativeRouteId,
+        sourcePeriod: source.sourcePeriod,
+        observation: bi,
+        problem: bi,
+        hypothesis: bi,
+        purpose: bi,
+        attainment: bi,
+        comparison: bi,
+        next: bi,
+      },
+    ],
+  };
+  expect(e.freshMeasuredScans).toBe(0);
+  expect(() => checkBindings(e, row)).toThrow("current direct test");
+  expect(() =>
+    checkBindings(
+      {
+        ...e,
+        freshMeasuredScans: 1,
+        routeCases: [{ ...source, freshMeasuredSources: 1 }],
+      },
+      row,
+    ),
+  ).not.toThrow();
 });

@@ -15,6 +15,7 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import {
   callWeeklyProjectReview,
+  callWeeklyProjectPatch,
   getWeeklyReportOrganizationId,
   hashWeeklyReportValue,
 } from "./weekly-report-model";
@@ -22,6 +23,7 @@ import {
   projectEvidenceSchema,
   projectJudgmentSchema,
   projectCritiqueSchema,
+  projectPatchSchema,
 } from "./weekly-report-model-project-contract";
 
 const string = z.string();
@@ -126,10 +128,14 @@ const packetSchema = z.object({
       id: string,
       assigned: z.boolean(),
       measuredScans: n,
+      freshMeasuredScans: n.optional(),
       olderReceipts: n,
       priorUnseenSources: n,
     }),
   ),
+  inventory: z
+    .array(z.object({ id: string, freshMeasuredSources: n.optional() }))
+    .optional(),
 });
 type Project = z.output<typeof sourceProject>;
 type Row = z.output<typeof rowSchema>;
@@ -146,6 +152,7 @@ export function projectEvidence(
   summary: z.output<typeof packetSchema>["projects"][number],
   primaryMap: Map<string, z.output<typeof primary>>,
   detailed: Set<string>,
+  freshByCode: Map<string, number> = new Map(),
 ): Evidence {
   const rows = project.periodPerformance.routeCohorts.filter(
     (r) => r.view === "STRICT_RECORDED_PROTOCOL",
@@ -220,6 +227,9 @@ export function projectEvidence(
     }));
     return {
       experimentCode: code,
+      ...(freshByCode.has(code)
+        ? { freshMeasuredSources: freshByCode.get(code) }
+        : {}),
       sourceHash:
         app?.sourceHash ??
         hashWeeklyReportValue({ experiment: ex, routes: condensed }),
@@ -251,6 +261,9 @@ export function projectEvidence(
     name: clean(project.projectName),
     assigned: project.assigned,
     measuredScans: summary.measuredScans,
+    ...(summary.freshMeasuredScans === undefined
+      ? {}
+      : { freshMeasuredScans: summary.freshMeasuredScans }),
     earlierReceipts: summary.olderReceipts,
     firstSeenSources: summary.priorUnseenSources,
     scope: {
@@ -273,7 +286,7 @@ export function projectEvidence(
   });
 }
 
-function checkBindings(e: Evidence, x: Approval) {
+export function checkBindings(e: Evidence, x: Approval) {
   if (e.project !== x.project || e.routeCases.length !== x.routeIntents.length)
     throw new Error("Project decision coverage differs from source");
   if (
@@ -284,12 +297,14 @@ function checkBindings(e: Evidence, x: Approval) {
   const codes = new Set(e.routeCases.map((c) => c.experimentCode));
   const fresh = new Set(
     e.routeCases
-      .filter((c) =>
-        c.routes.some((r) =>
-          r.cohorts.some(
-            (v) => v.sourcePeriod === "CURRENT_PERIOD" && v.nSamples > 0,
+      .filter(
+        (c) =>
+          (c.freshMeasuredSources ?? 0) > 0 &&
+          c.routes.some((r) =>
+            r.cohorts.some(
+              (v) => v.sourcePeriod === "CURRENT_PERIOD" && v.nSamples > 0,
+            ),
           ),
-        ),
       )
       .map((c) => c.experimentCode),
   );
@@ -364,7 +379,56 @@ const receiptSchema = z.object({
   authorRequestHash: string,
   reviewerRequestHash: string,
 });
-async function reviewOne(dir: string, orgId: string, e: Evidence) {
+export function applyProjectPatch(
+  previous: Approval,
+  patch: z.output<typeof projectPatchSchema>,
+): Approval {
+  const out = structuredClone(previous);
+  const changed = new Set<string>();
+  function field(key: string) {
+    if (changed.has(key)) throw Error("Duplicate project patch field");
+    changed.add(key);
+  }
+  for (const edit of patch.overview) {
+    field(edit.field);
+    out[edit.field] = edit.value;
+  }
+  for (const edit of patch.intents) {
+    const row = out.routeIntents.find(
+      (x) => x.experimentCode === edit.experimentCode,
+    );
+    if (!row) throw Error("Project patch references a different experiment");
+    field(edit.experimentCode + "." + edit.field);
+    row[edit.field] = edit.value;
+  }
+  for (const edit of patch.issues) {
+    const idx = out.issueAssessments.findIndex((x) => x.key === edit.key);
+    if (idx < 0)
+      throw Error("Project patch references a different prior issue");
+    field(edit.key);
+    out.issueAssessments[idx] = edit;
+  }
+  if (patch.confidenceLevel) out.confidenceLevel = patch.confidenceLevel;
+  if (patch.routeDisposition) out.routeDisposition = patch.routeDisposition;
+  if (hashWeeklyReportValue(previous) === hashWeeklyReportValue(out))
+    throw Error("Peer corrections failed to change the project manuscript");
+  return projectJudgmentSchema.parse(out);
+}
+const editReceipt = z.object({
+  base: projectJudgmentSchema,
+  provider: z.object({
+    value: projectPatchSchema,
+    outputHash: string,
+    requestHash: string,
+    completionId: string,
+  }),
+});
+async function reviewOne(
+  dir: string,
+  orgId: string,
+  e: Evidence,
+  remediateBlocked = false,
+) {
   const eh = hashWeeklyReportValue(e);
   const path = join(dir, "project-" + e.project + "-" + eh + ".json");
   const attemptFiles = await Promise.all(
@@ -380,6 +444,7 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
   for (const item of attemptFiles) {
     const envelope = z
       .object({
+        patch: editReceipt.optional(),
         author: z.object({
           evidenceHash: z.string(),
           outputHash: z.string(),
@@ -407,6 +472,19 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
       envelope.author.completionId === envelope.reviewer.completionId
     )
       throw new Error("Invalid saved project review");
+    if (envelope.patch) {
+      const { base, provider } = envelope.patch;
+      if (
+        hashWeeklyReportValue(provider.value) !== provider.outputHash ||
+        provider.requestHash !== envelope.author.requestHash ||
+        provider.completionId !== envelope.author.completionId ||
+        hashWeeklyReportValue(applyProjectPatch(base, provider.value)) !==
+          envelope.author.outputHash
+      )
+        throw Error(
+          "Saved model edit differs from its exact prior manuscript and provider receipt",
+        );
+    }
     history.push({ envelope, previous, review });
   }
   const saved = await existing(path);
@@ -442,14 +520,44 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
   let revision:
     | { previous: Approval; review: z.output<typeof projectCritiqueSchema> }
     | undefined;
-  if (history[0]?.review.decision === "REVISE")
+  if (history[0]?.review.decision === "BLOCK" && !remediateBlocked)
+    throw Error(
+      "Project " +
+        e.project +
+        " was blocked by its referee; review the findings before a targeted repair.",
+    );
+  if (
+    history[0]?.review.decision === "REVISE" ||
+    (history[0]?.review.decision === "BLOCK" && remediateBlocked)
+  )
     revision = { previous: history[0].previous, review: history[0].review };
   for (let attempt = 0; attempt < 3; attempt++) {
-    const w = await callWeeklyProjectReview({
-      orgId,
-      role: "project-author",
-      payload: { evidence: e, ...(revision ? { revision } : {}) },
-    });
+    const patch = revision
+      ? {
+          base: revision.previous,
+          provider: await callWeeklyProjectPatch({
+            orgId,
+            payload: { evidence: e, revision },
+          }),
+        }
+      : undefined;
+    const w = patch
+      ? (() => {
+          const value = applyProjectPatch(patch.base, patch.provider.value);
+          return {
+            ...patch.provider,
+            value,
+            outputHash: hashWeeklyReportValue(value),
+            providerOutputHash: patch.provider.outputHash,
+            authorship: "APPLIED_TARGETED_MODEL_EDIT",
+            priorDraftHash: hashWeeklyReportValue(patch.base),
+          };
+        })()
+      : await callWeeklyProjectReview({
+          orgId,
+          role: "project-author",
+          payload: { evidence: e, ...(revision ? { revision } : {}) },
+        });
     const r = await callWeeklyProjectReview({
       orgId,
       role: "project-reviewer",
@@ -486,6 +594,7 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
     await immutable(join(dir, "project-attempt-" + w.requestId + ".json"), {
       author: w,
       reviewer: r,
+      ...(patch ? { patch } : {}),
     });
     if (
       corrected.decision === "PASS" &&
@@ -519,9 +628,10 @@ async function main() {
     process.argv.length !== 3 &&
     !(
       process.argv.length === 4 &&
-      ["--check-projection-only", "--save-projection-only"].includes(
+      (["--check-projection-only", "--save-projection-only"].includes(
         process.argv[3],
-      )
+      ) ||
+        /^--repair-blocked=P[1-9][0-9]*$/.test(process.argv[3]))
     )
   )
     throw new Error("Expected private report run directory");
@@ -553,6 +663,14 @@ async function main() {
       .filter((e) => e.scope === "detailed-comparison")
       .map((e) => e.code),
   );
+  const freshByCode = new Map<string, number>();
+  for (const instance of packet.inventory ?? []) {
+    if (instance.freshMeasuredSources === undefined) continue;
+    const code = bindings.cases[instance.id]?.code;
+    if (!code || freshByCode.has(code))
+      throw Error("Fresh scan inventory differs from source case bindings");
+    freshByCode.set(code, instance.freshMeasuredSources);
+  }
   const evidence = packet.projects.map((summary) => {
     const match = bindings.projects[summary.id];
     if (!match) throw new Error("Missing canonical project binding");
@@ -563,7 +681,7 @@ async function main() {
     );
     if (rows.length !== 1)
       throw new Error("Ambiguous canonical project binding");
-    return projectEvidence(rows[0], summary, byCode, detailed);
+    return projectEvidence(rows[0], summary, byCode, detailed, freshByCode);
   });
   if (process.argv[3] === "--check-projection-only") {
     console.log(
@@ -594,7 +712,12 @@ async function main() {
     while (next < evidence.length && !failures.length) {
       const i = next++;
       try {
-        result[i] = await reviewOne(dir, org, evidence[i]);
+        result[i] = await reviewOne(
+          dir,
+          org,
+          evidence[i],
+          process.argv[3] === "--repair-blocked=" + evidence[i].project,
+        );
       } catch (e) {
         failures.push(e);
       }
