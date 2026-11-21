@@ -1,6 +1,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { db } from "@/infrastructure/db/client";
 import { objectStorage } from "@/infrastructure/storage";
 import type { Actor } from "@/modules/authorization/actor";
@@ -50,11 +51,22 @@ export async function publishLabReport(raw: unknown) {
           if (!input.requireExistingAccess)
             return { id: existing.id, created: false, notifiedRecipients: 0 };
         }
-        const org = await tx.organization.findFirst({
-          where: { id: input.organizationId, status: "ACTIVE" },
-          select: { id: true },
-        });
+        // Keep organization and user eligibility stable until the report,
+        // notices and audit commit. Granting paths can also update these rows.
+        const [org] = await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "Organization"
+          WHERE "id" = ${input.organizationId} AND "status" = 'ACTIVE'
+          FOR SHARE
+        `;
         if (!org) throw new Error("An active organization is required.");
+        const lock = input.requireExistingAccess
+          ? Prisma.sql`FOR SHARE`
+          : Prisma.sql`FOR UPDATE`;
+        await tx.$queryRaw`
+          SELECT "id" FROM "User"
+          WHERE "organizationId" = ${org.id} AND "id" IN (${Prisma.join(recipientIds)})
+          ORDER BY "id" ${lock}
+        `;
         const recipients = await tx.user.findMany({
           where: {
             id: { in: recipientIds },

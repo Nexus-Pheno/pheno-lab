@@ -209,6 +209,192 @@ describe("private reports on real PostgreSQL", () => {
       await f.cleanup();
     }
   });
+  it.each([
+    "recipient revocation",
+    "organization suspension",
+    "recipient grant",
+  ] as const)(
+    "observes an in-flight %s before deciding whether to publish",
+    async (subject) => {
+      const f = await fixture();
+      let allowCommit!: () => void;
+      const barrier = new Promise<void>((done) => {
+        allowCommit = done;
+      });
+      let opened!: (pid: number) => void;
+      const locked = new Promise<number>((done) => {
+        opened = done;
+      });
+      const recipientIds = [...f.input.recipientIds, f.reader.id];
+      let changing: Promise<unknown> | undefined,
+        publishing: Promise<unknown> | undefined;
+      try {
+        await db.user.updateMany({
+          where: { organizationId: f.org.id, id: { in: recipientIds } },
+          data: { reportAccess: true },
+        });
+        if (subject === "recipient grant")
+          await db.user.update({
+            where: { id: f.reader.id },
+            data: { reportAccess: false },
+          });
+        changing = db.$transaction(
+          async (tx) => {
+            const [conn] = await tx.$queryRaw<
+              { pid: number }[]
+            >`SELECT pg_backend_pid() AS pid`;
+            if (subject !== "organization suspension")
+              await tx.user.update({
+                where: { id: f.reader.id },
+                data: { reportAccess: subject === "recipient grant" },
+              });
+            else
+              await tx.organization.update({
+                where: { id: f.org.id },
+                data: { status: "SUSPENDED" },
+              });
+            opened(conn.pid);
+            await barrier;
+          },
+          { timeout: 10000 },
+        );
+        const blocker = await locked;
+        publishing = publishLabReport({
+          ...f.input,
+          recipientIds,
+          requireExistingAccess: true,
+        }).catch((e: unknown) => e);
+        await expect
+          .poll(
+            async () => {
+              const [v] = await db.$queryRaw<
+                { waiting: boolean }[]
+              >`SELECT EXISTS (
+              SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+                AND wait_event_type='Lock' AND ${blocker} = ANY(pg_blocking_pids(pid))
+                AND query LIKE '%FOR SHARE%'
+            ) AS waiting`;
+              return v.waiting;
+            },
+            { timeout: 3000 },
+          )
+          .toBe(true);
+        allowCommit();
+        await changing;
+        const outcome = await publishing;
+        const where = { organizationId: f.org.id };
+        if (subject === "recipient grant") {
+          expect(outcome).toMatchObject({
+            created: true,
+            notifiedRecipients: 5,
+          });
+          expect(await db.notification.count({ where })).toBe(5);
+          expect(
+            await db.auditEvent.count({
+              where: { ...where, action: "report.published" },
+            }),
+          ).toBe(1);
+          return;
+        }
+        expect(outcome).toBeInstanceOf(Error);
+        expect((outcome as Error).message).toMatch(
+          subject === "recipient revocation"
+            ? /must already have report access/
+            : /active organization/,
+        );
+        expect(await db.labReport.count({ where })).toBe(0);
+        expect(await db.notification.count({ where })).toBe(0);
+        expect(
+          await db.auditEvent.count({
+            where: { ...where, action: "report.published" },
+          }),
+        ).toBe(0);
+      } finally {
+        allowCommit();
+        await Promise.allSettled([changing, publishing]);
+        await f.cleanup();
+      }
+    },
+  );
+  it("keeps a later revocation behind the five-notice publication commit", async () => {
+    const f = await fixture();
+    const recipientIds = [...f.input.recipientIds, f.reader.id];
+    const input = { ...f.input, recipientIds, requireExistingAccess: true };
+    let release!: () => void,
+      uploaded!: () => void,
+      updating!: (pid: number) => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const started = new Promise<void>((r) => {
+      uploaded = r;
+    });
+    const pid = new Promise<number>((r) => {
+      updating = r;
+    });
+    let publication: Promise<unknown> | undefined,
+      revocation: Promise<unknown> | undefined;
+    try {
+      await db.user.updateMany({
+        where: { organizationId: f.org.id, id: { in: recipientIds } },
+        data: { reportAccess: true },
+      });
+      const storage = objectStorage(),
+        put = storage.put.bind(storage);
+      vi.spyOn(storage, "put").mockImplementationOnce(async (args) => {
+        uploaded();
+        await gate;
+        return put(args);
+      });
+      publication = publishLabReport(input);
+      await started;
+      revocation = db.$transaction(
+        async (tx) => {
+          const [connection] = await tx.$queryRaw<
+            { pid: number }[]
+          >`SELECT pg_backend_pid() AS pid`;
+          updating(connection.pid);
+          await tx.user.update({
+            where: { id: f.reader.id },
+            data: { reportAccess: false },
+          });
+        },
+        { timeout: 10000 },
+      );
+      const revokePid = await pid;
+      await expect
+        .poll(
+          async () => {
+            const [row] = await db.$queryRaw<
+              { blocked: boolean }[]
+            >`SELECT cardinality(pg_blocking_pids(${revokePid}::int))>0 AS blocked`;
+            return row.blocked;
+          },
+          { timeout: 3000 },
+        )
+        .toBe(true);
+      release();
+      expect(await publication).toMatchObject({
+        created: true,
+        notifiedRecipients: 5,
+      });
+      await revocation;
+      await expect(publishLabReport(input)).rejects.toThrow(
+        "already have report access",
+      );
+      const where = { organizationId: f.org.id };
+      expect(await db.notification.count({ where })).toBe(5);
+      expect(
+        await db.auditEvent.count({
+          where: { ...where, action: "report.published" },
+        }),
+      ).toBe(1);
+    } finally {
+      release();
+      await Promise.allSettled([publication, revocation]);
+      await f.cleanup();
+    }
+  });
   it("rejects a recurring publication with a revoked grant before writing storage, records or notices", async () => {
     const f = await fixture();
     try {

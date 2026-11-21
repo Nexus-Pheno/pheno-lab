@@ -31,6 +31,21 @@ if [[ "$(node -p 'process.versions.node.split(`.`)[0]')" != "24" ]]; then
   exit 2
 fi
 
+# Weekly report verification renders a calibration image with Poppler.
+if ! command -v pdftoppm >/dev/null 2>&1; then
+  poppler_usr=/var/lib/pheno-lab-weekly/tools/poppler/runtime/usr
+  if [[ ! -x "$poppler_usr/bin/pdftoppm" || ! -d "$poppler_usr/lib/x86_64-linux-gnu" ]]; then
+    echo "Poppler pdftoppm is required. Install poppler-utils or provide the documented weekly report runtime." >&2
+    exit 2
+  fi
+  export PATH="$poppler_usr/bin:$PATH"
+  export LD_LIBRARY_PATH="$poppler_usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+if ! pdftoppm -v >/dev/null 2>&1; then
+  echo "Cannot run Poppler pdftoppm. Check the executable and its shared libraries." >&2
+  exit 2
+fi
+
 cd "$APP_DIR"
 # A release needs development tools for verify and must not prompt when the
 # deployment account replaces a modules layout created by another account.
@@ -54,6 +69,7 @@ cp -a \
   src \
   package.json \
   pnpm-lock.yaml \
+  tsconfig.json \
   next.config.ts \
   .node-version \
   "$STAGING/pheno-lab/"

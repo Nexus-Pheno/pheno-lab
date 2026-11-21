@@ -273,3 +273,5 @@ go test ./...
 - [`../pheno-lab/src/modules/README.md`](../pheno-lab/src/modules/README.md)：领域模块局部规则。
 - [`../pheno-lab/README.md`](../pheno-lab/README.md)：本地启动、产品结构和安全概览。
 - [`../PLAN.md`](../PLAN.md)：早期产品规划，仅作背景；与当前代码冲突时以代码和上述现行文档为准。
+
+服务端周报的分析与校验位于 pheno-lab/scripts/weekly-*。开发和构建环境需 Python 3.11 或更新版本及 Poppler 的 `pdftoppm`，用于渲染视觉校验图。Ubuntu/Debian 使用 `poppler-utils`，macOS 使用 Homebrew 的 `poppler`。应用 verify 自动执行 `pnpm run test:weekly-report`（周报 Python 单测及 RDKit 合成样例），不访问公司账号或外部模型。修改周报流程时还要在隔离的 Linux 目录做真实冻结数据回放。历史报告字节复现、全新模型输出的独立审阅、真实发布三者分别验收。禁止把数据、回答正文及名单复制到测试 fixture。

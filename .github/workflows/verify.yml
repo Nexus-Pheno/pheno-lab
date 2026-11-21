@@ -63,6 +63,10 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: pheno-lab/pnpm-lock.yaml
+      - name: Install Poppler for weekly report verification
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y poppler-utils
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test:db:prepare
       - run: pnpm run test:db:drift
