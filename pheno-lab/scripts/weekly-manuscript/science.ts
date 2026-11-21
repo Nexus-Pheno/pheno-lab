@@ -424,6 +424,16 @@ async function main() {
       return;
     }
     if (peer.value.decision === "BLOCK") break;
+    if (
+      a === (after ? after + 2 : 3) &&
+      !bindingFailure &&
+      peer.value.decision === "REVISE" &&
+      peer.value.findings.length
+    ) {
+      const { correctScientificPassages } = await import("./science_revision");
+      await correctScientificPassages(dir, a);
+      return;
+    }
     const review = { ...peer.value, findings: [...peer.value.findings] };
     if (bindingFailure && review.findings.length < 25)
       review.findings.push({

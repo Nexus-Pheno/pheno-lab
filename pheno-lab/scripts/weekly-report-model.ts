@@ -23,6 +23,10 @@ import {
   scienceSystem,
   scienceReviewerSystem,
 } from "./weekly-manuscript/science-contract";
+import {
+  scientificEditOutput,
+  scientificEditSystem,
+} from "./weekly-manuscript/science-edits-contract";
 import { weeklyPublicLiterature } from "./weekly-report-model-literature";
 import {
   finalReviewInputSchema,
@@ -182,6 +186,7 @@ type PinnedOptions<T extends z.ZodType> = {
     | WeeklyModelCall<z.ZodType>["role"]
     | PrivateRole
     | "final-reviewer"
+    | "scientific-reviser"
     | "project-author"
     | "project-reviser"
     | "project-reviewer"
@@ -239,6 +244,26 @@ export async function callWeeklyScienceModel(options: PrivateCall) {
     data: parsed.data,
     evidence: parsed.data.evidence,
     schema: scienceReviewSchema,
+  });
+}
+
+export async function callWeeklySciencePatch(options: {
+  orgId: string;
+  payload: unknown;
+  signal?: AbortSignal;
+}) {
+  const input = privateScienceInputSchema.safeParse(options.payload);
+  if (!input.success || !input.data.revision || input.data.formatRepair)
+    throw Error(
+      "Scientific wording correction requires the reviewed candidate and original bounded facts",
+    );
+  return callPinnedModel({
+    ...options,
+    role: "scientific-reviser",
+    policySystem: scientificEditSystem,
+    data: input.data,
+    evidence: input.data.evidence,
+    schema: scientificEditOutput,
   });
 }
 
@@ -477,6 +502,7 @@ async function callPinnedModel<T extends z.ZodType>(
         : [
               "author",
               "scientist",
+              "scientific-reviser",
               "project-author",
               "project-reviewer",
               "project-reviser",
