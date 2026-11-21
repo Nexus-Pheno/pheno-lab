@@ -385,20 +385,34 @@ async function main() {
         e instanceof Error ? e.message : "Invalid source binding";
     }
     const payload = { evidence, interpretation: author.value };
-    const peer = await checkpoint(
-      join(dir, `chemist-review-checkpoint-${a}.json`),
-      "chemist-reviewer",
-      scienceReviewerSystem,
-      payload,
-      scienceReviewSchema,
-      () =>
-        callWeeklyScienceModel({
-          orgId,
-          role: "chemist-reviewer",
-          onInvalidOutput: preserveRejected("chemist-reviewer", a),
-          payload,
-        }),
-    );
+    const requestPeer = () =>
+      checkpoint(
+        join(dir, `chemist-review-checkpoint-${a}.json`),
+        "chemist-reviewer",
+        scienceReviewerSystem,
+        payload,
+        scienceReviewSchema,
+        () =>
+          callWeeklyScienceModel({
+            orgId,
+            role: "chemist-reviewer",
+            onInvalidOutput: preserveRejected("chemist-reviewer", a),
+            payload,
+          }),
+      );
+    let peer;
+    try {
+      peer = await requestPeer();
+    } catch (error) {
+      const transient =
+        error instanceof Error &&
+        /incomplete response|incomplete JSON|output budget|fetch failed|timeout|timed out|HTTP (429|502|503|504)\b/i.test(
+          error.message,
+        );
+      if (resume === a || !transient) throw error;
+      await resumeScientificAuthor(dir, a, evidence);
+      peer = await requestPeer();
+    }
     if (
       peer.completionId === author.completionId ||
       peer.inputHash !== hashWeeklyReportValue(payload) ||

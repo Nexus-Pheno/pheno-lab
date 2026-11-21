@@ -70,3 +70,74 @@ describe("targeted scientific corrections", () => {
     ).toThrow();
   });
 });
+
+it("recovers the exact interrupted author once, and refuses altered frozen input", async () => {
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { hashWeeklyReportValue: hash } =
+    await import("../scripts/weekly-report-model");
+  const { privateScienceInputSchema } =
+    await import("../scripts/weekly-manuscript/science-contract");
+  const { resumeScientificAuthor } =
+    await import("../scripts/weekly-manuscript/saved-science-author");
+  const dir = await mkdtemp(join(tmpdir(), "pheno-saved-scientist-test-"));
+  try {
+    const t = "2026-01-01T00:00:00.000Z";
+    const evidence = privateScienceInputSchema.shape.evidence.parse({
+      publicEvidence: {
+        schemaVersion: 1,
+        period: { start: t, end: t, acceptedAsOf: t },
+        method: "pheno-device-evidence-2026-10-28",
+        papers: [],
+        projects: [],
+        inventory: [],
+        cases: [],
+      },
+      publicDraft: null,
+      followupRecords: [],
+      cases: [],
+      articles: [],
+    });
+    const value = {
+      cases: [],
+      priorities: [{ en: "Check the sample count.", zh: "核对样品数量。" }],
+      followupAssessments: [],
+    };
+    const record = {
+      value,
+      role: "scientist",
+      provider: "deepseek",
+      providerHost: "api.deepseek.com",
+      model: "deepseek-v4-pro",
+      requestId: "test-request",
+      completionId: "test-completion",
+      evidenceHash: hash(evidence),
+      inputHash: hash({ evidence }),
+      outputHash: hash(value),
+    };
+    await writeFile(
+      join(dir, "scientist-attempt-1.json"),
+      JSON.stringify(record),
+    );
+    await writeFile(
+      join(dir, "scientist-checkpoint-1.json"),
+      JSON.stringify({ ...record, checkpointPolicy: "test-policy" }),
+    );
+    expect(await resumeScientificAuthor(dir, 1, evidence)).toEqual(record);
+    await expect(
+      resumeScientificAuthor(dir, 1, evidence),
+    ).rejects.toMatchObject({ code: "EEXIST" });
+    await expect(
+      resumeScientificAuthor(dir, 1, {
+        ...evidence,
+        publicEvidence: {
+          ...evidence.publicEvidence,
+          period: { ...evidence.publicEvidence.period, carriedForward: true },
+        },
+      }),
+    ).rejects.toThrow(/frozen evidence/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
