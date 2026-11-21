@@ -173,3 +173,30 @@ it("requires the recorded question and actual linked measurement for an answered
     "No recorded intent",
   );
 });
+
+it("removes incidental contacts, staff identifiers and links from private project notes", () => {
+  const src = {
+    ...exp("A"),
+    observation:
+      "Pressure varied. Reach test@example.test; 13900000000; https://example.test/private; cabcdefghijklmnopqrstuvwxyz",
+  };
+  const output = projectEvidence(
+    {
+      projectAlias: "p",
+      projectName: "test",
+      assigned: true,
+      experiments: [src],
+      ledgerEntries: [],
+      periodPerformance: {
+        routeCohorts: [route("A", "CURRENT_PERIOD", "a", 1)],
+      },
+    },
+    base,
+    new Map(),
+    new Set(),
+  );
+  expect(output.routeCases[0].observation).toContain("Pressure varied.");
+  expect(output.routeCases[0].observation).not.toMatch(
+    /@|13900000000|https|cabcdefghijkl/,
+  );
+});

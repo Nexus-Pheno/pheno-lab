@@ -137,7 +137,7 @@ type Approval = z.output<typeof projectJudgmentSchema>;
 type Evidence = z.output<typeof projectEvidenceSchema>;
 const clean = (s: string | null | undefined) =>
   (s ?? "").replace(
-    /[A-Z0-9_.+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+    /https?:\/\/\S+|[A-Z0-9_.+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?<!\w)c[a-z0-9]{22,30}(?!\w)|(?<!\d)1[3-9]\d{9}(?!\d)/gi,
     "[contact omitted]",
   );
 
@@ -235,8 +235,14 @@ export function projectEvidence(
       currentAccepted:
         app?.characterizations.map((ch) => ({
           characterization: clean(ch.name) || "Unnamed characterization",
-          reference: app.reference.selectedGroup ?? null,
-          groups: ch.groups.map((g) => ({ group: g.label, stats: g.metrics })),
+          reference:
+            app.reference.selectedGroup == null
+              ? null
+              : clean(app.reference.selectedGroup),
+          groups: ch.groups.map((g) => ({
+            group: clean(g.label),
+            stats: g.metrics,
+          })),
         })) ?? [],
     };
   });
