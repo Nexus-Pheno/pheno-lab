@@ -1,0 +1,39 @@
+[Unit]
+Description=Pheno Lab weekly research report
+After=network-online.target pheno-lab.service
+Wants=network-online.target
+StartLimitIntervalSec=2d
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=deploy_pheno_lab
+WorkingDirectory=/srv/pheno-lab/current/pheno-lab
+EnvironmentFile=/etc/pheno-lab/pheno-lab.env
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--conditions=react-server
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PLAYWRIGHT_BROWSERS_PATH=/var/lib/pheno-lab-weekly/browsers
+Environment=PATH=/var/lib/pheno-lab-weekly/tools/poppler/runtime/usr/bin:/usr/local/bin:/usr/bin:/bin
+Environment=LD_LIBRARY_PATH=/var/lib/pheno-lab-weekly/tools/poppler/runtime/usr/lib/x86_64-linux-gnu
+StateDirectory=pheno-lab-weekly
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/python3 -B scripts/weekly-runner/run.py scheduled
+TimeoutStartSec=5h
+Restart=on-failure
+RestartSec=45min
+Nice=10
+CPUWeight=25
+IOWeight=25
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pheno-lab-weekly-report

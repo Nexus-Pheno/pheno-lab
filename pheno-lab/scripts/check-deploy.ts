@@ -135,3 +135,31 @@ for (const directive of [
 }
 
 console.log("Deployment scripts passed syntax and permission checks.");
+
+const reportUnit = readFileSync(
+  "deploy/systemd/pheno-lab-weekly-report.service",
+  "utf8",
+);
+const reportTimer = readFileSync(
+  "deploy/systemd/pheno-lab-weekly-report.timer",
+  "utf8",
+);
+for (const directive of [
+  "User=deploy_pheno_lab",
+  "EnvironmentFile=/etc/pheno-lab/pheno-lab.env",
+  "UMask=0077",
+  "StateDirectoryMode=0700",
+  "ProtectSystem=strict",
+  "ExecStart=/usr/bin/python3 -B scripts/weekly-runner/run.py scheduled",
+]) {
+  if (!reportUnit.split("\n").includes(directive))
+    throw new Error("Weekly report unit is missing " + directive);
+}
+for (const directive of [
+  "OnCalendar=Sat *-*-* 09:00:00 Asia/Shanghai",
+  "Persistent=true",
+  "Unit=pheno-lab-weekly-report.service",
+]) {
+  if (!reportTimer.split("\n").includes(directive))
+    throw new Error("Weekly report timer is missing " + directive);
+}

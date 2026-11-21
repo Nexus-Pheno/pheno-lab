@@ -273,3 +273,5 @@ go test ./...
 - [`../pheno-lab/src/modules/README.md`](../pheno-lab/src/modules/README.md)：领域模块局部规则。
 - [`../pheno-lab/README.md`](../pheno-lab/README.md)：本地启动、产品结构和安全概览。
 - [`../PLAN.md`](../PLAN.md)：早期产品规划，仅作背景；与当前代码冲突时以代码和上述现行文档为准。
+
+服务端周报的分析与校验位于 pheno-lab/scripts/weekly-*。修改周报脚本时，除应用 verify 外运行 Python 单测（weekly-runner、weekly-science、weekly-manuscript），并在隔离的 Linux 目录做真实冻结数据回放。历史报告字节复现、全新模型输出的独立审阅、真实发布三者分别验收。禁止把数据、回答正文及名单复制到测试 fixture。

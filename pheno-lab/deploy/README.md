@@ -876,3 +876,14 @@ free -h
 - [腾讯云 COS 内网访问](https://cloud.tencent.com/document/product/436/56556)
 - [腾讯云 COS 最小权限指南](https://cloud.tencent.com/document/product/436/38618)
 - [腾讯云备案](https://cloud.tencent.com/document/product/243/39038)
+
+### 每周研发报告（独立于 Mac 的服务端任务）
+
+应用发布包包含 `scripts/weekly-runner`、`scripts/weekly-manuscript` 和 `scripts/weekly-science`。定时任务使用现有数据库和私有 COS、已有组织 DeepSeek 凭据和应用的已接受器件结果口径。后台撰写与独立科研复核使用 `deepseek-v4-pro`，图像复核使用支持图片输入的 `deepseek-flash`。批准的私有材料结构和原始研究问题只进入所选案例的科研审阅，管理者报告正文只包含经复核的分析。不要把环境文件、原始研究记录、名单或模型输出提交到 Git。
+
+1. 使用现有发布流程构建应用。确认 Linux 可运行仓库锁定版本的 Playwright Chromium（`PLAYWRIGHT_BROWSERS_PATH=/var/lib/pheno-lab-weekly/browsers`）、Poppler 和中文字体。系统已有 Poppler 时无需另装；服务也支持 `/var/lib/pheno-lab-weekly/tools/poppler/runtime` 内解包的发行版组件。不要修改系统的 SSH、浏览器或安全策略来跳过图像检查。
+2. `/var/lib/pheno-lab-weekly` 归 `deploy_pheno_lab` 所有，目录模式 0700，文件 0600。`roster.json` 从已经核实的五位接收人的当前报告授权建立，固定组织、账号 ID 和邮箱。`evidence-reader` 填写名单内获准读取科研证据的账号邮箱。沿用 `/etc/pheno-lab/pheno-lab.env`。每次收集及推送前重新核实资格，访问撤销时任务停止。
+3. 首次迁移应当先复查原报告的 COS 内容、五条通知和一条发布审计。用 `scripts/weekly-runner/archive.ts save` 备份核实的两期基准，再通过 `restore` 下载核验全部字节，使用 `scripts/weekly-science/import_verified_baseline.py` 安装到 `baselines`。私有基准不通过报告页面分发。磁盘故障时重复恢复、核验和安装步骤。
+4. `python3 -B scripts/weekly-runner/run.py replay --frozen <已归档的完整周报目录> --prior <上一基准目录>` 重新执行历史校验，前后对比同一份报告、收件人、通知、审计和 COS 内容。新稿验收在单独的私有目录中基于相同冻结数据运行 `review_work.py <新稿目录> <上一基准目录>`。只有独立科研复核、数值、隐私、网页和打印检查都通过时才交接正式排程。历史复查和新稿验收均不能发布。
+5. 交接时从同一 Git 发布版本安装本文配套的 `deploy/systemd/pheno-lab-weekly-report.{service,timer}`，执行 `systemctl daemon-reload`、`systemctl enable --now pheno-lab-weekly-report.timer`，核实 `systemctl list-timers pheno-lab-weekly-report.timer` 显示的触发时间对应上海周六 09:00。最后暂停原 Mac 定时任务。恢复 Mac 前先禁用服务器计时器，核对当前周期的实际发布状态。
+6. 查看 `systemctl status pheno-lab-weekly-report.service` 及该单元的日志。草稿及检查结果保存在该周期的私有工作目录。模型、来源或科学复核失败时保留草稿。发布响应不确定时先核对通知及审计，同一周期仅使用原始冻结载荷。不得复制改名另发一次，不得自动扩大收件人。若要补发或发布修订版，另行批准。

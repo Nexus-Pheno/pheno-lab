@@ -248,3 +248,5 @@ The client reads live pages. Record IDs, request timestamps and evidence source 
 Experiments use `YYYY-ORG-USER-SEQ`; samples are `S1…Sn` within an experiment.
 The app also assigns short instrument handles such as `E7-S5` and preserves
 normalized aliases for existing lab naming schemes.
+
+每周科研报告使用后台运行脚本。生产排程、归档恢复、五位接收人的复核和切换步骤见 [部署手册](deploy/README.md#每周研发报告独立于-mac-的服务端任务)。
