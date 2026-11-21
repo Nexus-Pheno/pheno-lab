@@ -167,6 +167,17 @@ def review_materials(work):
         ts(AUTHOR / "science.ts", work, timeout=10800)
 
 
+def assemble_reviewed(work, prior):
+    reviewed_ledger(work, prior)
+    if not (work / "report-document-publish.json").exists():
+        document = assemble(work, prior)
+        period_scope.add_scope_note(
+            document, read(work / "snapshot.json"), read(prior / "snapshot.json")
+        )
+        write(work / "report-document-publish.json", document)
+    render_reviewed(work)
+
+
 def workflow(work, prior):
     # Both teams use the frozen source packet. They write distinct receipts.
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -176,12 +187,7 @@ def workflow(work, prior):
         materials.result()
     if not (work / "science-public-index.private.json").exists():
         run(sys.executable, "-B", AUTHOR / "assemble_science.py", work)
-    reviewed_ledger(work, prior)
-    if not (work / "report-document-publish.json").exists():
-        document = assemble(work, prior)
-        period_scope.add_scope_note(document, read(work / "snapshot.json"), read(prior / "snapshot.json"))
-        write(work / "report-document-publish.json", document)
-    render_reviewed(work)
+    assemble_reviewed(work, prior)
     gate = work / "gate"
     reviews = work / "reviews"
     reviews.mkdir(mode=0o700, exist_ok=True)
