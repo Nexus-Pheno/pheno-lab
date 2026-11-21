@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import {
   authorSystem,
+  measuredReference,
   manuscriptSchema,
   peerReviewSchema,
   projectionSchema,
@@ -44,7 +45,8 @@ export function checkBindings(
     const ref = test?.groups.find((g) => g.id === section.reference);
     if (
       !group?.stats.pce?.n ||
-      section.reference !== source.selectedReference ||
+      section.reference !==
+        measuredReference(test?.groups, source.selectedReference) ||
       (section.reference !== null &&
         (!ref?.stats.pce?.n || section.reference === section.comparator)) ||
       section.papers.some((id) => !evidence.papers.includes(id))

@@ -2,6 +2,7 @@ import { readFile, stat, readdir } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
+import { measuredReference } from "./contract";
 import {
   getWeeklyReportOrganizationId,
   callWeeklyScienceModel,
@@ -47,7 +48,7 @@ export function bindScience(evidence: Evidence, science: Science) {
     )?.groups;
     if (
       source.sourceHash !== c.sourceHash ||
-      facts?.selectedReference !== c.reference ||
+      measuredReference(groups, facts?.selectedReference) !== c.reference ||
       c.reference === c.comparator ||
       !groups?.find((g) => g.id === c.comparator)?.stats.pce?.n ||
       (c.reference !== null &&

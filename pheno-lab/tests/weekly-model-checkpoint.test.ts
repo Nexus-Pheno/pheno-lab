@@ -22,22 +22,20 @@ it("reuses a completed request and blocks changed inputs or output without a sec
     value = { label: "reviewed" };
   const h = (v: unknown) =>
     createHash("sha256").update(JSON.stringify(v)).digest("hex");
-  const call = vi
-    .fn()
-    .mockResolvedValue({
-      value,
-      role: "scientist",
-      model: "deepseek-v4-pro",
-      provider: "deepseek",
-      providerHost: "api.deepseek.com",
-      requestId: "request1",
-      completionId: "one",
-      inputHash: h(payload),
-      evidenceHash: h(payload.evidence),
-      outputHash: h(value),
-      promptHash: "a",
-      requestHash: "b",
-    });
+  const call = vi.fn().mockResolvedValue({
+    value,
+    role: "scientist",
+    model: "deepseek-v4-pro",
+    provider: "deepseek",
+    providerHost: "api.deepseek.com",
+    requestId: "request1",
+    completionId: "one",
+    inputHash: h(payload),
+    evidenceHash: h(payload.evidence),
+    outputHash: h(value),
+    promptHash: "a",
+    requestHash: "b",
+  });
   const result = await checkpoint(
     file,
     "scientist",
@@ -77,4 +75,13 @@ it("completes repeated identical saves and refuses different bytes", async () =>
   await expect(immutableWrite(file, { test: 2 })).rejects.toThrow(
     /different bytes/,
   );
+});
+
+it("keeps a measured arm usable when its intended control has no device result", async () => {
+  const { measuredReference } =
+    await import("../scripts/weekly-manuscript/contract");
+  const group = (id: string, n: number) => ({ id, stats: { pce: { n } } });
+  expect(measuredReference([group("G1", 0), group("G2", 4)], "G1")).toBeNull();
+  expect(measuredReference([group("G1", 1)], "G1")).toBeNull();
+  expect(measuredReference([group("G1", 3), group("G2", 2)], "G1")).toBe("G1");
 });
