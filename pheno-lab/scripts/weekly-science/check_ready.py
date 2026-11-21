@@ -16,7 +16,7 @@ import analyze_rd_snapshot
 import audit_device_results
 import period_scope
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
-from assemble_science import display_case_groups, display_project_text
+from assemble_science import aging_record_evidence, display_case_groups, display_project_text
 import bind_final_review
 from import_verified_baseline import existing_directory
 from replay_frozen_report import checked_file, check_published_run, record, save_new, run_science_gates
@@ -240,7 +240,8 @@ def prepare(run, prior, output):
     originals = {entry["experiment"]: entry["public"] for entry in science["cases"]}
     for case in public_cases:
         name = case["case"]
-        need(case.get("displayPublic") == display_case_groups(originals[name], ids[name]["groups"], ids),
+        aging_status = aging_record_evidence(snap, ids[name])
+        need(case.get("displayPublic") == display_case_groups(originals[name], ids[name]["groups"], ids, aging_status),
              "CASE_DISPLAY_DIFFERS_FROM_OFFICIAL_SCIENTIFIC_TEXT_AND_GROUP_LABELS")
 
     section_reviews = json.loads(subprocess.run(
