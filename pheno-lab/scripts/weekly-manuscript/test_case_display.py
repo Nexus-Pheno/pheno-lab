@@ -31,6 +31,14 @@ class CaseDisplayTest(unittest.TestCase):
         self.assertEqual(result["comparison"]["zh"], "C–H 仅供参考。")
         self.assertIn("not executed", self.raw["name"]["en"])
 
+    def test_retrospective_account_in_method_appendix_keeps_the_intended_aging_protocols(self):
+        self.raw["designInterpretation"] = {"retrospectiveOrProspective":{
+            "en":"Initial test recorded; UV and light-heat aging remain unexecuted.",
+            "zh":"已记录初始测试；紫外与光热老化未执行。"}}
+        result = self.render()["designInterpretation"]["retrospectiveOrProspective"]
+        self.assertEqual(result["en"], "Initial test recorded; no UV or light-heat aging result is recorded.")
+        self.assertEqual(result["zh"], "已记录初始测试；未见紫外或光热老化测试结果记录。")
+
     def test_recorded_or_ambiguous_aging_data_require_scientific_review(self):
         self.snapshot["experimentSummaries"][0]["characterizations"].append({"name": "T80 stability"})
         with self.assertRaisesRegex(ValueError, "scientific review required"):

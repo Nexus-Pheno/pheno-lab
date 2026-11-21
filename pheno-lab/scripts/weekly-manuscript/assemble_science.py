@@ -110,8 +110,8 @@ CASE_REFERENCE = re.compile(r"(?<![A-Za-z0-9_-])(?:G|E)[1-9][0-9]*(?![A-Za-z0-9_
 CASE_GROUP_RANGE = re.compile(r"(?<![A-Za-z0-9_-])(G[1-9][0-9]*)\s*[-–—]\s*(G[1-9][0-9]*)(?![A-Za-z0-9_-])")
 AGING_RECORD = re.compile(r"ag[ei]?ing|stabilit(?:y|ies)|light[ -]?soak|t[- ]?(?:80|95|50)\b|\bISOS(?:[-_ ]|\b)|retention|老化|稳定性|光照衰减|保持率|耐久", re.I)
 AGING_NONEXECUTION = {
-    "en": re.compile(r"\b(?:ag[ei]?ing(?: tests?)? (?:(?:was|were) )?not (?:executed|performed|conducted|run|done)|no ag[ei]?ing tests? (?:was|were) (?:executed|performed|conducted|run|done))\b", re.I),
-    "zh": re.compile(r"(?:老化(?:测试|试验|实验)?(?:并)?未(?:执行|进行|开展)|未(?:执行|进行|开展)老化(?:测试|试验|实验)?)"),
+    "en": re.compile(r"\b(?:(?:UV and light[- ]heat )?ag[ei]?ing (?:remain|remains|is|are|was|were) unexecuted|ag[ei]?ing(?: tests?)? (?:(?:was|were) )?not (?:executed|performed|conducted|run|done)|no ag[ei]?ing tests? (?:was|were) (?:executed|performed|conducted|run|done))\b", re.I),
+    "zh": re.compile(r"(?:(?:紫外与光热)?老化(?:测试|试验|实验)?(?:并)?未(?:执行|进行|开展)|未(?:执行|进行|开展)老化(?:测试|试验|实验)?)"),
 }
 
 
@@ -160,10 +160,14 @@ def display_case_groups(value, groups, experiments, aging_status=None, field=Non
                 raise ValueError("Scientific text references an unbound experiment or group")
             annotated = CASE_GROUP_RANGE.sub(lambda m: resolve_label(m[1]) + "–" + resolve_label(m[2]), item)
             rendered = display_lab_terms(CASE_REFERENCE.sub(lambda m:resolve_label(m.group()), annotated), key)
-            if field in ("name","condition","execution","result","attainment","judgment","comparison","keyIssue") and AGING_NONEXECUTION[key].search(rendered):
+            if field in ("name","condition","execution","result","attainment","judgment","comparison","keyIssue","observation","retrospectiveOrProspective") and AGING_NONEXECUTION[key].search(rendered):
                 if aging_status != "NO_AGING_RESULT_IN_FROZEN_TEST_RECORDS":
                     raise ValueError("Categorical aging nonexecution conflicts with or lacks a bound test record; scientific review required")
-                rendered = AGING_NONEXECUTION[key].sub("no aging test result is recorded" if key=="en" else "未见老化测试结果记录", rendered)
+                def qualify(match):
+                    if key == "en":
+                        return "no UV or light-heat aging result is recorded" if match.group().lower().startswith("uv and") else "no aging test result is recorded"
+                    return "未见紫外或光热老化测试结果记录" if match.group().startswith("紫外与光热") else "未见老化测试结果记录"
+                rendered = AGING_NONEXECUTION[key].sub(qualify, rendered)
             result[key] = rendered
         else:
             result[key] = display_case_groups(item, groups, experiments, aging_status, key)
