@@ -499,15 +499,33 @@ async function main() {
     );
     return;
   }
+  await immutable(join(dir, "project-source-packet.private.json"), {
+    schemaVersion: 1,
+    files,
+    projects: evidence,
+  });
   const org = await getWeeklyReportOrganizationId();
-  const result = [];
-  for (let i = 0; i < evidence.length; i += 3) {
-    result.push(
-      ...(await Promise.all(
-        evidence.slice(i, i + 3).map((e) => reviewOne(dir, org, e)),
-      )),
-    );
-  }
+  const result: Awaited<ReturnType<typeof reviewOne>>[] = new Array(
+    evidence.length,
+  );
+  let next = 0;
+  const failures: unknown[] = [];
+  const worker = async () => {
+    while (next < evidence.length && !failures.length) {
+      const i = next++;
+      try {
+        result[i] = await reviewOne(dir, org, evidence[i]);
+      } catch (e) {
+        failures.push(e);
+      }
+    }
+  };
+  // Free slots take the next project immediately; finish in-flight work before
+  // returning a failure so successful independently reviewed checkpoints survive.
+  await Promise.all(
+    Array.from({ length: Math.min(3, evidence.length) }, worker),
+  );
+  if (failures.length) throw failures[0];
   const rows = result.map((r) => r.row);
   const digest = await immutable(join(dir, "project-decisions.json"), {
     schemaVersion: 1,
