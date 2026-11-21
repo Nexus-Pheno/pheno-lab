@@ -120,7 +120,25 @@ def build(root):
             'conditions':conditions,'recipes':list(recipes.values()),'actualCaptures':any(st.get('executions') for st in s['steps']),
             'materials':materials,'recordedGroups':[{'id':alias,'label':label} for label,alias in labels.items()]})
         case_bindings[row['id']]={'materials':mat_ids,'recipes':{v['id']:k for k,v in recipes.items()}}
-    return {'cases':cases,'articles':[reviewed_article(a) for a in articles]},case_bindings
+    dossier=read(root/'rd-dossier.json')
+    historical=dossier['ledgerEntries']
+    followups=[]
+    for case in cases:
+        case_id=case['experiment']
+        code=bindings['cases'][case_id]['code']
+        matched=[r for r in historical if code in r.get('evidenceIdentifiers',[])]
+        # Keep the full append-only ledger in the dossier. Only the most recent
+        # source-linked hypotheses of each current case enter the bounded packet.
+        ordered=sorted(matched,key=lambda r:((r.get('history') or [{}])[-1].get('reviewedAt') or '',r['entryId']),reverse=True)
+        lookup={}
+        for item in ordered[:12]:
+            key='H'+str(len(followups)+1)
+            followups.append({'id':key,'experiment':case_id,'statement':scientific_text(item['statement']),
+                'status':item['status'],'revision':item['revision']})
+            lookup[key]={'entryId':item['entryId'],'expectedRevision':item['revision']}
+        case_bindings[case_id]['ledger']=lookup
+        case_bindings[case_id]['omittedSourceLinkedPriorEntries']=max(0,len(matched)-12)
+    return {'cases':cases,'articles':[reviewed_article(a) for a in articles],'followupRecords':followups},case_bindings
 
 
 def main(root):

@@ -29,6 +29,15 @@ import {
   finalReviewSystem,
 } from "./weekly-report-model-final-contract";
 
+import {
+  projectAuthorInput,
+  projectReviewInput,
+  projectAuthorSystem,
+  projectReviewerSystem,
+  projectJudgmentSchema,
+  projectCritiqueSchema,
+} from "./weekly-report-model-project-contract";
+
 const MODEL = "deepseek-v4-pro";
 const PROVIDER_HOST = "api.deepseek.com";
 const MAX_INPUT_BYTES = 1_500_000;
@@ -154,7 +163,12 @@ type PrivateCall = {
 };
 type PinnedOptions<T extends z.ZodType> = {
   orgId: string;
-  role: WeeklyModelCall<z.ZodType>["role"] | PrivateRole | "final-reviewer";
+  role:
+    | WeeklyModelCall<z.ZodType>["role"]
+    | PrivateRole
+    | "final-reviewer"
+    | "project-author"
+    | "project-reviewer";
   policySystem: string;
   data: object;
   evidence: unknown;
@@ -210,6 +224,43 @@ export async function callWeeklyScienceModel(options: PrivateCall) {
   });
 }
 
+type ProjectCall = {
+  orgId: string;
+  role: "project-author" | "project-reviewer";
+  payload: unknown;
+  signal?: AbortSignal;
+};
+export function callWeeklyProjectReview(
+  options: ProjectCall & { role: "project-author" },
+): Promise<ModelReceipt<typeof projectJudgmentSchema>>;
+export function callWeeklyProjectReview(
+  options: ProjectCall & { role: "project-reviewer" },
+): Promise<ModelReceipt<typeof projectCritiqueSchema>>;
+export async function callWeeklyProjectReview(options: ProjectCall) {
+  if (options.role === "project-author") {
+    const result = projectAuthorInput.safeParse(options.payload);
+    if (!result.success) throw new Error("Project source packet invalid");
+    return callPinnedModel({
+      ...options,
+      data: result.data,
+      evidence: result.data.evidence,
+      policySystem: projectAuthorSystem,
+      schema: projectJudgmentSchema,
+    });
+  }
+  if (options.role !== "project-reviewer")
+    throw new Error("Project review role invalid");
+  const result = projectReviewInput.safeParse(options.payload);
+  if (!result.success) throw new Error("Project review packet invalid");
+  return callPinnedModel({
+    ...options,
+    data: result.data,
+    evidence: result.data.evidence,
+    policySystem: projectReviewerSystem,
+    schema: projectCritiqueSchema,
+  });
+}
+
 export async function callWeeklyFinalReview(options: {
   orgId: string;
   payload: unknown;
@@ -237,6 +288,14 @@ export async function callWeeklyFinalReview(options: {
       "Final reviewer did not bind the issued challenge and manuscript",
     );
   const sections = result.value.sections.map((s) => s.id);
+  const checkKeys = result.value.checks.map((c) => c.key);
+  if (
+    new Set(checkKeys).size !== checkKeys.length ||
+    new Set(data.reviewChecks).size !== data.reviewChecks.length ||
+    checkKeys.length !== data.reviewChecks.length ||
+    data.reviewChecks.some((k) => !checkKeys.includes(k))
+  )
+    throw new Error("Final reviewer did not assess the issued review criteria");
   const scopes = result.value.assessments.map((s) => s.scope);
   if (
     new Set(sections).size !== sections.length ||
@@ -250,7 +309,8 @@ export async function callWeeklyFinalReview(options: {
     );
   if (
     result.value.decision === "PASS" &&
-    (result.value.sections.some((s) => s.decision !== "PASS") ||
+    (result.value.checks.some((c) => c.decision !== "PASS") ||
+      result.value.sections.some((s) => s.decision !== "PASS") ||
       result.value.assessments.some((s) => s.decision !== "PASS") ||
       result.value.findings.some((f) => f.severity === "blocking"))
   )

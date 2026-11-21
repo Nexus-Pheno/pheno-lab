@@ -17,6 +17,18 @@ import { immutableWrite } from "./write";
 type Evidence = z.output<typeof privateScienceInputSchema>["evidence"];
 type Science = z.output<typeof scienceInterpretationSchema>;
 export function bindScience(evidence: Evidence, science: Science) {
+  const reviewed = new Set(science.followupAssessments.map((h) => h.id));
+  if (
+    reviewed.size !== evidence.followupRecords.length ||
+    science.followupAssessments.length !== reviewed.size ||
+    evidence.followupRecords.some(
+      (h) =>
+        !science.followupAssessments.some(
+          (x) => x.id === h.id && x.experiment === h.experiment,
+        ),
+    )
+  )
+    throw Error("Prior-action review coverage differs");
   const ids = evidence.cases.map((e) => e.experiment);
   if (
     JSON.stringify(ids) !==
@@ -140,6 +152,8 @@ async function main() {
       ...peer,
       reviewedInterpretationHash: author.outputHash,
       authorCompletionId: author.completionId,
+      publicDraftAtScienceSha256:
+        publicDraft === null ? null : hashWeeklyReportValue(publicDraft),
       bindingFailure,
       reviewedAt: new Date().toISOString(),
     };

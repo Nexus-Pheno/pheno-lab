@@ -13,8 +13,8 @@ import math
 import os
 from pathlib import Path
 import re
-import sys
 import tempfile
+import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -49,8 +49,14 @@ TOPICS = {
 
 def fetch_json(url):
     request = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'PhenoLab-PublicLiterature/1.0'})
-    with urlopen(request, timeout=20) as response:
-        body = response.read(1_000_001)
+    for attempt in range(3):
+        try:
+            with urlopen(request,timeout=20) as response:
+                body = response.read(1_000_001)
+            break
+        except OSError as error:
+            if attempt==2 or getattr(error,'code',0) in (400,401,403,404): raise
+            time.sleep(1+attempt)
     if len(body)>1_000_000:
         raise ValueError('Public metadata exceeds expected size')
     return json.loads(body)
@@ -91,6 +97,55 @@ def refresh_papers():
         audits.append({'paper': alias, 'doi': doi, 'title': title, 'abstract': abstract,
                        'sourceUrl': url, 'refreshedAt': dt.datetime.now(dt.timezone.utc).isoformat()})
     return audits
+
+
+PUBLIC_SEARCHES = (
+    ('perovskite solar cells self assembled monolayer buried interface',
+     ('monolayer','buried interface','hole-selective')),
+    ('perovskite solar cell passivation coating substrate device interface',
+     ('passivation','substrate','coating','surface treatment')),
+)
+
+
+def discover_articles(window_end, existing):
+    # These search terms are static public concepts. Scope and request metadata
+    # never include project names, internal molecules, employee names or recipes.
+    end=dt.date.fromisoformat(window_end[:10])
+    start=end-dt.timedelta(days=365)
+    articles=[]
+    attempted=[]
+    known={item['doi'].lower() for item in existing}
+    for query,terms in PUBLIC_SEARCHES:
+        params={'search':query,'filter':f'from_publication_date:{start},to_publication_date:{end},type:article,has_abstract:true,is_retracted:false',
+                'sort':'relevance_score:desc','per_page':4,
+                'select':'id,doi,title,type,publication_date,is_retracted,is_paratext,abstract_inverted_index'}
+        url='https://api.openalex.org/works?'+urlencode(params)
+        candidates=fetch_json(url)['results']
+        attempted.append({'query':query,'returned':len(candidates),'url':url})
+        for item in candidates:
+            raw_doi=item.get('doi') or ''
+            doi=raw_doi.removeprefix('https://doi.org/').lower()
+            work=str(item.get('id','')).removeprefix('https://openalex.org/')
+            title=item.get('title') or ''
+            words=sorted((position,word) for word,locations in (item.get('abstract_inverted_index') or {}).items() for position in locations)
+            abstract=' '.join(word for _,word in words)
+            subjects=(title+' '+abstract).lower()
+            if (not re.fullmatch(r'W[0-9]{6,15}',work) or not re.fullmatch(r'10\.[0-9]{4,9}/\S+',doi)
+                    or not 5<=len(title)<=600 or not 100<=len(abstract)<=12000 or not raw_doi.startswith('https://doi.org/')
+                    or len(set(n for n,_ in words))!=len(words) or doi in known or 'perovskite' not in subjects
+                    or not any(t in subjects for t in terms) or item.get('is_retracted') is not False
+                    or item.get('is_paratext') is not False or item.get('type') not in ('article','journal-article')
+                    or re.search(r'\b(review|perspective|outlook|roadmap|survey|correction)\b',title,re.I)
+                    or not start.isoformat()<=item['publication_date']<=end.isoformat()):
+                continue
+            record={'doi':raw_doi,'title':title,'date':item['publication_date'],'abstract':abstract}
+            hashed=hashlib.sha256(json.dumps(record,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+            articles.append({'paper':'S'+str(len(articles)+1),'doi':doi,'title':title,'abstract':abstract,
+                'sourceUrl':'https://api.openalex.org/works/'+work,'work':work,'sourceHash':hashed,
+                'refreshedAt':dt.datetime.now(dt.timezone.utc).isoformat()})
+            known.add(doi)
+            break
+    return articles, attempted
 
 
 def date(value):
@@ -243,7 +298,8 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
             'declaredControl':labels.get(e['reference'].get('declaredGroup')),'factors':actual_factors(e,labels),'characterizations':chars})
     packet={'schemaVersion':1,'period':{'start':date(snapshot['periodStart']),'end':date(snapshot['windowEnd']),
             'acceptedAsOf':date(export['asOf'])}, 'method':export['methodVersion'],'projects':projects,
-            'inventory': rows,'cases':details,'papers':[p['paper'] for p in articles]}
+            'inventory': rows,'cases':details,'papers':[p['paper'] for p in articles],
+            'literatureUpdates':[{'id':p['paper'],'work':p['work'],'sourceHash':p['sourceHash']} for p in articles if 'work' in p]}
     return packet,bindings
 
 
@@ -262,8 +318,11 @@ def main():
     snapshot=read(root/'snapshot.json')
     dossier=read(root/'rd-dossier.json')
     articles=refresh_papers()
+    discoveries,queries=discover_articles(snapshot['windowEnd'],articles)
+    articles+=discoveries
     packet, bindings=projection(snapshot,dossier,prior,previous_dossier,articles)
     save(root/'article-refresh.json',articles)
+    save(root/'article-search-audit.json',queries)
     save(root/'bindings.private.json',bindings)
     save(root/'provider-packet.json',packet)
     print(f"Prepared {len(packet['cases'])} detailed cases across {len(packet['inventory'])} exported experiments.")

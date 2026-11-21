@@ -186,6 +186,7 @@ describe("weekly scientific author and reviewer transport", () => {
 
 describe("private researcher and whole-paper referee", () => {
   const scienceEvidence = {
+    followupRecords: [],
     publicEvidence: evidence,
     publicDraft: draft,
     cases: [
@@ -224,6 +225,7 @@ describe("private researcher and whole-paper referee", () => {
   };
   it("separates approved private science calls and excludes account/credential data", async () => {
     const interpretation = {
+      followupAssessments: [],
       cases: [],
       priorities: [{ en: "Repeat the comparison.", zh: "重复对照实验。" }],
     };
@@ -284,6 +286,7 @@ describe("private researcher and whole-paper referee", () => {
     contentSha256 = "b".repeat(64);
   const text = { en: "Numerical comparison", zh: "实验数值对比" };
   const packet = {
+    reviewChecks: ["units"],
     challenge,
     challengeSha256: createHash("sha256").update(challenge).digest("hex"),
     contentSha256,
@@ -303,6 +306,13 @@ describe("private researcher and whole-paper referee", () => {
     literature: "No literature claim in this synthetic fixture.",
   };
   const decision = {
+    checks: [
+      {
+        key: "units",
+        decision: "PASS",
+        evidence: "All values use the reported experimental unit.",
+      },
+    ],
     decision: "PASS",
     challenge,
     contentSha256,

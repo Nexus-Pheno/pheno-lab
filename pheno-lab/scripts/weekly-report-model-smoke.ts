@@ -118,6 +118,7 @@ async function main() {
       },
     ];
     const packet = {
+      reviewChecks: ["correctMean"],
       challenge,
       challengeSha256: createHash("sha256").update(challenge).digest("hex"),
       contentSha256: hashWeeklyReportValue({ title, sections }),
