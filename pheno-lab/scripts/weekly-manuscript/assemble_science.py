@@ -191,7 +191,7 @@ def digest(path):
         )
 
 
-def assemble_science(root):
+def assemble_science(root, presentation_source=None):
     scientific = read(root / "science-interpretation.json")
     peer = read(root / "independent-material-science-review.json")
     if (
@@ -638,15 +638,31 @@ def assemble_science(root):
         "windowEnd": end,
         "sections": sections,
     }
+    original_timestamp = None
+    if presentation_source is not None:
+        archive = (root / presentation_source).resolve(strict=True)
+        if archive.parent != root or not archive.name.startswith("UNPUBLISHED-pre-reader-science-"):
+            raise ValueError("Presentation source must be a preserved private sibling within the same run")
+        old_path = archive / "report-document-candidate.json"
+        old, old_index = read(old_path), read(archive / "science-public-index.private.json")
+        if (
+            old_index["publicDocumentAtAssembly"] != digest(old_path)
+            or old_index["privateInterpretationHash"] != peer["reviewedInterpretationHash"]
+            or old_index["privateReviewOutcomeHash"] != peer["outputHash"]
+            or any(old[k] != document[k] for k in ("titleEn","titleZh","snapshotAt","windowStart","windowEnd"))
+            or not old.get("generatedAt")
+        ):
+            raise ValueError("Presentation source is not tied to the same frozen period and reviewed science")
+        original_timestamp = old["generatedAt"]
     candidate_path = root / "report-document-candidate.json"
     if candidate_path.exists():
         prior = read(candidate_path)
         timestamp = prior.pop("generatedAt", None)
-        if not timestamp or prior != document:
+        if not timestamp or prior != document or (original_timestamp and timestamp != original_timestamp):
             raise ValueError("Assembled content differs from the saved report candidate")
         document["generatedAt"] = timestamp
     else:
-        document["generatedAt"] = dt.datetime.now(dt.timezone.utc).isoformat()
+        document["generatedAt"] = original_timestamp or dt.datetime.now(dt.timezone.utc).isoformat()
         save(candidate_path, document)
     sources = [
         "snapshot.json",
@@ -694,4 +710,6 @@ def assemble_science(root):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run", type=Path)
-    assemble_science(parser.parse_args().run.resolve())
+    parser.add_argument("--presentation-revision-from")
+    args = parser.parse_args()
+    assemble_science(args.run.resolve(), args.presentation_revision_from)
