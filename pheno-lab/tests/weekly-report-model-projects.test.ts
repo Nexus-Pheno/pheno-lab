@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vitest";
+import { checkGoalEvidence } from "../scripts/weekly-report-model-attainment";
 import { projectEvidence } from "../scripts/weekly-report-model-projects";
 vi.mock("@/infrastructure/db/client", () => ({ db: {} }));
 const base = {
@@ -109,4 +110,66 @@ it("keeps empty projects explicit and never manufactures a baseline or measureme
   );
   expect(selected.scope.eligibleRouteCount).toBe(0);
   expect(selected.routeCases).toEqual([]);
+});
+
+it("requires the recorded question and actual linked measurement for an answered purpose", () => {
+  const project = projectEvidence(
+    {
+      projectAlias: "p",
+      projectName: "Purpose",
+      assigned: true,
+      experiments: [exp("A")],
+      ledgerEntries: [],
+      periodPerformance: {
+        routeCohorts: [route("A", "CURRENT_PERIOD", "a", 20)],
+      },
+    },
+    base,
+    new Map(),
+    new Set(),
+  );
+  const bi = { en: "Compare matched groups.", zh: "比较匹配对照。" };
+  const packet = {
+    cases: [
+      {
+        key: "C1",
+        source: project.routeCases[0],
+        reviewedPurpose: bi,
+        reviewedAttainment: bi,
+        comparisons: [
+          {
+            key: "V1",
+            routeId: "period-route-" + "a".repeat(24),
+            sourcePeriod: "CURRENT_PERIOD" as const,
+            eligibleLinkedScans: 1,
+          },
+        ],
+      },
+    ],
+  };
+  const answer = {
+    key: "C1",
+    status: "PARTIAL" as const,
+    goalBasis: "REVIEWER_INTERPRETATION_OF_CURRENT_FIELDS" as const,
+    evidenceKeys: ["V1"],
+    reason: bi,
+  };
+  expect(() => checkGoalEvidence(packet, { cases: [answer] })).not.toThrow();
+  expect(() =>
+    checkGoalEvidence(packet, { cases: [{ ...answer, evidenceKeys: [] }] }),
+  ).toThrow("lacks source-linked");
+  expect(() =>
+    checkGoalEvidence(packet, { cases: [{ ...answer, evidenceKeys: ["V2"] }] }),
+  ).toThrow("not in the actual experiment");
+  const noGoal = {
+    cases: [
+      {
+        ...packet.cases[0],
+        source: { ...packet.cases[0].source, problem: "", hypothesis: "" },
+      },
+    ],
+  };
+  expect(() => checkGoalEvidence(noGoal, { cases: [answer] })).toThrow(
+    "No recorded intent",
+  );
 });

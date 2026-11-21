@@ -310,12 +310,12 @@ function checkBindings(e: Evidence, x: Approval) {
   }
 }
 
-async function fileHash(path: string) {
+export async function fileHash(path: string) {
   const hash = createHash("sha256");
   for await (const block of createReadStream(path)) hash.update(block);
   return hash.digest("hex");
 }
-async function immutable(path: string, obj: unknown) {
+export async function immutable(path: string, obj: unknown) {
   const text = JSON.stringify(obj, null, 2) + "\n",
     temp = path + "." + randomUUID();
   await writeFile(temp, text, { flag: "wx", mode: 0o600 });
@@ -442,7 +442,10 @@ async function main() {
   if (
     process.argv.length !== 3 &&
     !(
-      process.argv.length === 4 && process.argv[3] === "--check-projection-only"
+      process.argv.length === 4 &&
+      ["--check-projection-only", "--save-projection-only"].includes(
+        process.argv[3],
+      )
     )
   )
     throw new Error("Expected private report run directory");
@@ -504,6 +507,7 @@ async function main() {
     files,
     projects: evidence,
   });
+  if (process.argv[3] === "--save-projection-only") return;
   const org = await getWeeklyReportOrganizationId();
   const result: Awaited<ReturnType<typeof reviewOne>>[] = new Array(
     evidence.length,

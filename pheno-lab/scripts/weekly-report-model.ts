@@ -31,6 +31,11 @@ import {
 } from "./weekly-report-model-final-contract";
 
 import {
+  goalAuthorInput,
+  goalReviewInput,
+  goalAuthorSystem,
+  goalReviewerSystem,
+  goalJudgmentSchema,
   projectAuthorInput,
   projectReviewInput,
   projectAuthorSystem,
@@ -176,7 +181,9 @@ type PinnedOptions<T extends z.ZodType> = {
     | PrivateRole
     | "final-reviewer"
     | "project-author"
-    | "project-reviewer";
+    | "project-reviewer"
+    | "goal-assessor"
+    | "goal-reviewer";
   policySystem: string;
   data: object;
   evidence: unknown;
@@ -265,6 +272,42 @@ export async function callWeeklyProjectReview(options: ProjectCall) {
     data: result.data,
     evidence: result.data.evidence,
     policySystem: projectReviewerSystem,
+    schema: projectCritiqueSchema,
+  });
+}
+
+type GoalCall = {
+  orgId: string;
+  role: "goal-assessor" | "goal-reviewer";
+  payload: unknown;
+  signal?: AbortSignal;
+};
+export function callWeeklyGoalReview(
+  options: GoalCall & { role: "goal-assessor" },
+): Promise<ModelReceipt<typeof goalJudgmentSchema>>;
+export function callWeeklyGoalReview(
+  options: GoalCall & { role: "goal-reviewer" },
+): Promise<ModelReceipt<typeof projectCritiqueSchema>>;
+export async function callWeeklyGoalReview(options: GoalCall) {
+  if (options.role === "goal-assessor") {
+    const v = goalAuthorInput.safeParse(options.payload);
+    if (!v.success) throw Error("Purpose assessment evidence rejected");
+    return callPinnedModel({
+      ...options,
+      policySystem: goalAuthorSystem,
+      data: v.data,
+      evidence: v.data.evidence,
+      schema: goalJudgmentSchema,
+    });
+  }
+  if (options.role !== "goal-reviewer") throw Error("Unknown purpose reviewer");
+  const v = goalReviewInput.safeParse(options.payload);
+  if (!v.success) throw Error("Purpose review packet rejected");
+  return callPinnedModel({
+    ...options,
+    policySystem: goalReviewerSystem,
+    data: v.data,
+    evidence: v.data.evidence,
     schema: projectCritiqueSchema,
   });
 }

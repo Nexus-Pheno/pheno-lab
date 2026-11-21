@@ -152,3 +152,62 @@ export const projectAuthorSystem =
 export const projectReviewerSystem =
   method +
   `Independently check the proposed project decision and each route against its actual evidence. For each exact binding check observed intent, inferred purpose versus recorded observation/problem/hypothesis, attainment, conditions, device counts, reference choice, mean, best, spread and chronology. Verify each prior issue disposition is justified; historical issues may be described but their status is not mutated. Reject invented comparisons, causal claims, raw private data, stale claims described as new, and substantial language/meaning mismatches. Return specific fixes; only PASS when every supplied binding, number, and claim has adequate evidence, otherwise REVISE or BLOCK.`;
+
+const caseKey = z.string().regex(/^C[1-9]\d*$/);
+const comparisonKey = z.string().regex(/^V[1-9]\d*$/);
+export const goalEvidenceSchema = z.strictObject({
+  cases: z.array(
+    z.strictObject({
+      key: caseKey,
+      source: projectEvidenceSchema.shape.routeCases.element,
+      reviewedPurpose: bi,
+      reviewedAttainment: bi,
+      comparisons: z.array(
+        z.strictObject({
+          key: comparisonKey,
+          routeId,
+          sourcePeriod: period,
+          eligibleLinkedScans: count,
+        }),
+      ),
+    }),
+  ),
+});
+export const goalJudgmentSchema = z.strictObject({
+  cases: z.array(
+    z.strictObject({
+      key: caseKey,
+      status: z.enum([
+        "ANSWERED",
+        "PARTIAL",
+        "UNRESOLVED",
+        "NO_PRESPECIFIED_GOAL",
+      ]),
+      goalBasis: z.enum([
+        "REVIEWER_INTERPRETATION_OF_CURRENT_FIELDS",
+        "NO_DOCUMENTED_GOAL",
+      ]),
+      evidenceKeys: z.array(comparisonKey).max(9),
+      reason: bi,
+    }),
+  ),
+});
+export const goalAuthorInput = z.strictObject({
+  evidence: goalEvidenceSchema,
+  revision: z
+    .strictObject({
+      previous: goalJudgmentSchema,
+      review: projectCritiqueSchema,
+    })
+    .optional(),
+});
+export const goalReviewInput = z.strictObject({
+  evidence: goalEvidenceSchema,
+  candidate: goalJudgmentSchema,
+});
+export const goalAuthorSystem =
+  method +
+  `Assess actual experiment-purpose attainment only, in supplied case order. Source.problem and source.hypothesis are the potentially documented goal, never a verified preregistered goal. An observation or a title alone is not a documented goal. If neither field supplies an identifiable goal use NO_PRESPECIFIED_GOAL / NO_DOCUMENTED_GOAL. If a goal is documented but the measured contrast or required optical/electrical/physical/stability data are missing use UNRESOLVED. ANSWERED requires the exact measurements to answer the full stated question; PARTIAL requires direct measured support for a defined part only. Both require at least one directly relevant comparison key Vn with eligibleLinkedScans>0 from this experiment. A higher champion does not settle repeatability. Changes in multiple factors prevent an attribution. Compare with the prior reviewed wording but check against original intent, historical records, group values and actual metrics. For each case provide a concise natural bilingual reason explaining the intended question and precisely what the linked measurements do and do not answer. Never imply prospective intent or universal proof. For unclear recorded text, state which context is missing. Every public reason must be nonreconstructive and omit raw copied notes/IDs. Copy the case key, not hash strings. Return only actually relevant V keys.`;
+export const goalReviewerSystem =
+  method +
+  `Independently audit each proposed attainment decision and its actual cited V keys. Check whether a genuine research goal exists in the supplied source.problem or hypothesis; a copied, vague goal can be interpreted only cautiously. Require the exact local measured contrast to support ANSWERED or PARTIAL. Check full vs partial purpose, source-case identity, measurements, units, selected threshold, confounded factors, limited device count, and equivalence of both language explanations. A measured performance contrast cannot establish missing optical, electrical, stability, process-repetition or mechanistic outcomes. Check that findings concern substantive purpose rather than proof of mechanism. PASS only if all cases meet their chosen classification; return precise actionable findings otherwise.`;
