@@ -47,6 +47,31 @@ def check_published_run(folder):
     return manifest
 
 
+def run_science_gates(run, prior, output, document=None):
+    document = document or run / 'report-document-publish.json'
+    snapshot = run / 'snapshot.json'
+    dossier = run / 'rd-dossier-reviewed.json'
+    common = [document, snapshot, dossier]
+    gates = [
+        ('primary', 'validate_primary_evidence.py', common),
+        ('public', 'validate_rd_document.py', common),
+        ('academic', 'validate_academic_report.py', common),
+        ('decision', 'validate_decision_report.py', [*common, '--prior-ledger', prior / 'rd-dossier-published.json']),
+        ('collaborator', 'validate_collaborator_report.py', [*common, '--previous-snapshot', prior / 'snapshot.json']),
+        ('language', 'validate_language_review.py', [document]),
+        ('privateMaterials', 'validate_material_mechanism_review.py', [run / 'private-material-review.json', snapshot]),
+    ]
+    results = {}
+    for label, script, args in gates:
+        receipt = output / (label + '-gate.json')
+        result = subprocess.run([sys.executable, '-B', Path(__file__).with_name(script), *args, '--output', receipt],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
+        gate = record(output, receipt.name) if receipt.exists() else {}
+        results[label] = {'passed': result.returncode == 0 and gate.get('passed') is True,
+                          'codes': dict(Counter(row['code'] for row in gate.get('errors', [])))}
+    return results
+
+
 def replay(run, prior, output):
     run, prior = relocate.existing_directory(run), relocate.existing_directory(prior)
     require(run != prior, 'DISTINCT_PRIOR_BASELINE_REQUIRED')
@@ -96,27 +121,7 @@ def replay(run, prior, output):
         name = item['file']
         require(isinstance(name, str) and Path(name).name == name, 'INVALID_PRIVATE_ANNEX_INPUT')
         checked_file(run, name)
-    document = run / 'report-document-publish.json'
-    snapshot = run / 'snapshot.json'
-    dossier = run / 'rd-dossier-reviewed.json'
-    common = [document, snapshot, dossier]
-    gates = [
-        ('primary', 'validate_primary_evidence.py', common),
-        ('public', 'validate_rd_document.py', common),
-        ('academic', 'validate_academic_report.py', common),
-        ('decision', 'validate_decision_report.py', [*common, '--prior-ledger', prior / 'rd-dossier-published.json']),
-        ('collaborator', 'validate_collaborator_report.py', [*common, '--previous-snapshot', prior / 'snapshot.json']),
-        ('language', 'validate_language_review.py', [document]),
-        ('privateMaterials', 'validate_material_mechanism_review.py', [run / 'private-material-review.json', snapshot]),
-    ]
-    results = {}
-    for label, script, args in gates:
-        receipt = output / (label + '-gate.json')
-        result = subprocess.run([sys.executable, '-B', Path(__file__).with_name(script), *args, '--output', receipt],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
-        gate = record(output, receipt.name) if receipt.exists() else {}
-        results[label] = {'passed': result.returncode == 0 and gate.get('passed') is True,
-                          'codes': dict(Counter(row['code'] for row in gate.get('errors', [])))}
+    results = run_science_gates(run, prior, output)
     status = all(row['passed'] for row in results.values())
     summary = {'passed': status, 'frozenHtmlByteIdentical': True, 'contentSha256': current['contentSha256'],
                'contentBytes': len(rendered), 'originalIndependentReviewsVerified': True,

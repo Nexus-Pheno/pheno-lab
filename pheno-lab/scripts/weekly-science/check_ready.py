@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+"""Prepare and verify a fresh scientific publication review. No production writes or model calls."""
+import argparse
+import datetime as dt
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import subprocess
+import sys
+
+import analyze_rd_snapshot
+import audit_device_results
+import bind_final_review
+from import_verified_baseline import existing_directory
+from replay_frozen_report import checked_file, check_published_run, record, save_new, run_science_gates
+import render_report
+import select_published_baseline as baseline
+import shared_app_evidence
+
+
+class Hold(ValueError):
+    """Safe reason for retaining a draft."""
+
+
+def need(condition, code):
+    if not condition:
+        raise Hold(code)
+
+
+def now():
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def compact(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+
+
+def read_list(folder, name):
+    value = json.loads(checked_file(folder, name).read_bytes())
+    need(isinstance(value, list), 'INVALID_LIST_ARTIFACT')
+    return value
+
+
+def valid_hash(value):
+    return isinstance(value, str) and bool(re.fullmatch('[0-9a-f]{64}', value))
+
+
+def file_hash(folder, name):
+    path = checked_file(folder, name)
+    need(path.stat().st_size <= baseline.MAX_ARTIFACT_BYTES, 'CHECK_INPUT_TOO_LARGE')
+    return baseline.file_sha(path)
+
+
+def require_private_attestation(run):
+    review = record(run, 'independent-material-science-review.json')
+    # Independent requests in fresh contexts. The final referee also sees the
+    # actual private material annex and evaluates how it was used in the paper.
+    need(review.get('role') == 'chemist-reviewer' and review.get('provider') == 'deepseek' and
+         review.get('model') == 'deepseek-v4-pro' and review.get('providerHost') == 'api.deepseek.com' and
+         isinstance(review.get('completionId'), str) and bool(review['completionId']) and
+         all(valid_hash(review.get(k)) for k in ('requestHash', 'outputHash', 'evidenceHash', 'inputHash')) and
+         review.get('value', {}).get('decision') == 'PASS', 'PRIVATE_SCIENCE_INDEPENDENT_REVIEW_REQUIRED')
+    subprocess.run(['node',Path(__file__).with_name('verify_material_receipt.mjs'),run],
+                   stdout=subprocess.DEVNULL,check=True,timeout=60)
+    return review
+
+
+def prepare_source(run, prior):
+    prior_meta = check_published_run(prior)
+    snap = record(run, 'snapshot.json', baseline.MAX_ARTIFACT_BYTES)
+    previous = record(prior, 'snapshot.json', baseline.MAX_ARTIFACT_BYTES)
+    need(baseline.timestamp(previous['snapshotAt']) < baseline.timestamp(snap['snapshotAt']) and
+         baseline.timestamp(previous['windowEnd']) < baseline.timestamp(snap['windowEnd']) and
+         baseline.timestamp(snap['periodStart']) < baseline.timestamp(snap['windowEnd']),
+         'NEW_PERIOD_AND_FRESH_CAPTURE_REQUIRED')
+    shared_app_evidence.validate_export(snap['sharedAppEvidence'], snap, shared_app_evidence.selected_experiment_codes(snap))
+    primary = shared_app_evidence.dossier_primary_evidence(snap)
+    dossier = record(run, 'rd-dossier-reviewed.json', baseline.MAX_ARTIFACT_BYTES)
+    need(primary == dossier['primaryExperimentEvidence'], 'PRIMARY_EVIDENCE_DIFFERS_FROM_APP_EXPORT')
+    need(baseline.timestamp(dossier['snapshotAt']) == baseline.timestamp(snap['snapshotAt']), 'SOURCE_CUTOFF_MISMATCH')
+    prior_dossier = record(prior, 'rd-dossier-published.json', baseline.MAX_ARTIFACT_BYTES)
+    ledger = analyze_rd_snapshot.update_ledger([prior_dossier], read_list(run, 'reviewed-updates.json'))
+    need(ledger == sorted(dossier['ledgerEntries'], key=lambda e:(e['projectAlias'],e['entryId'])),
+         'APPEND_ONLY_PRIOR_LEDGER_MISMATCH')
+    audit = audit_device_results.audit(snap, previous)
+    audit.update(currentLedgerEntries=len(ledger), previousLedgerEntries=prior_meta.get('ledgerEntries'),
+                 sourceCutoff=snap['snapshotAt'], acceptedAsOf=snap['sharedAppEvidence']['asOf'])
+    return snap, audit, prior_meta
+
+
+def reviewer_packet(doc, snapshot, annex, literature, audit, challenge, html_hash):
+    # Send the actual complete final sections, and explicitly projected case facts.
+    # Never send raw experiment narratives, recipe payloads, staff IDs or graph notation.
+    reviewed = {item['experimentCode']: item for item in doc['evidenceMethodReview']['experiments']}
+    rows = []
+    for source in snapshot['sharedAppEvidence']['experiments']:
+        code = source['experimentCode']
+        if code not in reviewed:
+            continue
+        item = reviewed[code]
+        ev = source['evidence']
+        arms = []
+        for contrast in item['comparisons']:
+            char = next(c for c in ev['characterizations'] if c['id'] == contrast['characterizationId'])
+            group = next(g for g in char['groups'] if g['label'] == contrast['group'])
+            arms.append({'characterization':char['name'], 'group':group['label'], 'metrics':group['metrics'],
+                         'deltaMean':group['deltaMean'], 'deltaBest':group['deltaBest']})
+        facts = {'sourceHash': ev['sourceHash'], 'conditionsEn': item['conditionSummaryEn'],
+                 'conditionsZh':item['conditionSummaryZh'], 'selectedReference':item['referenceGroup'], 'groups': arms}
+        rows.append({'code': code, 'sourceHash': ev['sourceHash'], 'comparisonFacts': compact(facts)})
+    science = [{'name': c.get('materialName'), 'status': c.get('status'), 'conclusion': c.get('reportSafeFutureSentence'),
+                'alternatives': c.get('competingExplanations'), 'controls': c.get('discriminatingControls')}
+               for c in annex['materialCases']]
+    references = [{'id': r['paper'], 'title': r['title'], 'doi': r['doi'], 'abstract': r.get('abstract'),
+                   'applicability':r.get('applicability')} for r in literature['sources']]
+    return {'challenge':challenge,'challengeSha256':sha(challenge.encode()),'contentSha256':html_hash,
+            'period':{'start':snapshot['periodStart'],'end':snapshot['windowEnd'],'asOf':snapshot['sharedAppEvidence']['asOf']},
+            'title':{'en':doc['titleEn'],'zh':doc['titleZh']},'abstract':{'en':doc['summaryEn'],'zh':doc['summaryZh']},
+            'sections':[{'id':s['id'],'en':s['titleEn']+'\n'+s['bodyEn'],'zh':s['titleZh']+'\n'+s['bodyZh']} for s in doc['sections']],
+            'sourceCases':rows,'numericAudit':compact(audit),'materialReview':compact(science),'literature':compact(references)}
+
+
+def images_for_review(output):
+    qa = output / 'qa'
+    verified = record(qa, 'verification.json')
+    pages = record(qa, 'print-pages.json')
+    need(verified.get('passed') is True and pages.get('allPagesRendered') is True, 'UNVERIFIED_REPORT_LAYOUT')
+    expected = {(m,l,w) for m in ('offline','app-equivalent-csp-sandbox') for l in ('en','zh') for w in (1440,1024,390,320)}
+    cases = verified['cases']
+    need(len(cases) == 16 and {(r['mode'],r['lang'],r['width']) for r in cases} == expected,
+         'INCOMPLETE_BROWSER_COVERAGE')
+    names = {f'{l}-{w}-viewport.png' for _,l,w in expected}
+    for language in ('en','zh'):
+        page_rows = pages['languages'][language]['pages']
+        need(page_rows and len(page_rows)==verified['renderedPrintPages'][language], 'INCOMPLETE_PRINT_RENDER')
+        for p in page_rows:
+            need(file_hash(qa,p['image']) == p['imageSha256'], 'PRINT_IMAGE_HASH_MISMATCH')
+            names.add(p['image'])
+        need(file_hash(qa,language+'-print.pdf') == pages['languages'][language]['pdfSha256'], 'PRINT_PDF_HASH_MISMATCH')
+    for r in cases:
+        if r['mode']=='app-equivalent-csp-sandbox':
+            need(r['cspViolations']==0 and r['cspConsoleErrors']==0 and r['opaqueOrigin'] and r['parentAccessBlocked'] and
+                 r['storageBlocked'] and r['matchesOfflinePaintFontsGeometryAndLabels'], 'APP_SECURITY_CHECK_FAILED')
+            if r['width'] in (390,1440):
+                matching=list(qa.glob(f"{r['lang']}-{r['width']}-csp-chart-*.png"))
+                originals=[p for p in matching if not p.stem.endswith('-right')]
+                need(len(originals)==r['chartCount'], 'CHART_IMAGE_MISSING')
+                names.update(p.name for p in matching)
+    return [{'file':'qa/'+name,'sha256':file_hash(qa,name)} for name in sorted(names)]
+
+
+def prepare(run, prior, output):
+    need(not output.exists() and not output.is_symlink(), 'NEW_GATE_DIRECTORY_REQUIRED')
+    output.mkdir(mode=0o700)
+    snap, audit, prior_meta = prepare_source(run, prior)
+    need(not (run/'run-result.json').exists(), 'FRESH_UNPUBLISHED_RUN_REQUIRED')
+    private_review = require_private_attestation(run)
+    current_sources={c['evidence']['sourceHash'] for c in snap['sharedAppEvidence']['experiments']}
+    facts=record(run,'private-scientific-facts.json',baseline.MAX_ARTIFACT_BYTES)
+    need(all(c.get('sourceHash') in current_sources for c in facts['cases']), 'PRIVATE_REVIEW_SOURCE_NOT_CURRENT')
+    need(baseline.timestamp(snap['sharedAppEvidence']['asOf'])<=baseline.timestamp(private_review['reviewedAt'])<=now()+dt.timedelta(minutes=1),
+         'PRIVATE_PEER_REVIEW_PREDATES_CURRENT_EVIDENCE')
+    doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
+    annex=record(run,'private-material-review.json')
+    literature={'sources':read_list(run,'article-refresh.json')}
+    need(all(x in doc for x in ('rdReview','decisionReview','academicReview','evidenceMethodReview','collaboratorReview','languageReview')),
+         'COMPLETE_SCIENTIFIC_REVIEW_ENVELOPES_REQUIRED')
+    need(doc['academicReview'].get('reportStyle')=='DECISION_LED_EXPERIMENT_REVIEW' and
+         doc['decisionReview'].get('enforceVisibleDecisions') is True,'DECISION_LED_MANUSCRIPT_REQUIRED')
+    names={'snapshot.json','rd-dossier-reviewed.json','reviewed-updates.json','report-document-publish.json',
+           'report-publish.html','private-material-review.json','science-interpretation.json',
+           'independent-material-science-review.json','private-scientific-facts.json','article-refresh.json',
+           'provider-packet.json','manuscript-candidate.json'}
+    for item in annex['inputs']:
+        name=item['file']
+        need(Path(name).name==name and file_hash(run,name)==item['sha256'],'PRIVATE_ANNEX_SOURCE_MISMATCH')
+        names.add(name)
+    inputs={n:file_hash(run,n) for n in sorted(names)}
+    html_hash=sha(render_report.render(doc).encode())
+    need(html_hash==inputs['report-publish.html'],'FINAL_HTML_DIFFERS_FROM_REVIEWED_MANUSCRIPT')
+    need(bind_final_review.is_unsigned(doc,snap['sharedAppEvidence']['asOf']), 'UNSIGNED_CURRENT_REVIEW_REQUIRED')
+    gates=run_science_gates(run,prior,output)
+    save_new(output/'gates.json',gates)
+    need(bind_final_review.may_prepare(gates),'SUBSTANTIVE_SCIENTIFIC_GATE_FAILED')
+    save_new(output/'numeric-audit.json',audit)
+    subprocess.run(['node',Path(__file__).with_name('verify_report.mjs'),run/'report-publish.html',output/'qa'],
+                   cwd=Path(__file__).resolve().parents[2],check=True,timeout=1800,stdout=subprocess.DEVNULL)
+    secret=secrets.token_hex(32)
+    packet=reviewer_packet(doc,snap,annex,literature,{**audit,'reviewCoverage':bind_final_review.peer_coverage(doc)},secret,html_hash)
+    packet['reviewChecks']=sorted(bind_final_review.CHECKS)
+    save_new(output/'final-science-input.json',packet)
+    outputs={name:file_hash(output,name) for name in ['numeric-audit.json','gates.json','final-science-input.json',
+             'qa/verification.json','qa/print-pages.json']+[k+'-gate.json' for k in gates]}
+    challenge={'schemaVersion':1,'challenge':secret,'createdAt':now().isoformat(),'contentSha256':html_hash,'inputs':inputs,
+               'outputs':outputs,'images':images_for_review(output),'priorReportId':prior_meta['reportId'],
+               'priorSnapshotSha256':prior_meta['snapshotSha256'],'priorDossierSha256':prior_meta['dossierPublishedSha256'],
+               'materialPeerCompletionId':private_review['completionId']}
+    need(all(file_hash(run,k)==v for k,v in inputs.items()),'SOURCE_CHANGED_DURING_PREPARATION')
+    save_new(output/'challenge.json',challenge)
+    return {'status':'AWAITING_INDEPENDENT_REVIEWS','images':len(challenge['images']),'gates':len(gates),'arithmeticChecks':audit['arithmeticChecks']}
+
+
+def response_bind(receipt, challenge, challenge_hash):
+    need(receipt.get('schemaVersion')==1 and receipt.get('challenge')==challenge['challenge'] and
+         receipt.get('challengeSha256')==challenge_hash and receipt.get('contentSha256')==challenge['contentSha256'],
+         'STALE_OR_UNBOUND_REVIEW')
+    when=baseline.timestamp(receipt.get('completedAt'))
+    need(baseline.timestamp(challenge['createdAt'])<=when<=now()+dt.timedelta(minutes=1),'REVIEW_TIME_OUTSIDE_CHALLENGE')
+
+
+def visual_receipt(receipt, challenge):
+    need(receipt.get('role')=='visual' and receipt.get('model')=='deepseek-flash','WRONG_VISUAL_REVIEWER')
+    expected={i['file']:i['sha256'] for i in challenge['images']}
+    ids, requests, responses, canaries, seen=set(),set(),set(),set(),set()
+    for batch in receipt['batches']:
+        req, res, ticket, canary=(batch.get(k) for k in ('requestHash','responseHash','responseId','canaryExpected'))
+        need(valid_hash(req) and valid_hash(res) and isinstance(ticket,str) and ticket.strip() and
+             req not in requests and res not in responses and ticket not in ids and
+             isinstance(canary,str) and len(canary)>=4 and canary not in canaries and
+             canary==batch.get('canaryReceived') and batch['images'],'VISUAL_PROVIDER_PROVENANCE_OR_CANARY_FAILED')
+        requests.add(req);responses.add(res);ids.add(ticket);canaries.add(canary)
+        for row in batch['images']:
+            name=row['file']
+            need(name not in seen and name in expected and row.get('sha256')==expected[name] and
+                 row.get('decision')=='PASS' and row.get('defects')==[] and
+                 len(str(row.get('observation','')).strip())>=12,'VISUAL_FINDING_OR_IMAGE_MISMATCH')
+            seen.add(name)
+    need(seen==set(expected) and seen,'INCOMPLETE_VISUAL_REVIEW')
+    return ids
+
+
+def scientific_receipt(receipt, challenge, packet):
+    need(receipt.get('role')=='final-scientific' and receipt.get('provider')=='deepseek' and
+         receipt.get('model')=='deepseek-v4-pro' and receipt.get('providerHost')=='api.deepseek.com' and
+         type(receipt.get('completionId')) is str and bool(receipt['completionId']) and
+         receipt['completionId']!=challenge['materialPeerCompletionId'] and
+         all(valid_hash(receipt.get(k)) for k in ('inputHash','requestHash','outputHash','promptHash')) and
+         receipt['inputHash']==sha(compact(packet).encode()), 'UNBOUND_FINAL_SCIENTIFIC_RESPONSE')
+    outcome=receipt.get('value',{})
+    need(sha(compact(outcome).encode())==receipt['outputHash'] and outcome.get('challenge')==challenge['challenge'] and
+         outcome.get('contentSha256')==challenge['contentSha256'] and outcome.get('decision')=='PASS' and
+         isinstance(outcome.get('findings'),list) and all(x.get('severity')=='advisory' for x in outcome['findings']),
+         'FINAL_SCIENTIFIC_FINDINGS_OPEN')
+    for rows,key,expected,explain in [(outcome['sections'],'id',{s['id'] for s in packet['sections']},'observation'),
+        (outcome['assessments'],'scope',{'numerical','science','chemistry','source','bilingual','privacy'},'evidence')]:
+        need(len(rows)==len(expected) and {x[key] for x in rows}==expected and
+             all(x['decision']=='PASS' and len(str(x.get(explain,'')).strip())>=12 for x in rows),'INCOMPLETE_SCIENTIFIC_REVIEW')
+
+
+def verify(run,prior,output,reviews):
+    ch=record(output,'challenge.json')
+    digest=file_hash(output,'challenge.json')
+    need(valid_hash(ch['challenge']) and ch['schemaVersion']==1,'INVALID_REVIEW_CHALLENGE')
+    need(all(file_hash(run,n)==v for n,v in ch['inputs'].items()) and
+         all(file_hash(output,n)==v for n,v in ch['outputs'].items()),'REVIEWED_BYTES_CHANGED')
+    prior_meta=check_published_run(prior)
+    need((prior_meta['reportId'],prior_meta['snapshotSha256'],prior_meta['dossierPublishedSha256'])==
+         (ch['priorReportId'],ch['priorSnapshotSha256'],ch['priorDossierSha256']),'PRIOR_BASELINE_CHANGED')
+    need(images_for_review(output)==ch['images'],'REVIEWED_IMAGES_CHANGED')
+    science=record(reviews,'scientific-review.json',baseline.MAX_METADATA_BYTES*4)
+    visual=record(reviews,'visual-review.json',baseline.MAX_METADATA_BYTES*4)
+    for receipt in (science,visual):
+        response_bind(receipt,ch,digest)
+    scientific_receipt(science,ch,record(output,'final-science-input.json',baseline.MAX_METADATA_BYTES*2))
+    responses=visual_receipt(visual,ch)
+    need(science['completionId'] not in responses,'REVIEWER_CONTEXT_REUSED')
+    doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
+    approved=bind_final_review.attach(doc,science)
+    signed=output/'report-document-reviewed.json'
+    need(sha(render_report.render(approved).encode())==ch['contentSha256'],'APPROVAL_CHANGED_VISIBLE_PAPER')
+    save_new(signed,approved)
+    final_output=output/'approved'
+    final_output.mkdir(mode=0o700)
+    gates=run_science_gates(run,prior,final_output,signed)
+    save_new(final_output/'gates.json',gates)
+    need(all(g['passed'] for g in gates.values()),'FINAL_SIGNED_SCIENTIFIC_GATE_FAILED')
+    result={'status':'READY_FOR_AUTHORIZED_PUBLICATION','passed':True,'publicationPerformed':False,
+            'contentSha256':ch['contentSha256'],'challengeSha256':digest,
+            'signedDocumentSha256':file_hash(output,signed.name), 'finalGatesSha256':file_hash(final_output,'gates.json'),
+            'verifiedArtifactHashes':ch['inputs'],'reviewHashes':{n:file_hash(reviews,n) for n in ('scientific-review.json','visual-review.json')},
+            'verifiedAt':now().isoformat()}
+    save_new(output/'ready.json',result)
+    return {'status':result['status'],'contentSha256':ch['contentSha256'],'publicationPerformed':False}
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('phase',choices=('prepare','verify'))
+    for key in ('run','prior','output','reviews'):
+        p.add_argument('--'+key,type=Path,required=key!='reviews')
+    args=p.parse_args()
+    os.umask(0o077)
+    try:
+        run,prior=existing_directory(args.run),existing_directory(args.prior)
+        output=args.output.resolve()
+        need(output!=run and not run.is_relative_to(output) and not output.is_relative_to(prior) and
+             not prior.is_relative_to(output) and run!=prior,
+             'GATE_DIRECTORY_MUST_BE_SEPARATE')
+        if args.phase=='prepare':
+            result=prepare(run,prior,output)
+        else:
+            need(args.reviews is not None,'INDEPENDENT_REVIEWS_REQUIRED')
+            reviews=existing_directory(args.reviews)
+            result=verify(run,prior,existing_directory(output),reviews)
+    except (Hold,baseline.BaselineError) as error:
+        print(json.dumps({'passed':False,'status':'HELD','errorCode':str(error),'publicationPerformed':False}))
+        return 1
+    except (ValueError,TypeError,OSError,KeyError,StopIteration,subprocess.SubprocessError):
+        print(json.dumps({'passed':False,'status':'HELD','errorCode':'INPUT_OR_QA_CHECK_FAILED','publicationPerformed':False}))
+        return 1
+    print(json.dumps(result))
+    return 0
+
+
+if __name__=='__main__':
+    sys.exit(main())

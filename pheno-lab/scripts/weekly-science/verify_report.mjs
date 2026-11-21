@@ -176,6 +176,9 @@ try {
       expect(errors).toEqual([]);
       expect(requests).toEqual([]);
       await page.screenshot({
+        path: qa + "/" + lang + "-" + width + "-viewport.png",
+      });
+      await page.screenshot({
         path: qa + "/" + lang + "-" + width + ".png",
         fullPage: true,
       });
