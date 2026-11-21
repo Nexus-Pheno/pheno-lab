@@ -253,7 +253,23 @@ class WeeklyScheduleTests(TestCase):
 
         def panels(items):
             return route_panels(
-                {"projectAlias": "p", "periodPerformance": {"routeCohorts": items}},
+                {
+                    "projectAlias": "p",
+                    "periodPerformance": {
+                        "routeCohorts": items,
+                        "windows": {
+                            k: {
+                                "start": "2026-10-01T00:00:00Z",
+                                "end": "2026-11-01T00:00:00Z",
+                            }
+                            for k in (
+                                "CURRENT_PERIOD",
+                                "PREVIOUS_EQUAL_DURATION_PERIOD",
+                                "EARLIER_HISTORY",
+                            )
+                        },
+                    },
+                },
                 section("x", "EN", "ZH"),
                 {
                     "confidence": "LOW",
@@ -304,6 +320,41 @@ class WeeklyScheduleTests(TestCase):
         self.assertIn(">Test</text>", svg)
         self.assertNotIn(">Empty</text>", svg)
         self.assertNotIn("Unreviewed", svg)
+
+    def test_route_table_headings_identify_every_project_and_window(self):
+        from envelopes import route_panels, section
+
+        part = section("routes", "Routes", "路线")
+        window = {"start": "2026-11-14T01:00:00Z", "end": "2026-11-21T01:00:00Z"}
+        periods = {
+            k: window
+            for k in (
+                "CURRENT_PERIOD",
+                "PREVIOUS_EQUAL_DURATION_PERIOD",
+                "EARLIER_HISTORY",
+            )
+        }
+        for n in ("Project North", "Project South"):
+            route_panels(
+                {
+                    "projectAlias": n,
+                    "projectName": n,
+                    "periodPerformance": {"routeCohorts": [], "windows": periods},
+                },
+                part,
+                {
+                    "alias": n,
+                    "confidence": "LOW",
+                    "decision": "HOLD",
+                    "reason": {"en": "No results this week.", "zh": "本周暂无结果。"},
+                },
+                [],
+            )
+        for lang in ("En", "Zh"):
+            body = part["body" + lang]
+            self.assertEqual(body.count("<h4>"), 6)
+            self.assertEqual(body.count("2026-11-14 09:00"), 6)
+            self.assertLess(body.index("Project North"), body.index("Project South"))
 
     def test_cannot_reconcile_a_changed_report(self):
         env = dict(

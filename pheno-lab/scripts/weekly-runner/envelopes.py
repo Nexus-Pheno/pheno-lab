@@ -1,6 +1,8 @@
 """Bind the reviewed case interpretations to the frozen evidence; final approvals are supplied separately."""
 
 from collections import defaultdict
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from html import escape
 import hashlib
 import math
@@ -76,6 +78,23 @@ def table(head, rows):
 
 
 def route_panels(project, part, project_decision, experiments):
+    project_name = project.get("projectName")
+    for language, fallback in (
+        ("En", "Unassigned experiments"),
+        ("Zh", "未分配项目的实验"),
+    ):
+        name = (
+            project_name if project.get("projectAlias") and project_name else fallback
+        )
+        part["body" + language] += "<h3>" + escape(name) + "</h3>"
+        part["body" + language] += (
+            "<p>" + escape(project_decision["reason"][language.lower()]) + "</p>"
+        )
+    headings = {
+        "CURRENT_PERIOD": ("Current week", "本周"),
+        "PREVIOUS_EQUAL_DURATION_PERIOD": ("Previous week", "上一周"),
+        "EARLIER_HISTORY": ("Earlier history", "更早的实验"),
+    }
     view = "TRACE_NAME_EXCLUDED_LIMITED_PROTOCOL"
     cohorts = [
         c
@@ -113,6 +132,22 @@ def route_panels(project, part, project_decision, experiments):
     selected_stats = {}
     periods = []
     for tag in ("CURRENT_PERIOD", "PREVIOUS_EQUAL_DURATION_PERIOD", "EARLIER_HISTORY"):
+        window = project["periodPerformance"]["windows"][tag]
+        local = [
+            datetime.fromisoformat(window[k].replace("Z", "+00:00"))
+            .astimezone(ZoneInfo("Asia/Shanghai"))
+            .strftime("%Y-%m-%d %H:%M")
+            for k in ("start", "end")
+        ]
+        for lang, label in zip(("En", "Zh"), headings[tag]):
+            part["body" + lang] += (
+                "<h4>"
+                + label
+                + " · "
+                + " – ".join(local)
+                + (" (China time)" if lang == "En" else "（北京时间）")
+                + "</h4>"
+            )
         population = [c for c in cohorts if c["periodCohort"] == tag]
         eligible = [
             c
@@ -124,14 +159,20 @@ def route_panels(project, part, project_decision, experiments):
         ]
         reverse = [c for c in eligible if c.get("direction") == "REVERSE"]
         other_directions = sorted({c.get("direction") or "UNKNOWN" for c in eligible})
-        direction_sets = [reverse] if reverse else [
-            [c for c in eligible if (c.get("direction") or "UNKNOWN") == direction]
-            for direction in other_directions
-        ]
+        direction_sets = (
+            [reverse]
+            if reverse
+            else [
+                [c for c in eligible if (c.get("direction") or "UNKNOWN") == direction]
+                for direction in other_directions
+            ]
+        )
         chosen = {}
         for direction_cohorts in direction_sets:
             for field in ("championValidScan", "bestPhysicalSampleMedian"):
-                winner = max(direction_cohorts, key=lambda c: c["pceExtremes"][field]["pce"])
+                winner = max(
+                    direction_cohorts, key=lambda c: c["pceExtremes"][field]["pce"]
+                )
                 chosen[winner["routeCohortId"]] = winner
 
         for key in matched:
@@ -197,7 +238,8 @@ def route_panels(project, part, project_decision, experiments):
                 " The table also includes the route selected for the cross-period comparison."
             )
             reason["zh"] += " 表中也列出用于跨时段比较的路线。"
-        append(part, reason)
+        for lang in LANGS:
+            part["body" + lang.title()] += "<p>" + escape(reason[lang]) + "</p>"
         for l, header in [
             (
                 "en",
@@ -354,7 +396,8 @@ def pce_figure(characterization, selected_groups, language):
     arms = [
         g
         for g in characterization["groups"]
-        if g["label"] in selected_groups and (g["metrics"].get("pce") or {}).get("n", 0) > 0
+        if g["label"] in selected_groups
+        and (g["metrics"].get("pce") or {}).get("n", 0) > 0
     ]
     if not arms:
         return ""
@@ -437,7 +480,11 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
         policyVersion=e["policyVersion"],
         referenceGroup=e["reference"]["selectedGroup"],
         aiInterpretationUsed=False,
-        comparisons=comparisons(e, c["binding"]["characterizationId"], c["binding"].get("conditionGroupLabels", c["binding"]["groupLabels"])),
+        comparisons=comparisons(
+            e,
+            c["binding"]["characterizationId"],
+            c["binding"].get("conditionGroupLabels", c["binding"]["groupLabels"]),
+        ),
         **bi("conditionSummary", condition),
         **bi("selectionDefinition", SELECTION),
         **bi("judgment", p["judgment"]),
@@ -626,10 +673,18 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
     # The local hypothesis is a separate evidence claim. The reviewed source
     # title identifies exactly what belongs to the published study.
     lit = [dict(url="https://doi.org/" + a["doi"], claim=a["title"]) for a in urls]
-    links = "<ul>" + "".join(
-        '<li><a href="' + escape(src["url"], quote=True) + '">' + escape(src["claim"]) + '</a></li>'
-        for src in lit
-    ) + "</ul>"
+    links = (
+        "<ul>"
+        + "".join(
+            '<li><a href="'
+            + escape(src["url"], quote=True)
+            + '">'
+            + escape(src["claim"])
+            + "</a></li>"
+            for src in lit
+        )
+        + "</ul>"
+    )
     test["bodyEn"] += "<p>Primary studies relevant to this proposed test</p>" + links
     test["bodyZh"] += "<p>与本项验证实验相关的原始研究</p>" + links
     mech = dict(
@@ -656,7 +711,8 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
         cells = [
             f"{g['label']} {fmt(g['metrics'][name]['mean'])} (n={g['metrics'][name]['n']})"
             for g in char["groups"]
-            if g["label"] in c["binding"]["groupLabels"] and (g["metrics"].get(name) or {}).get("n", 0) > 0
+            if g["label"] in c["binding"]["groupLabels"]
+            and (g["metrics"].get(name) or {}).get("n", 0) > 0
         ]
         obs = (
             dict(
@@ -801,6 +857,23 @@ def assemble(work, prior):
         + escape(snapshot["sharedAppEvidence"]["asOf"])
         + "。周内变化按测量时间统计，横线表示该统计量缺失。</p>"
     )
+
+    def shanghai_time(timestamp):
+        return (
+            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            .astimezone(ZoneInfo("Asia/Shanghai"))
+            .strftime("%Y-%m-%d %H:%M")
+        )
+
+    start, end = map(shanghai_time, (snapshot["periodStart"], snapshot["windowEnd"]))
+    earlier = shanghai_time(baseline["snapshotAt"])
+    append(
+        sections["methods"],
+        dict(
+            en=f"The reporting week starts at {start} and ends just before {end} (China time). A newly observed measurement is compared with the last verified source snapshot, taken at {earlier}.",
+            zh=f"本周统计区间从北京时间 {start} 开始，到 {end} 前结束。判断测量记录是否首次纳入时，与上次已核实的数据快照（北京时间 {earlier}）比较。",
+        ),
+    )
     obs = {e["code"]: e for e in snapshot["experimentSummaries"]}
     ex = {
         r["experimentCode"]: r["evidence"]
@@ -851,6 +924,13 @@ def assemble(work, prior):
         ).items():
             rows[k].append(v)
         current[code] = c
+    append(
+        sections["sources"],
+        {
+            "en": f"The application supplied device evidence for {len(ex)} experiments. This report examines {len(current)} of them in detail. Device comparisons use the lab’s accepted measurements. The primary studies below inform the proposed tests of materials and interfaces. Their device designs and processing conditions determine which findings apply here.",
+            "zh": f"系统共提供 {len(ex)} 项实验的器件数据，本期详细分析其中 {len(current)} 项。各组性能比较取自实验室采纳的测量结果。下列原始研究用于设计材料及界面的验证实验；引用时需结合论文的器件结构和制备条件判断其适用范围。",
+        },
+    )
     for a in articles:
         url = "https://doi.org/" + a["doi"]
         line = (
