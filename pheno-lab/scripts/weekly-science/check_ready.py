@@ -16,7 +16,7 @@ import analyze_rd_snapshot
 import audit_device_results
 import period_scope
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
-from assemble_science import display_project_text
+from assemble_science import display_case_groups, display_project_text
 import bind_final_review
 from import_verified_baseline import existing_directory
 from replay_frozen_report import checked_file, check_published_run, record, save_new, run_science_gates
@@ -228,6 +228,15 @@ def prepare(run, prior, output):
     need(readable_projects == display_project_text(record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
         record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"]), "DISPLAY_PROJECTS_DIFFER_FROM_REVIEWED_SOURCE")
     names.add("project-decisions-display.private.json")
+    ids = record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]
+    science = record(run, "science-interpretation.json", baseline.MAX_ARTIFACT_BYTES)
+    public_cases = record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]
+    originals = {entry["experiment"]: entry["public"] for entry in science["cases"]}
+    for case in public_cases:
+        name = case["case"]
+        need(case.get("displayPublic") == display_case_groups(originals[name], ids[name]["groups"], ids),
+             "CASE_DISPLAY_DIFFERS_FROM_OFFICIAL_SCIENTIFIC_TEXT_AND_GROUP_LABELS")
+
     section_reviews = json.loads(subprocess.run(
         ['node', Path(__file__).with_name('verify_section_receipts.mjs'), run],
         capture_output=True, text=True, timeout=300, check=True).stdout)
