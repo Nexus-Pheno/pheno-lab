@@ -3,6 +3,7 @@
 from collections import defaultdict
 from html import escape
 import hashlib
+import math
 import json
 from pathlib import Path
 import re
@@ -83,6 +84,33 @@ def route_panels(project, part, project_decision, experiments):
         and c["evidenceTier"] == "SOURCE_LINKED_INSTRUMENT_SCAN"
         and c["inferenceOutcomes"]["nScans"]
     ]
+    # One paired route chosen by time and coverage, before examining its performance.
+    usable = {
+        c["routeCohortId"]: c
+        for c in cohorts
+        if all(
+            c["pceExtremes"].get(k)
+            for k in ("championValidScan", "bestPhysicalSampleMedian")
+        )
+    }
+    candidates = []
+    for c in usable.values():
+        if c["periodCohort"] != "CURRENT_PERIOD":
+            continue
+        for order, period in enumerate(
+            ("PREVIOUS_EQUAL_DURATION_PERIOD", "EARLIER_HISTORY")
+        ):
+            ref = usable.get(c["routeId"] + ":" + period)
+            if ref:
+                coverage = min(
+                    c["inferenceOutcomes"]["nSamples"],
+                    ref["inferenceOutcomes"]["nSamples"],
+                )
+                candidates.append(
+                    (order, -coverage, c["routeCohortId"], ref["routeCohortId"])
+                )
+    matched = min(candidates)[2:] if candidates else ()
+    selected_stats = {}
     periods = []
     for tag in ("CURRENT_PERIOD", "PREVIOUS_EQUAL_DURATION_PERIOD", "EARLIER_HISTORY"):
         population = [c for c in cohorts if c["periodCohort"] == tag]
@@ -100,6 +128,9 @@ def route_panels(project, part, project_decision, experiments):
             if eligible:
                 winner = max(eligible, key=lambda c: c["pceExtremes"][field]["pce"])
                 chosen[winner["routeCohortId"]] = winner
+        for key in matched:
+            if usable[key]["periodCohort"] == tag:
+                chosen[key] = usable[key]
         data = []
         rows = []
         for key, c in chosen.items():
@@ -121,6 +152,7 @@ def route_panels(project, part, project_decision, experiments):
                 en="Interpret this route within its recorded scan protocol. Confirm the illuminated area, conditioning and independent fabrication batches before transferring a gain.",
                 zh="按该路线记录的扫描条件解读结果。推广增益前，先核对光照面积、预处理和独立制备批次。",
             )
+            selected_stats[key] = stats
             data.append(
                 dict(
                     cohortId=key,
@@ -134,6 +166,7 @@ def route_panels(project, part, project_decision, experiments):
                 [
                     c["experimentCode"],
                     c["group"],
+                    c["direction"],
                     *map(fmt, stats.values()),
                     *[
                         f"{fmt(outcomes['metrics'][k]['mean'])} ({outcomes['metrics'][k]['nSamples']})"
@@ -148,6 +181,11 @@ def route_panels(project, part, project_decision, experiments):
             en=f"{tag.replace('_', ' ').lower()}: {len(population)} routes. The table shows the highest reverse scan and best device median where available.",
             zh=f"本时段共 {len(population)} 条路线。表中列出适用时反扫最高值及最佳器件中位数对应的路线。",
         )
+        if matched and any(k in chosen for k in matched):
+            reason["en"] += (
+                " The table also includes the route selected for the cross-period comparison."
+            )
+            reason["zh"] += " 表中也列出用于跨时段比较的路线。"
         append(part, reason)
         for l, header in [
             (
@@ -155,6 +193,7 @@ def route_panels(project, part, project_decision, experiments):
                 [
                     "Experiment",
                     "Group",
+                    "Scan direction",
                     "Scans",
                     "Devices",
                     "Highest scan %",
@@ -173,6 +212,7 @@ def route_panels(project, part, project_decision, experiments):
                 [
                     "实验",
                     "组别",
+                    "扫描方向",
                     "扫描数",
                     "器件数",
                     "最高扫描 %",
@@ -206,6 +246,43 @@ def route_panels(project, part, project_decision, experiments):
         en="The period leaders can differ in route and preparation. These panels alone cannot quantify a matched before-and-after change.",
         zh="各时段领先器件的路线和制备条件可能不同。仅凭这些面板无法量化匹配条件下的前后变化。",
     )
+    pairs = []
+    if matched:
+        current_key, previous_key = matched
+        current, previous = selected_stats[current_key], selected_stats[previous_key]
+        changes = {
+            k: current[k] - previous[k]
+            if current[k] is not None and previous[k] is not None
+            else None
+            for k in decision.STAT_DEFINITIONS
+        }
+        label = (
+            usable[current_key]["experimentCode"]
+            + " / "
+            + str(usable[current_key]["group"])
+        )
+        period_en, period_zh = (
+            ("previous week", "上周期")
+            if usable[previous_key]["periodCohort"] == "PREVIOUS_EQUAL_DURATION_PERIOD"
+            else ("earlier history", "历史时段")
+        )
+        interpretation = dict(
+            en=f"{label}: mean device-median PCE was {fmt(current['meanSampleMedianPce'])}% this week and {fmt(previous['meanSampleMedianPce'])}% in the {period_en}. Device counts were {current['nSamples']} and {previous['nSamples']}.",
+            zh=f"{label}：本周各器件扫描中位效率的平均值为 {fmt(current['meanSampleMedianPce'])}%，{period_zh}为 {fmt(previous['meanSampleMedianPce'])}%。两期分别有 {current['nSamples']} 片和 {previous['nSamples']} 片器件。",
+        )
+        limit = dict(
+            en="The two windows match on recorded conditions and scan direction. Unrecorded scan settings and fabrication batches limit the interpretation of this difference.",
+            zh="两时段已记录的条件和扫描方向一致。仍需核对未记录的扫描设置和制备批次，才能判断差异的来源。",
+        )
+        append(part, interpretation)
+        pairs.append(
+            dict(
+                currentCohortId=current_key,
+                referenceCohortId=previous_key,
+                differencesCurrentMinusReference=changes,
+                **bi("interpretation", interpretation),
+            )
+        )
     append(part, limit)
     alias = project["projectAlias"] or "UNASSIGNED"
     reason = project_decision["reason"]
@@ -216,8 +293,8 @@ def route_panels(project, part, project_decision, experiments):
         analysisView=view,
         periods=periods,
         longitudinalJudgment=dict(
-            status="INSUFFICIENT_COMPARABLE_DATA",
-            pairs=[],
+            status="EXPLORATORY_CHANGE" if pairs else "INSUFFICIENT_COMPARABLE_DATA",
+            pairs=pairs,
             **bi("analysis", project_decision.get("longitudinal", reason)),
             **bi("limits", limit),
         ),
@@ -257,6 +334,63 @@ def comparisons(e, ch_id):
                 )
             )
     return out
+
+
+def pce_figure(characterization, selected_groups, language):
+    """Draw the two accepted-device summaries and label the number behind each series."""
+    arms = [
+        g
+        for g in characterization["groups"]
+        if g["label"] in selected_groups and g["metrics"].get("pce")
+    ]
+    if not arms:
+        return ""
+    zh = language == "zh"
+    heading = (
+        "对照与实验组的器件效率" if zh else "Device efficiency in the selected arms"
+    )
+    note = (
+        "圆点为平均值；菱形为最高值。器件间离散性见条件表。"
+        if zh
+        else "Circles show mean PCE and diamonds show the highest device. The table gives device-to-device spread."
+    )
+    width = 540
+    height = 65 + 58 * len(arms)
+    left, right = 82, 453
+    maximum = max(5, 5 * math.ceil(max(g["metrics"]["pce"]["best"] for g in arms) / 5))
+    points = lambda value: left + (right - left) * value / maximum
+    svg = [
+        f'<figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="{heading}"><title>{heading}</title>',
+        f'<rect width="{width}" height="{height}" fill="white"/>',
+    ]
+    for i in range(6):
+        val = maximum * i / 5
+        x = points(val)
+        svg.append(
+            f'<line x1="{x}" x2="{x}" y1="32" y2="{height - 28}" stroke="#d6dedb"/><text x="{x}" y="22" text-anchor="middle" font-size="14" fill="#263c33">{fmt(val)}%</text>'
+        )
+    for i, g in enumerate(arms):
+        m = g["metrics"]["pce"]
+        y = 58 + i * 58
+        label = escape(str(g["label"]))
+        a, b = points(m["mean"]), points(m["best"])
+        svg.extend(
+            [
+                f'<text x="4" y="{y + 4}" fill="#223e34" font-size="15">{label}</text>',
+                f'<line x1="{a}" x2="{b}" y1="{y}" y2="{y}" stroke="#65896a" stroke-width="2"/>',
+                f'<circle cx="{a}" cy="{y}" r="6" fill="#265c4b"/>',
+                f'<path d="M{b},{y - 7} l7,7 l-7,7 l-7,-7 Z" fill="white" stroke="#714824" stroke-width="2"/>',
+                f'<text x="470" y="{y + 4}" fill="#263c33" font-size="14">n={m["n"]}</text>',
+            ]
+        )
+    return (
+        "".join(svg)
+        + "</svg><figcaption>"
+        + heading
+        + ". "
+        + note
+        + "</figcaption></figure>"
+    )
 
 
 def case_records(c, s, e, chem, refs, articles, sections, priority):
@@ -494,6 +628,10 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
         for ch in e["characterizations"]
         if ch["id"] == c["binding"]["characterizationId"]
     )
+    for lang in LANGS:
+        case["body" + lang.title()] += pce_figure(
+            char, c["binding"]["groupLabels"], lang
+        )
     metrics = []
     for name, unit in academic.METRIC_UNITS.items():
         cells = [
@@ -651,21 +789,36 @@ def assemble(work, prior):
         r["experimentCode"]: r["evidence"]
         for r in snapshot["sharedAppEvidence"]["experiments"]
     }
-    scan = defaultdict(list)
-    for row in (
-        snapshot["sampleMeasurements"] + snapshot["historicalSampleMeasurements"]
-    ):
-        if (
-            row.get("measurementAlias")
-            and row.get("metrics", {}).get("pce") is not None
-        ):
-            scan[row["experimentCode"]].append(row["measurementAlias"])
+    scans = {
+        r["measurementAlias"]: r
+        for r in snapshot["sampleMeasurements"]
+        + snapshot["historicalSampleMeasurements"]
+        if r.get("measurementAlias")
+    }
     rows = defaultdict(list)
     current = {}
     for i, c in enumerate(q):
         code = c["binding"]["experimentCode"]
         source = obs[code]
-        refs = [code, *list(dict.fromkeys(scan[code]))[:3]]
+        char = next(
+            v
+            for v in ex[code]["characterizations"]
+            if v["id"] == c["binding"]["characterizationId"]
+        )
+        groups = set(c["binding"]["groupLabels"])
+        linked = {}
+        for result in char["selectedResults"]:
+            measurement = result.get("sourceMeasurementId")
+            if measurement:
+                alias = stamp("pheno-report-alias-v1:" + measurement)[:24]
+                scan = scans.get(alias)
+                if (
+                    scan
+                    and scan.get("experimentCode") == code
+                    and scan.get("group") in groups
+                ):
+                    linked.setdefault(scan["group"], alias)
+        refs = [code, *linked.values()]
         chem = next(
             x["chemical"] for x in science["cases"] if x["experiment"] == c["case"]
         )
@@ -762,7 +915,11 @@ def assemble(work, prior):
                 if changed
                 else "UNCHANGED_NO_NEW_EVIDENCE",
                 executionStatus="NOT_VERIFIED",
-                evidenceIds=new["history"][-1]["evidenceIdentifiers"]
+                evidenceIds=[
+                    k
+                    for k in new["history"][-1]["evidenceIdentifiers"]
+                    if k in obs or k in scans
+                ]
                 if changed
                 else [],
                 **bi("analysis", follow["rationale"]),

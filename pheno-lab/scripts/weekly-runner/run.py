@@ -179,8 +179,38 @@ def finish(state, work, receipt):
     )
 
 
+def verify_delivery_files(work):
+    gate = work / "gate"
+    ready = read(gate / "ready.json")
+    challenge = read(gate / "challenge.json")
+    review_names = {"scientific-review.json", "visual-review.json"}
+    if (
+        ready.get("status") != "READY_FOR_AUTHORIZED_PUBLICATION"
+        or ready.get("passed") is not True
+        or ready.get("publicationPerformed") is not False
+        or ready["contentSha256"] != challenge["contentSha256"]
+        or ready["verifiedArtifactHashes"] != challenge["inputs"]
+        or set(ready["reviewHashes"]) != review_names
+    ):
+        raise ValueError("Final review does not match the frozen report.")
+    files = [(work / k, v) for k, v in ready["verifiedArtifactHashes"].items()]
+    files += [(work / "reviews" / k, v) for k, v in ready["reviewHashes"].items()]
+    files += [
+        (gate / "challenge.json", ready["challengeSha256"]),
+        (gate / "report-document-reviewed.json", ready["signedDocumentSha256"]),
+        (gate / "approved/gates.json", ready["finalGatesSha256"]),
+    ]
+    for path, expected in files:
+        if path.is_symlink() or not path.resolve().is_relative_to(work.resolve()):
+            raise ValueError("Invalid reviewed artifact path.")
+        with path.open("rb") as source:
+            if hashlib.file_digest(source, "sha256").hexdigest() != expected:
+                raise ValueError("A reviewed report input changed before delivery.")
+    return ready
+
+
 def deliver(state, work):
-    manifest = read(work / "gate" / "ready.json")
+    manifest = verify_delivery_files(work)
     html = (work / "report-publish.html").read_bytes()
     if (
         manifest["passed"] is not True
@@ -188,6 +218,13 @@ def deliver(state, work):
     ):
         raise ValueError("Independent final review does not match HTML.")
     meta = read(work / "report-publish.metadata.json")
+    document = read(work / "report-document-publish.json")
+    if any(
+        meta.get(k) != document.get(k) for k in ("titleEn", "titleZh", "generatedAt")
+    ):
+        raise ValueError(
+            "Stored report title or date differs from reviewed manuscript."
+        )
     key = work.name
     fresh = inspect(state, key)
     generated = dt.datetime.fromisoformat(
@@ -240,6 +277,8 @@ def collect(state, work, slot):
         SCI / "collect_snapshot.py",
         "--local-operator",
         "--with-app-evidence",
+        "--baseline-selection",
+        work / "baseline-selection.json",
         "--start",
         stamp(30),
         "--end",

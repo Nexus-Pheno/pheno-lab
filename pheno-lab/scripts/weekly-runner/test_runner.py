@@ -69,6 +69,115 @@ class WeeklyScheduleTests(TestCase):
                     runner.main()
                 deliver.assert_not_called()
 
+    def test_changed_source_or_peer_receipt_blocks_delivery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            work = Path(folder)
+            gate, reviews = work / "gate", work / "reviews"
+            (gate / "approved").mkdir(parents=True)
+            reviews.mkdir()
+
+            def artifact(path):
+                path.write_text(path.name)
+                return hashlib.sha256(path.read_bytes()).hexdigest()
+
+            sources = {"snapshot.json": artifact(work / "snapshot.json")}
+            peers = {
+                n: artifact(reviews / n)
+                for n in ("scientific-review.json", "visual-review.json")
+            }
+            ch = {"inputs": sources, "contentSha256": "html"}
+            runner.write(gate / "challenge.json", ch)
+            runner.write(
+                gate / "ready.json",
+                dict(
+                    status="READY_FOR_AUTHORIZED_PUBLICATION",
+                    passed=True,
+                    publicationPerformed=False,
+                    contentSha256="html",
+                    verifiedArtifactHashes=sources,
+                    reviewHashes=peers,
+                    signedDocumentSha256=artifact(
+                        gate / "report-document-reviewed.json"
+                    ),
+                    finalGatesSha256=artifact(gate / "approved/gates.json"),
+                    challengeSha256=hashlib.sha256(
+                        (gate / "challenge.json").read_bytes()
+                    ).hexdigest(),
+                ),
+            )
+            self.assertTrue(runner.verify_delivery_files(work)["passed"])
+            for path in [
+                work / "snapshot.json",
+                reviews / "scientific-review.json",
+                gate / "approved/gates.json",
+            ]:
+                original = path.read_bytes()
+                path.write_text("changed")
+                with self.subTest(path=path.name), self.assertRaises(ValueError):
+                    runner.verify_delivery_files(work)
+                path.write_bytes(original)
+
+    def test_trace_matches_only_shared_route_and_keeps_unmeasured_dispersion(self):
+        from envelopes import route_panels, section
+
+        def cohort(period, mean, route):
+            extremes = {
+                k: {"pce": mean}
+                for k in ("championValidScan", "bestPhysicalSampleMedian")
+            }
+            metrics = {
+                "nSamples": 1,
+                "mean": mean,
+                "median": mean,
+                "sampleStandardDeviation": None,
+                "iqr": 0,
+            }
+            return dict(
+                view="TRACE_NAME_EXCLUDED_LIMITED_PROTOCOL",
+                periodCohort=period,
+                routeId=route,
+                routeCohortId=route + ":" + period,
+                direction="REVERSE",
+                group="Control",
+                experimentCode="S-1",
+                evidenceTier="SOURCE_LINKED_INSTRUMENT_SCAN",
+                pceExtremes=extremes,
+                inferenceOutcomes={
+                    "nScans": 1,
+                    "nSamples": 1,
+                    "metrics": {"pce": metrics},
+                },
+            )
+
+        rows = [
+            cohort("CURRENT_PERIOD", 20, "r"),
+            cohort("PREVIOUS_EQUAL_DURATION_PERIOD", 19, "r"),
+            cohort("PREVIOUS_EQUAL_DURATION_PERIOD", 25, "different"),
+        ]
+
+        def panels(items):
+            return route_panels(
+                {"projectAlias": "p", "periodPerformance": {"routeCohorts": items}},
+                section("x", "EN", "ZH"),
+                {
+                    "confidence": "LOW",
+                    "alias": "p",
+                    "decision": "ADJUST",
+                    "reason": {"en": "Inspect data.", "zh": "核对数据。"},
+                },
+                ["S-1"],
+            )
+
+        pair = panels(rows)["longitudinalJudgment"]["pairs"][0]
+        self.assertEqual(
+            pair["differencesCurrentMinusReference"]["meanSampleMedianPce"], 1
+        )
+        self.assertIsNone(pair["differencesCurrentMinusReference"]["sdSampleMedianPce"])
+        self.assertEqual(pair["referenceCohortId"], "r:PREVIOUS_EQUAL_DURATION_PERIOD")
+        self.assertEqual(
+            panels([rows[0], rows[2]])["longitudinalJudgment"]["pairs"], []
+        )
+
     def test_cannot_reconcile_a_changed_report(self):
         env = dict(
             organizationId="org",
