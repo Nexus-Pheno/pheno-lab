@@ -179,7 +179,7 @@ def workflow(work, prior):
     reviewed_ledger(work, prior)
     if not (work / "report-document-publish.json").exists():
         document = assemble(work, prior)
-        period_scope.add_scope_note(document, read(work / "snapshot.json"))
+        period_scope.add_scope_note(document, read(work / "snapshot.json"), read(prior / "snapshot.json"))
         write(work / "report-document-publish.json", document)
     render_reviewed(work)
     gate = work / "gate"

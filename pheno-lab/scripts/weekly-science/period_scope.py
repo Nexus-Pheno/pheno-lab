@@ -15,15 +15,12 @@ def _has_devices(evidence):
                for group in characterization["groups"])
 
 
-def derive(snapshot, prior, dossier, metadata):
+def scan_timing(snapshot, prior):
     start, end = (shared.timestamp(snapshot[key]) for key in ("periodStart", "windowEnd"))
-    if shared.timestamp(prior["windowEnd"]) >= end:
-        raise ValueError("Weekly scope needs an earlier verified period")
-    contexts = {item["code"]: item for item in snapshot["experimentSummaries"]}
-    current_codes = shared.selected_experiment_codes(snapshot)
+    contexts = {item["code"] for item in snapshot["experimentSummaries"]}
     previous_scans = audit.raw_scans(prior)
     current_scans = audit.raw_scans(snapshot)
-    measured, latest = set(), {}
+    fresh, latest, in_window = defaultdict(int), {}, defaultdict(int)
     for alias, row in current_scans.items():
         code = row.get("experimentCode")
         value = row.get("measuredAt")
@@ -35,13 +32,24 @@ def derive(snapshot, prior, dossier, metadata):
             continue
         if measured_at < end:
             latest[code] = max(latest.get(code, measured_at), measured_at)
-        if alias not in previous_scans and start <= measured_at < end:
-            measured.add(alias)
+        if start <= measured_at < end:
+            in_window[code] += 1
+            if alias not in previous_scans:
+                fresh[code] += 1
+    return fresh, latest, in_window
 
+
+def derive(snapshot, prior, dossier, metadata):
+    if shared.timestamp(prior["windowEnd"]) >= shared.timestamp(snapshot["windowEnd"]):
+        raise ValueError("Weekly scope needs an earlier verified period")
+    contexts = {item["code"]: item for item in snapshot["experimentSummaries"]}
+    current_codes = shared.selected_experiment_codes(snapshot)
+    fresh, latest, _ = scan_timing(snapshot, prior)
+    measured = sum(fresh.values())
     scope = {
         "schemaVersion": 1, "policy": "weekly-current-and-prior-followup-v1",
         "mode": "NEW_MEASUREMENTS" if measured else "CARRIED_FORWARD",
-        "newEligibleMeasuredAliases": len(measured), "currentContextCodes": current_codes,
+        "newEligibleMeasuredAliases": measured, "currentContextCodes": current_codes,
         "previousReportId": metadata["reportId"], "previousSnapshotSha256": metadata["snapshotSha256"],
         "previousDossierSha256": metadata["dossierPublishedSha256"], "previousWindowEnd": prior["windowEnd"],
         "followups": [], "requestedExperimentCodes": current_codes,
@@ -131,16 +139,43 @@ def scope_note(snapshot):
     }
 
 
-def add_scope_note(document, snapshot):
-    note = scope_note(snapshot)
-    if note:
-        projects = next(section for section in document["sections"] if section["id"] == "projects")
-        for key, passage in note.items():
-            projects[key] = passage + projects[key]
+def section_notes(document, snapshot, prior=None):
+    notes = {}
+    general = scope_note(snapshot)
+    if general:
+        notes["projects"] = general
+    if prior is None:
+        return notes
+    fresh, _, windows = scan_timing(snapshot, prior)
+    for case in document["evidenceMethodReview"]["experiments"]:
+        code = case["experimentCode"]
+        count = fresh.get(code, 0)
+        seen = windows.get(code, 0) - count
+        if count:
+            unit = "scan" if count == 1 else "scans"
+            en = f"This reporting week contributed {count} previously unseen eligible instrument {unit} for this experiment. The device statistics below use the full set of accepted results at the cutoff."
+            zh = f"本实验有 {count} 条本期新测且首次纳入报告的有效仪器扫描记录。下文的器件统计包含截至本期的全部采纳结果。"
+        elif seen:
+            subject = "The one eligible instrument scan" if seen == 1 else f"All {seen} eligible instrument scans"
+            verb = "was" if seen == 1 else "were"
+            en = f"Earlier results revisited. {subject} dated within this reporting week {verb} already available in the preceding report’s data. This comparison follows up the earlier result."
+            zh = f"前期结果跟进。本实验测量日期在本周内的 {seen} 条有效扫描，上期报告采集数据时均已收录。此次比较用于跟进此前的结果。"
+        else:
+            en = "Earlier results revisited. This experiment has no newly observed eligible instrument scans dated within this reporting week. The comparison uses cumulative accepted device results."
+            zh = "前期结果跟进。本实验没有本周新测且首次纳入报告的有效仪器扫描。此次比较使用累计采纳的器件结果。"
+        notes[case["sectionId"]] = {"bodyEn": "<p>" + en + "</p>", "bodyZh": "<p>" + zh + "</p>"}
+    return notes
 
 
-def verify_scope_note(document, snapshot):
-    note = scope_note(snapshot)
-    projects = next((section for section in document["sections"] if section["id"] == "projects"), {})
-    if any(not projects.get(key, "").startswith(passage) for key, passage in note.items()):
-        raise ValueError("Missing bilingual quiet-week description or current accepted-evidence cutoff")
+def add_scope_note(document, snapshot, prior=None):
+    sections = {section["id"]: section for section in document["sections"]}
+    for sid, notes in section_notes(document, snapshot, prior).items():
+        for key, passage in notes.items():
+            sections[sid][key] = passage + sections[sid][key]
+
+
+def verify_scope_note(document, snapshot, prior=None):
+    sections = {section["id"]: section for section in document["sections"]}
+    for sid, notes in section_notes(document, snapshot, prior).items():
+        if any(not sections.get(sid, {}).get(key, "").startswith(passage) for key, passage in notes.items()):
+            raise ValueError("Missing bilingual follow-up status or fresh measurement count")

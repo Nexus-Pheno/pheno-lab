@@ -79,6 +79,22 @@ class QuietPeriodTests(unittest.TestCase):
         doc["evidenceMethodReview"]["omittedExperimentCount"] = 1
         self.assertFalse(primary.validate(doc, snap, dossier)["passed"])
 
+    def test_overlapping_week_shows_each_case_measurement_intersection(self):
+        current, prior, _, _ = dataset()
+        old = scan("seen", START, code="A")
+        current["sampleMeasurements"] = [old, scan("fresh", START, code="B"),
+                                         scan("late", "2024-12-26T01:00:00Z", code="A", receivedInPeriod=True)]
+        prior["sampleMeasurements"] = [old]
+        doc = {"evidenceMethodReview":{"experiments":[{"experimentCode":c,"sectionId":c} for c in "AB"]},
+               "sections":[{"id":c,"bodyEn":"Data","bodyZh":"数据"} for c in "AB"]}
+        period_scope.add_scope_note(doc, current, prior)
+        self.assertIn("one eligible", doc["sections"][0]["bodyEn"])
+        self.assertIn("1 条", doc["sections"][1]["bodyZh"])
+        period_scope.verify_scope_note(doc, current, prior)
+        doc["sections"][0]["bodyZh"] = "数据"
+        with self.assertRaises(ValueError):
+            period_scope.verify_scope_note(doc, current, prior)
+
     def test_bilingual_notice_bound_to_real_export_asof_and_checked_on_sealed_document(self):
         current, prior, dossier, meta = dataset()
         current["weeklyCollectionScope"] = period_scope.derive(current, prior, dossier, meta)

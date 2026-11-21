@@ -14,10 +14,14 @@ import math
 import os
 import re
 import tempfile
+import sys
 import time
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-science"))
+from period_scope import scan_timing
 
 
 def save(path, value):
@@ -321,22 +325,22 @@ def cases_for_detail(rows, followup_order=()):
     priority = {case: index for index, case in enumerate(followup_order)}
     selected = [r["id"] for r in sorted(rows, key=lambda r: priority.get(r["id"], len(priority)))
                 if r["id"] in priority and r["eligible"]]
-    eligible = sorted(
-        (r for r in rows if r["eligible"] and r["id"] not in priority),
-        key=lambda r: (-r["newlyMeasuredSources"], -r["newSourceAliases"], r["id"]),
-    )
-    ordered = []
-    while eligible:
-        seen = set()
-        deferred = []
-        for row in eligible:
-            if row["project"] in seen:
-                deferred.append(row)
-            else:
-                ordered.append(row["id"])
+    remaining = [r for r in rows if r["eligible"] and r["id"] not in priority]
+    eligible = sorted(remaining, key=lambda r: (-r["freshMeasuredSources"], -r["newlyMeasuredSources"], r["id"]))
+    for fresh in (True, False):
+        waiting = [r for r in eligible if (r["freshMeasuredSources"] > 0) == fresh]
+        while waiting and len(selected) < 3:
+            seen, deferred = set(), []
+            for row in waiting:
+                if row["project"] in seen:
+                    deferred.append(row)
+                    continue
                 seen.add(row["project"])
-        eligible = deferred
-    return (selected + ordered)[:3]
+                selected.append(row["id"])
+                if len(selected) == 3:
+                    break
+            waiting = deferred
+    return selected[:3]
 
 
 def snapshot_sources(snapshot):
@@ -436,6 +440,7 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
                 ],
             }
         )
+    fresh, _, _ = scan_timing(snapshot, prior)
     prior_ids = snapshot_sources(prior)
     measurements = collections.defaultdict(list)
     for alias, src in snapshot_sources(snapshot).items():
@@ -469,6 +474,7 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
                 "id": "E" + str(i),
                 "project": emap[code],
                 "focus": e["evaluationFocus"]["kind"],
+                "freshMeasuredSources": fresh.get(code, 0),
                 "newlyMeasuredSources": sum(
                     bool(s["measuredInPeriod"]) for _, s in sources
                 ),

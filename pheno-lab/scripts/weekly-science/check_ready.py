@@ -208,7 +208,7 @@ def prepare(run, prior, output):
     need(baseline.timestamp(snap['sharedAppEvidence']['asOf'])<=baseline.timestamp(private_review['reviewedAt'])<=now()+dt.timedelta(minutes=1),
          'PRIVATE_PEER_REVIEW_PREDATES_CURRENT_EVIDENCE')
     doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
-    period_scope.verify_scope_note(doc, snap)
+    period_scope.verify_scope_note(doc, snap, record(prior, "snapshot.json", baseline.MAX_ARTIFACT_BYTES))
     annex=record(run,'private-material-review.json')
     literature={'sources':read_list(run,'article-refresh.json')}
     need(all(x in doc for x in ('rdReview','decisionReview','academicReview','evidenceMethodReview','collaboratorReview','languageReview')),
@@ -218,7 +218,11 @@ def prepare(run, prior, output):
     names={'snapshot.json','rd-dossier-reviewed.json','reviewed-updates.json','report-document-publish.json',
            'report-publish.html','private-material-review.json','science-interpretation.json',
            'independent-material-science-review.json','private-scientific-facts.json','article-refresh.json',
-           'provider-packet.json','manuscript-candidate.json'}
+           'provider-packet.json','manuscript-candidate.json','private-science-bindings.json'}
+    section_reviews = json.loads(subprocess.run(
+        ['node', Path(__file__).with_name('verify_section_receipts.mjs'), run],
+        capture_output=True, text=True, timeout=300, check=True).stdout)
+    names.update(section_reviews['files'])
     for item in annex['inputs']:
         name=item['file']
         need(Path(name).name==name and file_hash(run,name)==item['sha256'],'PRIVATE_ANNEX_SOURCE_MISMATCH')
@@ -242,7 +246,7 @@ def prepare(run, prior, output):
     challenge={'schemaVersion':1,'challenge':secret,'createdAt':now().isoformat(),'contentSha256':html_hash,'inputs':inputs,
                'outputs':outputs,'images':images_for_review(output),'priorReportId':prior_meta['reportId'],
                'priorSnapshotSha256':prior_meta['snapshotSha256'],'priorDossierSha256':prior_meta['dossierPublishedSha256'],
-               'materialPeerCompletionId':private_review['completionId']}
+               'materialPeerCompletionId':private_review['completionId'], 'priorStageCompletionIds':section_reviews['completionIds']}
     need(all(file_hash(run,k)==v for k,v in inputs.items()),'SOURCE_CHANGED_DURING_PREPARATION')
     save_new(output/'challenge.json',challenge)
     return {'status':'AWAITING_INDEPENDENT_REVIEWS','images':len(challenge['images']),'gates':len(gates),'arithmeticChecks':audit['arithmeticChecks']}
@@ -282,6 +286,7 @@ def scientific_receipt(receipt, challenge, packet):
          receipt.get('model')=='deepseek-v4-pro' and receipt.get('providerHost')=='api.deepseek.com' and
          type(receipt.get('completionId')) is str and bool(receipt['completionId']) and
          receipt['completionId']!=challenge['materialPeerCompletionId'] and
+         receipt['completionId'] not in challenge.get('priorStageCompletionIds', []) and
          all(valid_hash(receipt.get(k)) for k in ('inputHash','requestHash','outputHash','promptHash')) and
          receipt['inputHash']==sha(compact(packet).encode()), 'UNBOUND_FINAL_SCIENTIFIC_RESPONSE')
     outcome=receipt.get('value',{})

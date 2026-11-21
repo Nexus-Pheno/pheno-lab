@@ -236,6 +236,22 @@ class WeeklyScheduleTests(TestCase):
             panels([rows[0], rows[2]])["longitudinalJudgment"]["pairs"], []
         )
 
+    def test_group_facts_and_charts_only_cover_reviewed_measured_arms(self):
+        from envelopes import comparisons, pce_figure
+        stats = {"n": 2, "mean": 12.1, "best": 12.4, "sd": 0.4}
+        groups = [{"label": label, "metrics": {"pce": numbers}, "judgment": "exploratory",
+                   "evidenceConfidence": "limited"}
+                  for label, numbers in [("Test", stats), ("Empty", {**stats, "n": 0, "mean": None, "best": None}),
+                                         ("Unreviewed", stats)]]
+        char = {"id": "one", "groups": groups}
+        reviewed = ["Test", "Empty"]
+        self.assertEqual([r["group"] for r in comparisons({"characterizations": [char]}, "one", reviewed)],
+                         reviewed)
+        svg = pce_figure(char, reviewed, "zh")
+        self.assertIn(">Test</text>", svg)
+        self.assertNotIn(">Empty</text>", svg)
+        self.assertNotIn("Unreviewed", svg)
+
     def test_cannot_reconcile_a_changed_report(self):
         env = dict(
             organizationId="org",

@@ -29,8 +29,18 @@ class ProjectionTests(unittest.TestCase):
 
     def test_open_questions_rank_before_unrelated_late_receipts(self):
         rows = [{"id": "E" + str(i), "project": "P" + str(i), "newlyMeasuredSources": 0,
-                 "newSourceAliases": 20 if i == 1 else 0, "eligible": i != 5} for i in range(1, 6)]
+                 "freshMeasuredSources": 0, "newSourceAliases": 20 if i == 1 else 0, "eligible": i != 5} for i in range(1, 6)]
         self.assertEqual(prepare.cases_for_detail(rows, ["E4", "E5", "E3"]), ["E4", "E3", "E1"])
+
+    def test_fresh_measurements_win_over_repeated_scans_other_projects_and_late_receipts(self):
+        # One high-volume case has scans in the reporting week but already seen;
+        # another also has unseen old receipts, so neither marginal count nor their minimum works.
+        rows = [{"id": eid, "project": proj, "freshMeasuredSources": fresh,
+                 "newlyMeasuredSources": window, "newSourceAliases": unseen, "eligible": True}
+                for eid, proj, fresh, window, unseen in [
+                    ("E1", "P1", 0, 150, 150), ("E2", "P2", 10, 10, 10),
+                    ("E3", "P2", 2, 4, 2), ("E4", "P3", 1, 1, 1)]]
+        self.assertEqual(prepare.cases_for_detail(rows), ["E2","E4","E3"])
 
     def test_select_by_scientific_coverage(self):
         inputs = [
@@ -38,6 +48,7 @@ class ProjectionTests(unittest.TestCase):
                 "id": "E" + str(i),
                 "project": project,
                 "newlyMeasuredSources": measurements,
+                "freshMeasuredSources": measurements,
                 "newSourceAliases": 0,
                 "eligible": True,
             }

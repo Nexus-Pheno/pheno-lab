@@ -117,17 +117,23 @@ def route_panels(project, part, project_decision, experiments):
         eligible = [
             c
             for c in population
-            if c.get("direction") == "REVERSE"
-            and all(
+            if all(
                 c["pceExtremes"].get(k)
                 for k in ("championValidScan", "bestPhysicalSampleMedian")
             )
         ]
+        reverse = [c for c in eligible if c.get("direction") == "REVERSE"]
+        other_directions = sorted({c.get("direction") or "UNKNOWN" for c in eligible})
+        direction_sets = [reverse] if reverse else [
+            [c for c in eligible if (c.get("direction") or "UNKNOWN") == direction]
+            for direction in other_directions
+        ]
         chosen = {}
-        for field in ("championValidScan", "bestPhysicalSampleMedian"):
-            if eligible:
-                winner = max(eligible, key=lambda c: c["pceExtremes"][field]["pce"])
+        for direction_cohorts in direction_sets:
+            for field in ("championValidScan", "bestPhysicalSampleMedian"):
+                winner = max(direction_cohorts, key=lambda c: c["pceExtremes"][field]["pce"])
                 chosen[winner["routeCohortId"]] = winner
+
         for key in matched:
             if usable[key]["periodCohort"] == tag:
                 chosen[key] = usable[key]
@@ -181,6 +187,11 @@ def route_panels(project, part, project_decision, experiments):
             en=f"{tag.replace('_', ' ').lower()}: {len(population)} routes. The table shows the highest reverse scan and best device median where available.",
             zh=f"本时段共 {len(population)} 条路线。表中列出适用时反扫最高值及最佳器件中位数对应的路线。",
         )
+        if eligible and not reverse:
+            reason = dict(
+                en=f"{tag.replace('_', ' ').lower()}: {len(population)} routes. The table shows the highest scan and the best device median separately within each available scan direction.",
+                zh=f"本时段共 {len(population)} 条路线。表中按各自的扫描方向，分别列出最高扫描效率及最佳器件中位数对应的路线。",
+            )
         if matched and any(k in chosen for k in matched):
             reason["en"] += (
                 " The table also includes the route selected for the cross-period comparison."
@@ -312,12 +323,14 @@ def route_panels(project, part, project_decision, experiments):
     )
 
 
-def comparisons(e, ch_id):
+def comparisons(e, ch_id, selected_groups=None):
     out = []
     for ch in e["characterizations"]:
         if ch["id"] != ch_id:
             continue
         for group in ch["groups"]:
+            if selected_groups is not None and group["label"] not in selected_groups:
+                continue
             m = group["metrics"].get("pce") or {}
             out.append(
                 dict(
@@ -341,7 +354,7 @@ def pce_figure(characterization, selected_groups, language):
     arms = [
         g
         for g in characterization["groups"]
-        if g["label"] in selected_groups and g["metrics"].get("pce")
+        if g["label"] in selected_groups and (g["metrics"].get("pce") or {}).get("n", 0) > 0
     ]
     if not arms:
         return ""
@@ -424,7 +437,7 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
         policyVersion=e["policyVersion"],
         referenceGroup=e["reference"]["selectedGroup"],
         aiInterpretationUsed=False,
-        comparisons=comparisons(e, c["binding"]["characterizationId"]),
+        comparisons=comparisons(e, c["binding"]["characterizationId"], c["binding"]["groupLabels"]),
         **bi("conditionSummary", condition),
         **bi("selectionDefinition", SELECTION),
         **bi("judgment", p["judgment"]),
@@ -610,9 +623,15 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
     ]
     if not urls:
         raise ValueError("Selected case has no reviewed primary publication.")
-    lit = [
-        dict(url="https://doi.org/" + a["doi"], claim=primary_cause["en"]) for a in urls
-    ]
+    # The local hypothesis is a separate evidence claim. The reviewed source
+    # title identifies exactly what belongs to the published study.
+    lit = [dict(url="https://doi.org/" + a["doi"], claim=a["title"]) for a in urls]
+    links = "<ul>" + "".join(
+        '<li><a href="' + escape(src["url"], quote=True) + '">' + escape(src["claim"]) + '</a></li>'
+        for src in lit
+    ) + "</ul>"
+    test["bodyEn"] += "<p>Primary studies relevant to this proposed test</p>" + links
+    test["bodyZh"] += "<p>与本项验证实验相关的原始研究</p>" + links
     mech = dict(
         id="mechanism-" + key,
         sectionId=tid,
@@ -637,7 +656,7 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
         cells = [
             f"{g['label']} {fmt(g['metrics'][name]['mean'])} (n={g['metrics'][name]['n']})"
             for g in char["groups"]
-            if g["metrics"].get(name)
+            if g["label"] in c["binding"]["groupLabels"] and (g["metrics"].get(name) or {}).get("n", 0) > 0
         ]
         obs = (
             dict(
