@@ -321,6 +321,39 @@ class WeeklyScheduleTests(TestCase):
         self.assertNotIn(">Empty</text>", svg)
         self.assertNotIn("Unreviewed", svg)
 
+    def test_equal_and_close_device_results_have_independent_rows_and_exact_labels(self):
+        from envelopes import pce_figure
+        import xml.etree.ElementTree as et
+
+        groups = [
+            ("Singleton", 1, 20.1, 20.1, None),
+            ("Close", 2, 20.1233, 20.1235, 0.0003),
+            ("Spread missing", 3, 20, 22, None),
+        ]
+        groups.extend((f"Other {i}", 2, 19, 19, 0) for i in range(4))
+        source = {"groups": [
+            {"label": name, "metrics": {"pce": {"n": n, "mean": mean, "best": best, "sd": sd}}}
+            for name, n, mean, best, sd in groups
+        ]}
+        for lang in ("en", "zh"):
+            doc = et.fromstring("<root>" + pce_figure(source, [g[0] for g in groups], lang) + "</root>")
+            charts = doc.findall(".//{*}svg")
+            self.assertEqual(len(charts), 2)
+            self.assertTrue(all(float(chart.attrib["viewBox"].split()[3]) < 510 for chart in charts))
+            bars = [node for node in charts[0].iter() if node.attrib.get("stroke-width") == "5"]
+            self.assertEqual(bars[0].attrib["x2"], bars[1].attrib["x2"])
+            self.assertNotEqual(bars[0].attrib["y1"], bars[1].attrib["y1"])
+            self.assertNotEqual(bars[2].attrib["y1"], bars[3].attrib["y1"])
+            strings = [node.text for node in charts[0].findall("{*}text")]
+            self.assertEqual(strings.count("20.1%"), 2)
+            for value in ("20.1233%", "20.1235%"):
+                self.assertIn(value, strings)
+            summaries = [value for value in strings if value.startswith("n=") or "片器件" in value]
+            self.assertIn("0.0003", summaries[1])
+            self.assertTrue(all("— pp" not in value and "— 个百分点" not in value for value in summaries))
+            self.assertIn("one device" if lang == "en" else "无法计算标准差", summaries[0])
+            self.assertIn("SD unavailable" if lang == "en" else "无标准差记录", summaries[2])
+
     def test_route_table_headings_identify_every_project_and_window(self):
         from envelopes import route_panels, section
 

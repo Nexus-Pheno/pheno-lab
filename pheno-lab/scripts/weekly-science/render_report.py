@@ -161,6 +161,10 @@ def render(document):
         raise ValueError('Approved brand artwork has changed; confirm current canonical asset.')
     logo = 'data:image/png;base64,' + base64.b64encode(art).decode()
     css = Path(__file__).with_name('report.css').read_text()
+    # Newly generated charts have a compact viewBox and can fit even a 320px phone.
+    # Preserve the historic renderer's exact bytes for documents without these charts.
+    if any('<figure class="weekly-device-pce">' in body for body in rendered):
+        css += '\nfigure.weekly-device-pce svg{min-width:0;width:100%;max-width:550px}\n'
     script = '''function setLanguage(lang){lang=lang==='zh'?'zh':'en';document.documentElement.lang=lang;document.querySelectorAll('[data-lang]').forEach(e=>e.hidden=e.dataset.lang!==lang);document.querySelectorAll('[data-set-lang]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.setLang===lang)));}document.querySelectorAll('[data-set-lang]').forEach(b=>b.addEventListener('click',()=>{setLanguage(b.dataset.setLang);history.replaceState(null,'','#lang='+b.dataset.setLang);}));let printDetails=[];window.addEventListener('beforeprint',()=>{printDetails=[...document.querySelectorAll('details')].map(d=>[d,d.open]);printDetails.forEach(([d])=>d.open=true);});window.addEventListener('afterprint',()=>{printDetails.forEach(([d,open])=>d.open=open);printDetails=[];});document.getElementById('print').addEventListener('click',()=>window.print());setLanguage(location.hash.includes('lang=zh')?'zh':'en');'''
     local = lambda v: v.astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')
     header = f'<div class="top"><div class="wrap bar"><img class="logo" src="{logo}" alt="Pheno"><span class="private">' + bi('INTERNAL RESEARCH REPORT','内部研究报告') + '</span><div class="controls"><button data-set-lang="en" aria-pressed="true">English</button><button data-set-lang="zh" aria-pressed="false">中文</button><button id="print">'+bi('Print / save PDF','打印 / 保存 PDF')+'</button></div></div></div>'

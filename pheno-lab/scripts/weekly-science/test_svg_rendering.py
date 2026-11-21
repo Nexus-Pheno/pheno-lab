@@ -32,6 +32,15 @@ def document():
 
 
 class SvgRendering(unittest.TestCase):
+    def test_compact_chart_layout_is_opt_in_for_new_reports(self):
+        legacy = document()
+        rule = 'figure.weekly-device-pce svg{'
+        self.assertNotIn(rule, renderer.render(legacy))
+        case = legacy['sections'][0]
+        for key in ('bodyEn', 'bodyZh'):
+            case[key] = case[key].replace('<figure>', '<figure class="weekly-device-pce">')
+        self.assertIn(rule, renderer.render(legacy))
+
     def test_paint_and_text_become_presentation_attributes(self):
         value = renderer.normalize_svg_styles(chart())
         root = ET.fromstring(value)

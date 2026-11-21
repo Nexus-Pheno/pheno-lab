@@ -406,47 +406,61 @@ def pce_figure(characterization, selected_groups, language):
         "对照与实验组的器件效率" if zh else "Device efficiency in the selected arms"
     )
     note = (
-        "圆点为平均值；菱形为最高值。器件间离散性见条件表。"
+        "每组分别显示平均效率和最高效率。标准差按器件计算，单位为百分点。"
         if zh
-        else "Circles show mean PCE and diamonds show the highest device. The table gives device-to-device spread."
+        else "Each group shows mean and highest device efficiency. SD is the sample standard deviation across devices, in percentage points."
     )
-    width = 540
-    height = 65 + 58 * len(arms)
-    left, right = 82, 453
+    mean_name, best_name = ("平均", "最高") if zh else ("Mean", "Highest")
+    width = 350
+    left, right = 70, 247
     maximum = max(5, 5 * math.ceil(max(g["metrics"]["pce"]["best"] for g in arms) / 5))
     points = lambda value: left + (right - left) * value / maximum
-    svg = [
-        f'<figure><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="{heading}"><title>{heading}</title>',
-        f'<rect width="{width}" height="{height}" fill="white"/>',
-    ]
-    for i in range(6):
-        val = maximum * i / 5
-        x = points(val)
-        svg.append(
-            f'<line x1="{x}" x2="{x}" y1="32" y2="{height - 28}" stroke="#d6dedb"/><text x="{x}" y="22" text-anchor="middle" font-size="14" fill="#263c33">{fmt(val)}%</text>'
-        )
-    for i, g in enumerate(arms):
-        m = g["metrics"]["pce"]
-        y = 58 + i * 58
-        label = escape(str(g["label"]))
-        a, b = points(m["mean"]), points(m["best"])
-        svg.extend(
-            [
-                f'<text x="4" y="{y + 4}" fill="#223e34" font-size="15">{label}</text>',
-                f'<line x1="{a}" x2="{b}" y1="{y}" y2="{y}" stroke="#65896a" stroke-width="2"/>',
-                f'<circle cx="{a}" cy="{y}" r="6" fill="#265c4b"/>',
-                f'<path d="M{b},{y - 7} l7,7 l-7,7 l-7,-7 Z" fill="white" stroke="#714824" stroke-width="2"/>',
-                f'<text x="470" y="{y + 4}" fill="#263c33" font-size="14">n={m["n"]}</text>',
-            ]
-        )
-    return (
-        "".join(svg)
-        + "</svg><figcaption>"
-        + heading
-        + ". "
-        + note
-        + "</figcaption></figure>"
-    )
+    figures = []
+    # A bounded number of arms per figure fits a printed page. All parts use the same PCE axis.
+    for start in range(0, len(arms), 6):
+        page = arms[start : start + 6]
+        height = 36 + 77 * len(page)
+        svg = [
+            f'<figure class="weekly-device-pce"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-label="{heading}"><title>{heading}</title>',
+            f'<rect width="{width}" height="{height}" fill="white"/>',
+            '<text x="4" y="16" fill="#263c33" font-size="13">PCE (%)</text>',
+        ]
+        for i in range(6):
+            val = maximum * i / 5
+            x = points(val)
+            svg.append(f'<text x="{x}" y="16" text-anchor="middle" font-size="13" fill="#263c33">{fmt(val)}</text>')
+        for i, g in enumerate(page):
+            m = g["metrics"]["pce"]
+            y = 39 + i * 77
+            sd = m.get("sd")
+            if sd is None:
+                if m["n"] == 1:
+                    spread = "无法计算标准差" if zh else "SD unavailable for one device"
+                else:
+                    spread = "无标准差记录" if zh else "SD unavailable"
+            else:
+                spread = f'{"标准差 " if zh else "SD "}{fmt(sd)}{" 个百分点" if zh else " pp"}'
+            summary = (
+                f'{m["n"]} 片器件 · {spread}'
+                if zh else f'n={m["n"]} · {spread}'
+            )
+            svg.extend([
+                f'<text x="4" y="{y}" fill="#223e34" font-size="14" font-weight="bold">{escape(str(g["label"]))}</text>',
+                f'<text x="345" y="{y}" text-anchor="end" fill="#263c33" font-size="13">{escape(summary)}</text>',
+            ])
+            for value, name, line_y, colour in (
+                (m["mean"], mean_name, y + 17, "#265c4b"),
+                (m["best"], best_name, y + 38, "#835028"),
+            ):
+                end = points(value)
+                svg.extend([
+                    f'<text x="4" y="{line_y + 4}" fill="#263c33" font-size="13">{name}</text>',
+                    f'<line x1="{left}" x2="{right}" y1="{line_y}" y2="{line_y}" stroke="#d6dedb"/>',
+                    f'<line x1="{left}" x2="{end}" y1="{line_y}" y2="{line_y}" stroke="{colour}" stroke-width="5"/>',
+                    f'<text x="345" y="{line_y + 4}" text-anchor="end" fill="#263c33" font-size="14">{fmt(value)}%</text>',
+                ])
+        figures.append("".join(svg) + "</svg><figcaption>" + heading + ("。" if zh else ". ") + note + "</figcaption></figure>")
+    return "".join(figures)
 
 
 def case_records(c, s, e, chem, refs, articles, sections, priority):
