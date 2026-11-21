@@ -374,7 +374,21 @@ export async function callWeeklyFinalReview(options: {
   const result = await callPinnedModel({
     ...options,
     role: "final-reviewer",
-    policySystem: finalReviewSystem,
+    policySystem: [
+      finalReviewSystem,
+      "Use the following exact identifiers for the response object. Each list needs exactly one record per identifier, including cases where the assessment is BLOCK. Review the title and abstract alongside the numbered sections; they are only separate response items if present in the section ID list.",
+      "sections[].id = " + JSON.stringify(data.sections.map((s) => s.id)),
+      "assessments[].scope = " +
+        JSON.stringify([
+          "numerical",
+          "science",
+          "chemistry",
+          "source",
+          "bilingual",
+          "privacy",
+        ]),
+      "checks[].key = " + JSON.stringify(data.reviewChecks),
+    ].join("\n"),
     data,
     evidence: data,
     schema: finalReviewOutputSchema,
@@ -404,7 +418,18 @@ export async function callWeeklyFinalReview(options: {
     new Set(scopes).size !== 6
   )
     throw new Error(
-      "Final reviewer did not cover every section and scientific scope",
+      "Final reviewer coverage mismatch: sections " +
+        sections.length +
+        "/" +
+        data.sections.length +
+        ", missing issued sections " +
+        data.sections
+          .filter((s) => !sections.includes(s.id))
+          .map((s) => s.id)
+          .join(",") +
+        ", distinct scientific scopes " +
+        new Set(scopes).size +
+        "/6",
     );
   if (
     result.value.decision === "PASS" &&
