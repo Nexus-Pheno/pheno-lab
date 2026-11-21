@@ -85,10 +85,23 @@ def display_project_text(value, names):
                     "未分配项目" if language == "zh" else "Unassigned experiments"
                 )
 
-            result[key] = PROJECT_TOKEN.sub(project_name, text)
+            result[key] = display_lab_terms(PROJECT_TOKEN.sub(project_name, text), key)
         else:
             result[key] = display_project_text(text, names)
     return result
+
+
+def display_lab_terms(text, lang):
+    """Translate exact machine labels without changing the measured population or count."""
+    if lang == "en":
+        text = re.sub(r"(?:[Ii]nventory\s+)?newlyMeasuredSources\s*=\s*(\d+)",
+                      lambda m: ("The" if m.group()[0].isupper() else "the") + " count of " + m[1] + " scans dated within the reporting week", text)
+        text = re.sub(r"(?:[Ii]nventory\s+)?newlyMeasuredSources(?:\s+counts?)?", "counts of scans dated within the reporting week", text)
+        text = re.sub(r"recordedDevices\s*(?:=|are|is)\s*(\d+)", r"the number of devices with recorded settings is \1", text)
+        return text.replace("recordedDevices", "the number of devices with recorded settings").replace("NOT_RECORDED", "unrecorded")
+    text = re.sub(r"(?:(?:库存|清单|目录)\s*)?newlyMeasuredSources\s*=\s*(\d+)", r"测量日期在本周内的扫描共 \1 次", text)
+    text = re.sub(r"(?:(?:库存|清单|目录)\s*)?newlyMeasuredSources(?:\s*计数)?", "测量日期在本周内的扫描次数", text)
+    return text.replace("recordedDevices", "有实际设置记录的器件数").replace("NOT_RECORDED", "未记录")
 
 
 CASE_REFERENCE = re.compile(r"(?<![A-Za-z0-9_-])(?:G|E)[1-9][0-9]*(?![A-Za-z0-9_])")
@@ -110,7 +123,7 @@ def display_case_groups(value, groups, experiments):
                 if alias in experiments:
                     return experiments[alias]["code"]
                 raise ValueError("Scientific text references an unbound experiment or group")
-            result[key] = CASE_REFERENCE.sub(resolve_label, item)
+            result[key] = display_lab_terms(CASE_REFERENCE.sub(resolve_label, item), key)
         else:
             result[key] = display_case_groups(item, groups, experiments)
     return result
@@ -155,6 +168,7 @@ def assemble_science(root):
     maps = read(root / "private-science-bindings.json")
     facts = read(root / "private-scientific-facts.json")
     defs = {m["materialAlias"]: m for m in snap["privateChemistryDefinitions"]}
+    priorities = display_case_groups(scientific["priorities"], {}, names["cases"])
     sections = [
         section(
             "priorities",
@@ -163,7 +177,7 @@ def assemble_science(root):
             {
                 l: "<ol>"
                 + "".join(
-                    "<li>" + escape(q[l]) + "</li>" for q in scientific["priorities"]
+                    "<li>" + escape(q[l]) + "</li>" for q in priorities
                 )
                 + "</ol>"
                 for l in ["en", "zh"]
@@ -576,8 +590,8 @@ def assemble_science(root):
     document = {
         "titleEn": "Weekly R&D decisions · " + end[:10],
         "titleZh": "每周研发决策 · " + end[:10],
-        "summaryEn": scientific["priorities"][0]["en"],
-        "summaryZh": scientific["priorities"][0]["zh"],
+        "summaryEn": priorities[0]["en"],
+        "summaryZh": priorities[0]["zh"],
         "snapshotAt": snap["snapshotAt"],
         "windowStart": packet["period"]["start"],
         "windowEnd": end,
