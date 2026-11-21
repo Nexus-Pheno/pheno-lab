@@ -241,6 +241,14 @@ def prepare(run, prior, output):
     if (run / supplement).exists() or (run / supplement).is_symlink():
         file_hash(run, supplement)
         names.add(supplement)
+    proposal_proof = {"proposal-revision.private.json", "proposal-origin-scientific-review.private.json",
+                      "proposal-origin-challenge.private.json"}
+    present = {name for name in proposal_proof if (run / name).exists() or (run / name).is_symlink()}
+    if present:
+        need(present == proposal_proof, "PROPOSAL_REVISION_REQUIRES_ORIGINAL_BOUND_REFEREE")
+        for name in present:
+            file_hash(run, name)
+        names.update(present)
     readable_projects = record(run, "project-decisions-display.private.json", baseline.MAX_ARTIFACT_BYTES)
     need(readable_projects == display_project_text(record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
         record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"]), "DISPLAY_PROJECTS_DIFFER_FROM_REVIEWED_SOURCE")
