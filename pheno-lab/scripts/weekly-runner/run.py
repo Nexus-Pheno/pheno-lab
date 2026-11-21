@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 from zoneinfo import ZoneInfo
@@ -321,12 +322,119 @@ def prepare_dossier(work, prior):
     ts(AUTHOR / "write.ts", work)
 
 
+def rehearse(state, archive, predecessor, attempt):
+    """Use the scheduled analysis on a published snapshot, without a delivery path."""
+    archive = archive.resolve(strict=True)
+    predecessor = predecessor.resolve(strict=True)
+    sys.path.insert(0, str(SCI))
+    from replay_frozen_report import check_published_run
+
+    original, previous = check_published_run(archive), check_published_run(predecessor)
+    key = original["publicationKey"]
+    if not key.startswith("materials-process-weekly-") or Path(key).name != key:
+        raise ValueError("Rehearsal needs an immutable weekly period.")
+    initial_manifest = archive / "original-run-result.json"
+    lineage = read(initial_manifest) if initial_manifest.exists() else original
+    if lineage["priorReportId"] != previous["reportId"]:
+        raise ValueError(
+            "The rehearsal predecessor is not the published report's original baseline."
+        )
+    before = inspect(state, key)
+    if (
+        before["status"] != "PUBLISHED"
+        or before["reportId"] != original["reportId"]
+        or before["contentSha256"] != original["contentSha256"]
+    ):
+        raise ValueError("Original report is not reconciled.")
+    private = (state / "acceptance").resolve(strict=True)
+    target = attempt or private / ("reanalysis-" + key)
+    if target.is_symlink() or target.resolve().parent != private:
+        raise ValueError("Rehearsal requires a dedicated private acceptance directory.")
+    target = target.resolve()
+    target.mkdir(mode=0o700, exist_ok=True)
+    if (
+        target.stat().st_uid != os.geteuid()
+        or target.stat().st_mode & 0o077
+        or (target / "publication-envelope.json").exists()
+    ):
+        raise ValueError("Private unpublished rehearsal required.")
+    write(target / "rehearsal-original.json", before)
+    try:
+        snapshot = target / "snapshot.json"
+        if not snapshot.exists():
+            with (
+                (archive / "snapshot.json").open("rb") as source,
+                snapshot.open("xb") as frozen,
+            ):
+                shutil.copyfileobj(source, frozen)
+                frozen.flush()
+                os.fsync(frozen.fileno())
+        with snapshot.open("rb") as frozen:
+            if (
+                hashlib.file_digest(frozen, "sha256").hexdigest()
+                != original["snapshotSha256"]
+            ):
+                raise ValueError("Rehearsal snapshot differs from the original.")
+        selection = target / "baseline-selection.json"
+        if not selection.exists():
+            write(
+                selection,
+                dict(
+                    **previous,
+                    status="PUBLISHED_VERIFIED",
+                    sourceRunResult=str(predecessor / "run-result.json"),
+                ),
+            )
+        bound = read(selection)
+        if any(
+            bound[k] != previous[k]
+            for k in ("reportId", "snapshotSha256", "dossierPublishedSha256")
+        ):
+            raise ValueError("Rehearsal baseline changed.")
+        if not (target / "provider-packet.json").exists():
+            prepare_dossier(target, predecessor)
+        elif not (target / "manuscript-candidate.json").exists():
+            ts(AUTHOR / "write.ts", target)
+        run(
+            sys.executable,
+            "-B",
+            RUNNER / "review_work.py",
+            target,
+            predecessor,
+            timeout=18000,
+        )
+        review = verify_delivery_files(target)
+    finally:
+        after = inspect(state, key)
+        if after != before:
+            raise ValueError(
+                "Original report or existing delivery changed during rehearsal."
+            )
+    write(
+        target / "rehearsal-result.json",
+        dict(
+            originalContentSha256=before["contentSha256"],
+            reviewedCandidateSha256=review["contentSha256"],
+            sourceSha256=original["snapshotSha256"],
+            reportId=before["reportId"],
+            publicationKey=key,
+            noticeCount=len(after["noticeIds"]),
+            originalDeliveryPreserved=True,
+            publicationPerformed=False,
+        ),
+    )
+    print("Reanalysis passed. The original report, audit and five notices are intact.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("scheduled", "replay"))
+    parser.add_argument("mode", choices=("scheduled", "replay", "rehearse"))
     parser.add_argument("--state", default="/var/lib/pheno-lab-weekly", type=Path)
     parser.add_argument("--frozen", type=Path)
     parser.add_argument("--prior", type=Path)
+    parser.add_argument(
+        "--attempt", type=Path, help="Resume a private non-publishing rehearsal."
+    )
     args = parser.parse_args()
     os.umask(0o077)
     state = args.state.resolve(strict=True)
@@ -334,6 +442,15 @@ def main():
         raise ValueError("Private reporting state required.")
     with (state / "job.lock").open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args.mode == "rehearse":
+            if not args.frozen or not args.prior:
+                parser.error(
+                    "Rehearsal requires a published period and its original predecessor."
+                )
+            rehearse(state, args.frozen, args.prior, args.attempt)
+            return
+        if args.attempt:
+            parser.error("A private acceptance directory is only used for rehearsal.")
         if args.mode == "replay":
             if not args.frozen or not args.prior:
                 parser.error("Replay requires two verified dated baselines.")
@@ -391,7 +508,7 @@ def main():
             ts(AUTHOR / "write.ts", work)
         # The same final gate, independently reviewed paper and frozen-envelope path
         # are used on first publication and after an uncertain response.
-        run(sys.executable, "-B", RUNNER / "review_work.py", work, prior)
+        run(sys.executable, "-B", RUNNER / "review_work.py", work, prior, timeout=18000)
         deliver(state, work)
 
 

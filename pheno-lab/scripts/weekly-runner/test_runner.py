@@ -69,6 +69,64 @@ class WeeklyScheduleTests(TestCase):
                     runner.main()
                 deliver.assert_not_called()
 
+    def test_reanalysis_preserves_notices_even_when_a_draft_is_rejected(self):
+        import sys
+
+        sys.path.insert(0, str(runner.SCI))
+        import replay_frozen_report
+
+        with tempfile.TemporaryDirectory() as folder:
+            state = Path(folder)
+            archive, prior = state / "historic", state / "prior"
+            for p in (archive, prior, state / "acceptance"):
+                p.mkdir(mode=0o700)
+            (archive / "snapshot.json").write_bytes(b"actual frozen input")
+            key = "materials-process-weekly-2026-11-21-v1"
+            original = dict(
+                publicationKey=key,
+                reportId="original",
+                contentSha256="content",
+                priorReportId="prior",
+                snapshotSha256=hashlib.sha256(b"actual frozen input").hexdigest(),
+            )
+            base = dict(
+                reportId="prior",
+                snapshotSha256="source",
+                dossierPublishedSha256="ledger",
+            )
+            before = dict(
+                status="PUBLISHED",
+                reportId="original",
+                contentSha256="content",
+                noticeIds=list("abcde"),
+            )
+            with (
+                mock.patch.object(
+                    replay_frozen_report,
+                    "check_published_run",
+                    side_effect=[original, base],
+                ),
+                mock.patch.object(
+                    runner, "inspect", side_effect=[before, before]
+                ) as inspect,
+                mock.patch.object(
+                    runner, "prepare_dossier", side_effect=ValueError("draft rejected")
+                ),
+                mock.patch.object(runner, "deliver") as publish,
+            ):
+                with self.assertRaisesRegex(ValueError, "draft rejected"):
+                    runner.rehearse(state, archive, prior, None)
+                self.assertEqual(inspect.call_count, 2)
+                publish.assert_not_called()
+            self.assertFalse(
+                (
+                    state
+                    / "acceptance"
+                    / ("reanalysis-" + key)
+                    / "rehearsal-result.json"
+                ).exists()
+            )
+
     def test_changed_source_or_peer_receipt_blocks_delivery(self):
         with tempfile.TemporaryDirectory() as folder:
             work = Path(folder)
