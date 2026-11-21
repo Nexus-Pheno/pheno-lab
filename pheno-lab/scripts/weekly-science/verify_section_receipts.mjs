@@ -95,7 +95,10 @@ async function main() {
     );
     return;
   }
-  assert.equal(process.argv.length, 3);
+  assert(
+    process.argv.length === 3 ||
+      (process.argv.length === 4 && process.argv[3] === "--through-purpose"),
+  );
   const projects = await data("project-source-packet.private.json");
   const bundle = await data("project-decisions.json");
   const summary = await data("project-decisions-review.json");
@@ -271,6 +274,18 @@ async function main() {
     hash({ evidence: { cases }, candidate: author.value }),
   );
 
+  if (process.argv[3] === "--through-purpose") {
+    console.log(
+      JSON.stringify({
+        publicManuscriptAccepted: true,
+        projects: summary.projects.length,
+        purposeAssessments: goal.rows.length,
+        publicationReady: false,
+        distinctCompletions: seen.size,
+      }),
+    );
+    return;
+  }
   const scientific = await data("science-public-index.private.json");
   const science = await data("science-interpretation.json");
   const privateBindings = await data("private-science-bindings.json");
