@@ -18,6 +18,7 @@ import period_scope
 from referee_project_sources import project_sources
 from ledger_audience import LedgerAudience, verify_manager_html, verify_inactive_followups
 from manager_material_names import ManagerMaterialNames
+from project_ledger import register, verify_view, HistoricalWording
 from project_names import names_from_source, verify_project_names
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
@@ -287,6 +288,18 @@ def prepare(run, prior, output):
     inputs={n:file_hash(run,n) for n in sorted(names)}
     final_html = render_report.render(doc)
     reviewed_dossier = record(run, "rd-dossier-reviewed.json", baseline.MAX_ARTIFACT_BYTES)
+    prior_dossier = record(prior, "rd-dossier-published.json", baseline.MAX_ARTIFACT_BYTES)
+    known_evidence = {e["code"] for e in snap["experimentSummaries"]} | {
+        e["measurementAlias"] for e in snap["sampleMeasurements"] + snap["historicalSampleMeasurements"] if e.get("measurementAlias")}
+    expected_scope, expected_issues = register(prior_dossier, reviewed_dossier,
+        record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-decisions-review.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES), project_labels, known_evidence)
+    need(doc["decisionReview"]["priorIssueScope"] == expected_scope and
+         doc["decisionReview"]["priorIssueReviews"] == expected_issues, "PRIOR_QUESTION_REGISTER_SOURCE_MISMATCH")
+    verify_view(doc, expected_scope, prior_dossier, reviewed_dossier)
+    HistoricalWording(prior_dossier).verify(final_html, doc)
     verify_manager_html(final_html, LedgerAudience(reviewed_dossier["ledgerEntries"]))
     ManagerMaterialNames(snap, readable_projects).verify(final_html)
     verify_inactive_followups(final_html, record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),

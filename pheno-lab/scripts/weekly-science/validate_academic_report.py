@@ -118,6 +118,9 @@ def _validate(document, snapshot, dossier):
     if main and appendices and max(positions[s] for s in main) >= min(positions[s] for s in appendices):
         fail('APPENDICES_MUST_FOLLOW_SCIENTIFIC_CONCLUSIONS', 'academicReview.appendixSectionIds')
     rd_roles = (document.get('rdReview') or {}).get('sectionIds') or {}
+    if (document.get("decisionReview", {}).get("priorIssueScope", {}).get("presentation") == "PROJECT_STATUS_REGISTER_V1" and
+            (roles.get("appendixContinuity") != "prior-action-review" or rd_roles.get("continuity") != "prior-action-review")):
+        fail("PROJECT_QUESTION_CONTINUITY_MISSING_FROM_APPENDIX", "academicReview.sectionIds.appendixContinuity")
     if not decision_led and any(rd_roles.get(role) not in appendices for role in ('projects', 'continuity')):
         fail('MANAGEMENT_HISTORY_REMAINS_IN_MAIN_NARRATIVE', 'rdReview.sectionIds')
     if decision_led and (rd_roles.get('projects') not in main or

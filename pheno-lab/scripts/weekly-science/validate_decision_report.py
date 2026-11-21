@@ -508,6 +508,14 @@ def _validate(document, snapshot, dossier, prior_ledger):
         scope = scope if isinstance(scope, dict) else {}
     selected_entries = [item.get('entryId') for item in issues]
     eligible_prior = set(prior) if prior is not None else set(ledger)
+    if scope.get("presentation") == "PROJECT_STATUS_REGISTER_V1":
+        from project_ledger import verify_view
+        try:
+            verify_view(document, scope, prior_ledger, dossier)
+        except (ValueError, KeyError, TypeError):
+            fail("PROJECT_QUESTION_REGISTER_DIFFERS_FROM_HISTORY_OR_PAPER", "decisionReview.priorIssueScope")
+        if prior is None:
+            eligible_prior -= set(scope.get("newEntryIds", []))
     if len(selected_entries) != len(set(selected_entries)) or not set(selected_entries).issubset(eligible_prior):
         fail('UNKNOWN_OR_DUPLICATE_PRIOR_ISSUE_REVIEW', 'decisionReview.priorIssueReviews')
     if scope.get('selectedEntryIds') != selected_entries or not bilingual(scope, 'selectionReason'):

@@ -82,6 +82,8 @@ def project_sources(doc, dossier, source, attainment, receipts, decisions, bindi
             texts = [item["statement"], item["previousDecision"], *decision["rationale"].values()]
             if entry_id in audience.restricted or any(audience.matches(text) for text in texts):
                 row.update(audience="RESTRICTED_LEDGER_STATUS_ONLY", sourceRecordSha256=record_hash(after))
+            elif decision["assessment"] == "no-new-direct-test" and item["status"] == after["status"]:
+                row.update(sourceRecordSha256=record_hash(after), reviewedAssessmentSha256=record_hash(decision))
             else:
                 row["statement"] = item["statement"]
                 if entry_id in visible_issues or decision["testedExperimentCodes"]:

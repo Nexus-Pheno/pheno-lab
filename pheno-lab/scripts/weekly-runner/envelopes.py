@@ -16,7 +16,7 @@ sys.path.insert(0, str(SCI))
 from literature_appendix import source_appendix
 import result_source_register
 from project_names import names_from_source, translate_project_names
-from ledger_audience import LedgerAudience
+from project_ledger import register, add_to_sections, HistoricalWording
 from manager_material_names import ManagerMaterialNames
 import validate_rd_document as public
 import validate_decision_report as decision
@@ -832,7 +832,9 @@ def case_records(c, s, e, chem, refs, articles, literature, sections, priority):
     )
 
 
-def historical_context(code, decision_row, source, assessment, ctx):
+def historical_context(code, decision_row, source, assessment, ctx, audience):
+    decision_row = {k: audience.pair(v, decision_row["purpose"]) if isinstance(v, dict) and set(v) == {"en", "zh"} else v for k,v in decision_row.items()}
+    assessment = {**assessment, "reason": audience.pair(assessment["reason"])}
     fields = {}
     for field in ("observation", "problem", "hypothesis"):
         raw = source.get(field) or ""
@@ -997,21 +999,15 @@ def assemble(work, prior):
     for lang in LANGS:
         sections["sources"]["body" + lang.title()] += source_bodies[lang]
     routes = []
-    issues = []
     previous = read(prior / "rd-dossier-published.json")
-    ledger = {e["entryId"]: e for e in previous["ledgerEntries"]}
-    manager_ledger = LedgerAudience(ds["ledgerEntries"])
+    audience = HistoricalWording(previous)
     project_candidates = proj["projects"]
     attainment = {
         (r["project"], r["experimentCode"], r["sourceHash"]): r
         for r in read(work / "project-attainment.json")["rows"]
     }
     bmap = read(work / "bindings.private.json")["projects"]
-    project_receipts = {
-        r["project"]: r
-        for r in read(work / "project-decisions-review.json")["projects"]
-    }
-    verified_changes = {r["entryId"]: r for r in ds["ledgerEntries"]}
+    project_receipts = read(work / "project-decisions-review.json")
     for p in ds["projects"]:
         alias = p["projectAlias"] or "UNASSIGNED"
         row = next(
@@ -1035,6 +1031,7 @@ def assemble(work, prior):
                     obs[code],
                     attainment[(row["project"], code, intent["sourceHash"])],
                     sections["context"],
+                    audience,
                 )
                 rows["selected"].append(detail)
                 rows["context"].append(context)
@@ -1045,69 +1042,17 @@ def assemble(work, prior):
             reason=row["decision"],
         )
         routes.append(route_panels(p, sections["routes"], decision_row, codes))
-        lookup = {
-            v["key"]: v["entryId"]
-            for v in project_receipts[row["project"]]["issueBindings"]
-        }
-        # All prior entries receive an independent assessment. Detail changed issues
-        # and one remaining open question per project in the report appendix.
-        chosen = [
-            v
-            for v in row["issueAssessments"]
-            if v["assessment"] != "no-new-direct-test"
-            or ledger[lookup[v["key"]]] != verified_changes[lookup[v["key"]]]
-        ]
-        for v in row["issueAssessments"]:
-            if v["assessment"] == "no-new-direct-test" and v not in chosen:
-                chosen.append(v)
-                break
-        for follow in chosen:
-            ident = lookup[follow["key"]]
-            old = ledger[ident]
-            new = verified_changes[ident]
-            changed = old != new
-            wording = manager_ledger.followup(ident, follow["assessment"], follow["rationale"], changed=changed)
-            if follow["assessment"] == "no-new-direct-test" and not changed:
-                name = p.get("projectName")
-                wording = {"en": (name or "Unassigned experiments") + " — " + wording["en"],
-                           "zh": (name or "未分配项目的实验") + "：" + wording["zh"]}
-            item = dict(
-                entryId=ident,
-                sectionId="context",
-                currentStatus=new["status"],
-                revision=new["revision"],
-                assessment="REVIEWED_UPDATE"
-                if changed
-                else "UNCHANGED_NO_NEW_EVIDENCE",
-                executionStatus="NOT_VERIFIED",
-                evidenceIds=[
-                    k
-                    for k in new["history"][-1]["evidenceIdentifiers"]
-                    if k in obs or k in scans
-                ]
-                if changed
-                else [],
-                **bi("analysis", wording),
-            )
-            issues.append(item)
-            append(sections["context"], wording)
-    issue_scope = dict(
-        selectedEntryIds=[r["entryId"] for r in issues],
-        omittedUnchangedCount=len(ledger) - len(issues),
-        **bi(
-            "selectionReason",
-            dict(
-                en="The project review follows earlier questions that could affect this week’s decisions. Other previous entries remain in the dated ledger.",
-                zh="项目复核跟踪会影响本周判断的前期问题。其余历史条目保留在有日期的记录中。",
-            ),
-        ),
-    )
+    labels = names_from_source(snapshot, bmap, proj)
+    issue_scope, issues = register(previous, ds, read(work / "bindings.private.json"),
+                                   read(work / "project-decisions.json"), project_receipts,
+                                   read(work / "science-public-index.private.json"), labels, set(obs) | set(scans))
+    add_to_sections(sections, issue_scope)
     new_count = sum(p["newSourceAliasesSincePriorSnapshots"] for p in ds["projects"])
     roles = dict(
         projects="projects",
         performance=q[0]["sectionId"],
         reproducibility="routes",
-        continuity="context",
+        continuity="prior-action-review",
         mechanisms=q[0]["testSectionId"],
         priorities="priorities",
         limitations="context",
@@ -1211,7 +1156,7 @@ def assemble(work, prior):
             methods="methods",
             resultsDiscussion=sid,
             conclusions="priorities",
-            appendixContinuity="context",
+            appendixContinuity="prior-action-review",
             appendixProjectProgress="routes",
             appendixEvidenceHistory="routes",
             appendixInventory="sources",
@@ -1271,7 +1216,7 @@ def assemble(work, prior):
     doc["windowStart"] = snapshot["windowStart"]
     doc["windowEnd"] = snapshot["windowEnd"]
     doc["sections"] = [sections[k] for k in main + appendix]
-    translate_project_names(doc, names_from_source(snapshot, bmap, proj))
+    translate_project_names(doc, labels)
     ManagerMaterialNames(snapshot, proj).project(doc)
     result_source_register.attach(work, snapshot, ds, doc)
     return doc
