@@ -179,3 +179,16 @@ def verify_scope_note(document, snapshot, prior=None):
     for sid, notes in section_notes(document, snapshot, prior).items():
         if any(not sections.get(sid, {}).get(key, "").startswith(passage) for key, passage in notes.items()):
             raise ValueError("Missing bilingual follow-up status or fresh measurement count")
+
+def verify_followup_timing(snapshot, previous, public_index, decisions, bindings):
+    fresh, _, _ = scan_timing(snapshot, previous)
+    for assessment in public_index["followupAssessments"]:
+        if assessment["assessment"] != "no-new-direct-test" and not fresh.get(
+                bindings["cases"][assessment["experiment"]]["code"]):
+            raise ValueError("Previously seen measurements cannot establish a newly conducted follow-up test")
+    for project in decisions["projects"]:
+        for assessment in project["issueAssessments"]:
+            if assessment["assessment"] != "no-new-direct-test" and not (
+                assessment["testedExperimentCodes"] and all(fresh.get(code) for code in assessment["testedExperimentCodes"])
+            ):
+                raise ValueError("A project follow-up claim needs genuinely new measurements in every cited experiment")

@@ -86,6 +86,7 @@ export const projectionSchema = z.strictObject({
       id: project,
       assigned: z.boolean(),
       measuredScans: ordinal,
+      freshMeasuredScans: ordinal.optional(),
       priorUnseenSources: ordinal,
       olderReceipts: ordinal,
       ledgerStates: z.array(phase),

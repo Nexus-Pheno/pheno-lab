@@ -95,6 +95,22 @@ class QuietPeriodTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             period_scope.verify_scope_note(doc, current, prior)
 
+    def test_older_measurement_cannot_become_new_direct_test_for_either_reviewer(self):
+        current, prior, _, _ = dataset()
+        old = scan("seen", START, code="A")
+        current["sampleMeasurements"] = [old, scan("recent", START, code="B")]
+        prior["sampleMeasurements"] = [old]
+        bind = {"cases":{"E1":{"code":"A"}}}
+        index = {"followupAssessments":[{"experiment":"E1","assessment":"direct-test"}]}
+        decisions = {"projects":[{"issueAssessments":[{"assessment":"direct-test","testedExperimentCodes":["B"]}]}]}
+        with self.assertRaises(ValueError):
+            period_scope.verify_followup_timing(current, prior, index, decisions, bind)
+        index["followupAssessments"][0]["assessment"] = "no-new-direct-test"
+        period_scope.verify_followup_timing(current, prior, index, decisions, bind)
+        decisions["projects"][0]["issueAssessments"][0]["testedExperimentCodes"].append("A")
+        with self.assertRaises(ValueError):
+            period_scope.verify_followup_timing(current, prior, index, decisions, bind)
+
     def test_bilingual_notice_bound_to_real_export_asof_and_checked_on_sealed_document(self):
         current, prior, dossier, meta = dataset()
         current["weeklyCollectionScope"] = period_scope.derive(current, prior, dossier, meta)

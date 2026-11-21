@@ -208,7 +208,10 @@ def prepare(run, prior, output):
     need(baseline.timestamp(snap['sharedAppEvidence']['asOf'])<=baseline.timestamp(private_review['reviewedAt'])<=now()+dt.timedelta(minutes=1),
          'PRIVATE_PEER_REVIEW_PREDATES_CURRENT_EVIDENCE')
     doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
-    period_scope.verify_scope_note(doc, snap, record(prior, "snapshot.json", baseline.MAX_ARTIFACT_BYTES))
+    previous = record(prior, "snapshot.json", baseline.MAX_ARTIFACT_BYTES)
+    period_scope.verify_scope_note(doc, snap, previous)
+    period_scope.verify_followup_timing(snap, previous, record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES), record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES))
     annex=record(run,'private-material-review.json')
     literature={'sources':read_list(run,'article-refresh.json')}
     need(all(x in doc for x in ('rdReview','decisionReview','academicReview','evidenceMethodReview','collaboratorReview','languageReview')),

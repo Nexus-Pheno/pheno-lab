@@ -390,6 +390,7 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
         [],
         {"cases": {}, "projects": {}},
     )
+    fresh, _, _ = scan_timing(snapshot, prior)
     for n, p in enumerate(dossier["projects"], 1):
         project = "P" + str(n)
         if p["projectAlias"] in pmap:
@@ -432,6 +433,7 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
                 "id": project,
                 "assigned": p["assigned"],
                 "measuredScans": count(p["newMeasuredEvidenceScans"]),
+                "freshMeasuredScans": sum(fresh.get(e["experimentCode"], 0) for e in p["experiments"]),
                 "priorUnseenSources": count(p["newSourceAliasesSincePriorSnapshots"]),
                 "olderReceipts": count(p["receivedOlderMeasurementsDuringPeriod"]),
                 "ledgerStates": states,
@@ -440,7 +442,6 @@ def projection(snapshot, dossier, prior, previous_dossier, articles):
                 ],
             }
         )
-    fresh, _, _ = scan_timing(snapshot, prior)
     prior_ids = snapshot_sources(prior)
     measurements = collections.defaultdict(list)
     for alias, src in snapshot_sources(snapshot).items():
