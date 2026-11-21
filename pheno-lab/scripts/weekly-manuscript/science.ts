@@ -39,6 +39,7 @@ export function bindScience(evidence: Evidence, science: Science) {
     JSON.stringify(science.cases.map((c) => c.experiment))
   )
     throw Error("Scientific case coverage or order differs");
+  const chemicalErrors: string[] = [];
   for (const [i, c] of science.cases.entries()) {
     const source = evidence.cases[i];
     const facts = evidence.publicEvidence.cases.find(
@@ -78,30 +79,50 @@ export function bindScience(evidence: Evidence, science: Science) {
     )
       throw Error("Recipe-context coverage differs");
     const m = source.materials.find((x) => x.id === chem.material);
+    const invalid: string[] = [];
     if (chem.status === "CURRENT_VERIFIED_GRAPH") {
-      if (
-        !m?.graph ||
-        m.name !== chem.displayName ||
-        !chem.graphHypotheses.length ||
-        !chem.compatibility.length ||
-        !chem.consultedDescriptorFields.length ||
-        chem.consultedDescriptorFields.some(
-          (d) => !(d in m.graph!.descriptor),
-        ) ||
-        chem.consultedMotifFields.some((d) => !(d in m.graph!.motifs))
-      )
-        throw Error("Graph, identity or consulted evidence does not match");
-    } else if (
-      (chem.material !== null && (!m || m.name !== chem.displayName)) ||
-      chem.graphHypotheses.length ||
-      chem.compatibility.length ||
-      chem.consultedDescriptorFields.length ||
-      chem.consultedMotifFields.length
-    )
-      throw Error(
-        "Unresolved chemical identity contains graph-specific claims",
-      );
+      if (!m?.graph) {
+        invalid.push("material must resolve to a supplied current graph");
+      } else {
+        if (m.name !== chem.displayName)
+          invalid.push(
+            "displayName must exactly equal the selected material.name",
+          );
+        if (!chem.graphHypotheses.length || !chem.compatibility.length)
+          invalid.push("give case-bound graphHypotheses and compatibility");
+        if (
+          !chem.consultedDescriptorFields.length ||
+          chem.consultedDescriptorFields.some(
+            (k) => !(k in m.graph!.descriptor),
+          )
+        )
+          invalid.push(
+            "copy consultedDescriptorFields from material.graph.descriptor keys",
+          );
+        if (chem.consultedMotifFields.some((k) => !(k in m.graph!.motifs)))
+          invalid.push(
+            "copy consultedMotifFields from material.graph.motifs keys",
+          );
+      }
+    } else {
+      if (chem.material !== null && (!m || m.name !== chem.displayName))
+        invalid.push(
+          "displayName must exactly match material, or material must be null when unresolved",
+        );
+      for (const field of [
+        "graphHypotheses",
+        "compatibility",
+        "consultedDescriptorFields",
+        "consultedMotifFields",
+      ] as const)
+        if (chem[field].length)
+          invalid.push(field + " must be empty for unresolved identity");
+    }
+    if (invalid.length)
+      chemicalErrors.push(c.experiment + ": " + invalid.join(", "));
   }
+  if (chemicalErrors.length)
+    throw Error(chemicalErrors.join(" | ").slice(0, 900));
 }
 
 async function main() {
