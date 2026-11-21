@@ -354,6 +354,26 @@ class WeeklyScheduleTests(TestCase):
             self.assertIn("one device" if lang == "en" else "无法计算标准差", summaries[0])
             self.assertIn("SD unavailable" if lang == "en" else "无标准差记录", summaries[2])
 
+    def test_printable_route_tables_preserve_every_value_and_its_identity(self):
+        from envelopes import route_tables
+        import xml.etree.ElementTree as et
+
+        header = [f"Metric {i}" for i in range(14)]
+        source = [["Experiment", "Control", "reverse", *range(3, 14)]]
+        for lang in ("en", "zh"):
+            sections = et.fromstring("<root>" + route_tables(header, source, lang) + "</root>")
+            tables = sections.findall(".//table")
+            self.assertEqual(len(tables), 3)
+            values = []
+            for t in tables:
+                names = [cell.text for cell in t.findall("thead/tr/th")]
+                cells = [cell.text for cell in t.findall("tbody/tr/td")]
+                self.assertLessEqual(len(cells), 7)
+                self.assertEqual(len(names), len(cells))
+                self.assertEqual(cells[:3], source[0][:3])
+                values.extend(zip(names[3:], cells[3:]))
+            self.assertEqual(values, [(header[i], str(source[0][i])) for i in range(3, 14)])
+
     def test_route_table_headings_identify_every_project_and_window(self):
         from envelopes import route_panels, section
 

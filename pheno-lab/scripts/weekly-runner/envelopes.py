@@ -77,6 +77,23 @@ def table(head, rows):
     )
 
 
+def route_tables(header, rows, language):
+    # Repeat the route identity in each compact table so every statistic stays
+    # identifiable when a project section spans multiple printed pages.
+    tables = [
+        ("Scan coverage and highest PCE", "扫描数量与最高效率", (3, 4, 5, 6)),
+        ("Distribution of device median PCE", "器件中位效率的分布", (7, 8, 9, 10)),
+        ("Component means and device counts", "分项参数均值与器件数", (11, 12, 13)),
+    ]
+    output = []
+    for en, zh, metrics in tables:
+        indices = (0, 1, 2, *metrics)
+        heading = zh if language == "zh" else en
+        output.append("<h5>" + heading + "</h5>")
+        output.append(table([header[i] for i in indices], [[row[i] for i in indices] for row in rows]))
+    return "".join(output)
+
+
 def route_panels(project, part, project_decision, experiments):
     project_name = project.get("projectName")
     for language, fallback in (
@@ -281,7 +298,7 @@ def route_panels(project, part, project_decision, experiments):
             ),
         ]:
             if rows:
-                part["body" + l.title()] += table(header, rows)
+                part["body" + l.title()] += route_tables(header, rows, l)
         periods.append(
             dict(
                 period=tag,
