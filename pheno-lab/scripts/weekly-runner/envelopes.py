@@ -13,6 +13,7 @@ import sys
 
 SCI = Path(__file__).resolve().parents[1] / "weekly-science"
 sys.path.insert(0, str(SCI))
+from literature_appendix import source_appendix
 from project_names import names_from_source, translate_project_names
 import validate_rd_document as public
 import validate_decision_report as decision
@@ -481,7 +482,7 @@ def pce_figure(characterization, selected_groups, language):
     return "".join(figures)
 
 
-def case_records(c, s, e, chem, refs, articles, sections, priority):
+def case_records(c, s, e, chem, refs, articles, literature, sections, priority):
     p = c.get("displayPublic", c["public"])
     key = c["case"].lower()
     code = c["binding"]["experimentCode"]
@@ -702,23 +703,29 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
     ]
     if not urls:
         raise ValueError("Selected case has no reviewed primary publication.")
-    # The local hypothesis is a separate evidence claim. The reviewed source
-    # title identifies exactly what belongs to the published study.
-    lit = [dict(url="https://doi.org/" + a["doi"], claim=a["title"]) for a in urls]
-    links = (
-        "<ul>"
-        + "".join(
-            '<li><a href="'
-            + escape(src["url"], quote=True)
-            + '">'
-            + escape(src["claim"])
-            + "</a></li>"
-            for src in lit
+    lit = []
+    for a in urls:
+        paper = literature[a["paper"]]
+        use = next(u for u in paper["uses"] if u["experiment"] == c["case"])
+        lit.append(
+            dict(url="https://doi.org/" + a["doi"], claim=paper["finding"]["en"])
         )
-        + "</ul>"
-    )
-    test["bodyEn"] += "<p>Primary studies relevant to this proposed test</p>" + links
-    test["bodyZh"] += "<p>与本项验证实验相关的原始研究</p>" + links
+        for lang in LANGS:
+            test["body" + lang.title()] += (
+                '<p><a href="https://doi.org/'
+                + escape(a["doi"], quote=True)
+                + '">'
+                + escape(a["title"])
+                + "</a> · "
+                + escape(use["relevance"][lang])
+                + ' <a href="#sources">'
+                + (
+                    "论文与本实验的差异"
+                    if lang == "zh"
+                    else "How the study differs from this experiment"
+                )
+                + "</a></p>"
+            )
     mech = dict(
         id="mechanism-" + key,
         sectionId=tid,
@@ -919,6 +926,7 @@ def assemble(work, prior):
     }
     rows = defaultdict(list)
     current = {}
+    source_bodies, literature = source_appendix(work, q, science, articles, ex)
     for i, c in enumerate(q):
         code = c["binding"]["experimentCode"]
         source = obs[code]
@@ -951,6 +959,7 @@ def assemble(work, prior):
             chem,
             refs,
             articles,
+            literature,
             sections,
             ("P0", "P1", "P2")[min(i, 2)],
         ).items():
@@ -959,21 +968,12 @@ def assemble(work, prior):
     append(
         sections["sources"],
         {
-            "en": f"The application supplied device evidence for {len(ex)} experiments. This report examines {len(current)} of them in detail. Device comparisons use the lab’s accepted measurements. The primary studies below inform the proposed tests of materials and interfaces. Their device designs and processing conditions determine which findings apply here.",
-            "zh": f"系统共提供 {len(ex)} 项实验的器件数据，本期详细分析其中 {len(current)} 项。各组性能比较取自实验室采纳的测量结果。下列原始研究用于设计材料及界面的验证实验；引用时需结合论文的器件结构和制备条件判断其适用范围。",
+            "en": f"The application supplied device evidence for {len(ex)} experiments. This report examines {len(current)} of them in detail. Device comparisons use the lab’s accepted measurements. Each paper below identifies the proposed test it informs or explains its role as background reading.",
+            "zh": f"系统共提供 {len(ex)} 项实验的器件数据，本期详细分析其中 {len(current)} 项。各组性能比较取自实验室采纳的测量结果。下文逐篇说明论文对哪项验证实验有参考价值，以及哪些论文仅供背景阅读。",
         },
     )
-    for a in articles:
-        url = "https://doi.org/" + a["doi"]
-        line = (
-            '<p><a href="'
-            + escape(url, quote=True)
-            + '">'
-            + escape(a["title"])
-            + "</a></p>"
-        )
-        for lang in LANGS:
-            sections["sources"]["body" + lang.title()] += line
+    for lang in LANGS:
+        sections["sources"]["body" + lang.title()] += source_bodies[lang]
     routes = []
     issues = []
     previous = read(prior / "rd-dossier-published.json")

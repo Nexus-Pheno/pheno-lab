@@ -22,6 +22,41 @@ import { resumeScientificAuthor } from "./saved-science-author";
 type Evidence = z.output<typeof privateScienceInputSchema>["evidence"];
 type Science = z.output<typeof scienceInterpretationSchema>;
 export function bindScience(evidence: Evidence, science: Science) {
+  const literature = science.literatureNotes;
+  const exactSet = (a: string[], b: string[]) =>
+    a.length === b.length &&
+    new Set(a).size === a.length &&
+    new Set(b).size === b.length &&
+    a.every((v) => b.includes(v));
+  if (
+    !literature ||
+    !exactSet(
+      literature.caseTitles.map((t) => t.experiment),
+      evidence.cases.map((c) => c.experiment),
+    ) ||
+    !exactSet(
+      literature.articles.map((a) => a.paper),
+      evidence.articles.map((a) => a.id),
+    )
+  )
+    throw Error(
+      "Each selected case needs a title disclosure decision and every supplied paper needs bilingual source notes",
+    );
+  for (const a of literature.articles) {
+    if (
+      !exactSet(
+        a.uses.map((u) => u.experiment),
+        science.cases
+          .filter((c) => c.chemical.sources.includes(a.paper))
+          .map((c) => c.experiment),
+      )
+    )
+      throw Error(
+        "Case applications for " +
+          a.paper +
+          " differ from the selected scientific citations",
+      );
+  }
   const reviewed = new Set(science.followupAssessments.map((h) => h.id));
   if (
     reviewed.size !== evidence.followupRecords.length ||

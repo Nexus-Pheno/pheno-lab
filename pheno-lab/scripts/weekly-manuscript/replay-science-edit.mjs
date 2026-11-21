@@ -5,7 +5,7 @@ const publicPath =
 const privatePath =
   /^cases\.\d+\.chemical\.(?:priority|carrierContext|identityBoundary|(?:criteria|limitations|controls|alternatives|graphHypotheses|compatibility)\.\d+|recipes\.\d+\.(?:coarseAbsorberContext|solventRole))$/;
 const otherPassage =
-  /^(?:priorities\.\d+|followupAssessments\.\d+\.rationale)$/;
+  /^(?:priorities\.\d+|followupAssessments\.\d+\.rationale|literatureNotes\.articles\.\d+\.(?:finding|studyLimit|uses\.\d+\.(?:relevance|limit)))$/;
 
 export function replayScienceEdit(previous, edit) {
   const result = structuredClone(previous),

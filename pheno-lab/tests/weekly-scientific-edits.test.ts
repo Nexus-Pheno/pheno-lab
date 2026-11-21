@@ -24,6 +24,20 @@ const original = {
       },
     },
   ],
+  literatureNotes: {
+    articles: [
+      {
+        paper: "LINKER",
+        finding: { en: "Reported finding", zh: "论文结果" },
+        uses: [
+          {
+            experiment: "E1",
+            limit: { en: "Different contact", zh: "接触层不同" },
+          },
+        ],
+      },
+    ],
+  },
   priorities: [{ en: "Repeat the comparison", zh: "重复对照实验" }],
 };
 const replacement = { en: "Check the fabrication record", zh: "核对制备记录" };
@@ -41,7 +55,20 @@ describe("targeted scientific corrections", () => {
     );
     expect(replayScienceEdit(original, edit)).toEqual(corrected);
   });
+  it("permits a referee to correct both languages of a paper’s scope while preserving its attribution", () => {
+    const corrected = replayScienceEdit(original, {
+      changes: [
+        { path: "literatureNotes.articles.0.uses.0.limit", replacement },
+      ],
+    });
+    expect(corrected.literatureNotes.articles[0].uses[0]).toEqual({
+      experiment: "E1",
+      limit: replacement,
+    });
+  });
   it.each([
+    "literatureNotes.articles.0.paper",
+    "literatureNotes.articles.0.uses.0.experiment",
     "cases.0.sourceHash",
     "cases.0.chemical.material",
     "cases.0.chemical.sources.0",
