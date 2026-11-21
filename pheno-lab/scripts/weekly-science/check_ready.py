@@ -15,6 +15,7 @@ import tempfile
 import analyze_rd_snapshot
 import audit_device_results
 import period_scope
+from referee_project_sources import project_sources
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
 import bind_final_review
@@ -267,7 +268,22 @@ def prepare(run, prior, output):
     subprocess.run(['node',Path(__file__).with_name('verify_report.mjs'),run/'report-publish.html',output/'qa'],
                    cwd=Path(__file__).resolve().parents[2],check=True,timeout=1800,stdout=subprocess.DEVNULL)
     secret=secrets.token_hex(32)
-    packet=reviewer_packet(doc,snap,facts,annex,literature,{**audit,'reviewCoverage':bind_final_review.peer_coverage(doc)},secret,html_hash)
+    fresh, _, measured = period_scope.scan_timing(snap, previous)
+    timing = {code: {"inWindow": n, "firstSeenInWindow": fresh.get(code, 0)} for code,n in measured.items()}
+    cases_timing = {item["experimentCode"]: timing.get(item["experimentCode"], {"inWindow": 0, "firstSeenInWindow": 0})
+                    for item in doc["evidenceMethodReview"]["experiments"]}
+    project_evidence = project_sources(doc, record(run, "rd-dossier-reviewed.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-source-packet.private.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-attainment.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-decisions-review.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES),
+        record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"], timing)
+    reviewer_audit = {**audit, "reviewCoverage": bind_final_review.peer_coverage(doc),
+                      "baseline": {"windowEnd": previous["windowEnd"], "snapshotAt": previous["snapshotAt"],
+                                   "snapshotSha256": prior_meta["snapshotSha256"], "dossierSha256": prior_meta["dossierPublishedSha256"]},
+                      "caseWeeklyScans": cases_timing, "projectSources": project_evidence}
+    packet=reviewer_packet(doc,snap,facts,annex,literature,reviewer_audit,secret,html_hash)
+    need(len(packet["numericAudit"].encode("utf-16-le")) // 2 <= 200_000, "FINAL_NUMERIC_AND_PROJECT_EVIDENCE_EXCEEDS_REVIEW_BOUND")
     packet['reviewChecks']=sorted(bind_final_review.CHECKS)
     save_new(output/'final-science-input.json',packet)
     outputs={name:file_hash(output,name) for name in ['numeric-audit.json','gates.json','final-science-input.json',
