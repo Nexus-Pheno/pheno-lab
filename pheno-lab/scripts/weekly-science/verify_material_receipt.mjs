@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 function canonical(value) {
@@ -57,6 +57,46 @@ async function main() {
     );
   }
   assert(receipt.value.findings.every((item) => item.severity !== "blocking"));
+  let chain;
+  if (
+    Object.hasOwn(receipt, "targetedScienceBaseAttempt") ||
+    Object.hasOwn(receipt, "targetedScienceEdits")
+  ) {
+    const { verifyScienceEditChain } =
+      await import("../weekly-manuscript/replay-science-edit.mjs");
+    chain = await verifyScienceEditChain(run, receipt);
+  } else {
+    const files = await readdir(run);
+    const matches = [];
+    for (const name of files.filter((n) =>
+      /^scientist-attempt-[1-9]\d*\.json$/.test(n),
+    )) {
+      const original = await data(name);
+      if (original.completionId !== receipt.authorCompletionId) continue;
+      assert.equal(original.role, "scientist");
+      assert.equal(original.provider, "deepseek");
+      assert.equal(original.providerHost, receipt.providerHost);
+      assert.equal(original.model, receipt.model);
+      assert.equal(original.evidenceHash, receipt.evidenceHash);
+      assert.equal(original.outputHash, hash(interpretation));
+      assert.deepEqual(original.value, interpretation);
+      assert.notEqual(original.requestHash, receipt.requestHash);
+      const peer = name.replace("scientist-", "scientific-peer-");
+      assert.deepEqual(await data(peer), receipt);
+      matches.push(name, peer);
+    }
+    assert.equal(matches.length, 2);
+    chain = {
+      files: matches,
+      completionIds: [receipt.authorCompletionId, receipt.completionId],
+    };
+  }
+  assert(new Set(chain.completionIds).size === chain.completionIds.length);
+  assert(
+    chain.completionIds.includes(receipt.authorCompletionId) &&
+      chain.completionIds.includes(receipt.completionId),
+  );
+  console.log(JSON.stringify(chain));
 }
 main().catch(() => {
   console.error("Material peer evidence or response binding failed.");

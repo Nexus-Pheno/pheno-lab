@@ -71,9 +71,9 @@ def require_private_attestation(run):
          isinstance(review.get('completionId'), str) and bool(review['completionId']) and
          all(valid_hash(review.get(k)) for k in ('requestHash', 'outputHash', 'evidenceHash', 'inputHash')) and
          review.get('value', {}).get('decision') == 'PASS', 'PRIVATE_SCIENCE_INDEPENDENT_REVIEW_REQUIRED')
-    subprocess.run(['node',Path(__file__).with_name('verify_material_receipt.mjs'),run],
-                   stdout=subprocess.DEVNULL,check=True,timeout=60)
-    return review
+    chain = json.loads(subprocess.run(['node',Path(__file__).with_name('verify_material_receipt.mjs'),run],
+                            capture_output=True,text=True,check=True,timeout=300).stdout)
+    return review, chain
 
 
 def prepare_source(run, prior):
@@ -203,7 +203,7 @@ def prepare(run, prior, output):
     save_new(output/'attempt.json',started)
     snap, audit, prior_meta = prepare_source(run, prior)
     need(not (run/'run-result.json').exists(), 'FRESH_UNPUBLISHED_RUN_REQUIRED')
-    private_review = require_private_attestation(run)
+    private_review, material_chain = require_private_attestation(run)
     current_sources={c['evidence']['sourceHash'] for c in snap['sharedAppEvidence']['experiments']}
     facts=record(run,'private-scientific-facts.json',baseline.MAX_ARTIFACT_BYTES)
     need(all(c.get('sourceHash') in current_sources for c in facts['cases']), 'PRIVATE_REVIEW_SOURCE_NOT_CURRENT')
@@ -232,6 +232,10 @@ def prepare(run, prior, output):
         ['node', Path(__file__).with_name('verify_section_receipts.mjs'), run],
         capture_output=True, text=True, timeout=300, check=True).stdout)
     names.update(section_reviews['files'])
+    names.update(material_chain['files'])
+    need(set(section_reviews['completionIds']) & set(material_chain['completionIds']) ==
+         {private_review['completionId'], private_review['authorCompletionId']}, 'SCIENTIFIC_ROLE_COMPLETION_REUSED')
+    all_completions = sorted(set(section_reviews['completionIds']) | set(material_chain['completionIds']))
     for item in annex['inputs']:
         name=item['file']
         need(Path(name).name==name and file_hash(run,name)==item['sha256'],'PRIVATE_ANNEX_SOURCE_MISMATCH')
@@ -255,7 +259,7 @@ def prepare(run, prior, output):
     challenge={'schemaVersion':1,'challenge':secret,'createdAt':now().isoformat(),'contentSha256':html_hash,'inputs':inputs,
                'outputs':outputs,'images':images_for_review(output),'priorReportId':prior_meta['reportId'],
                'priorSnapshotSha256':prior_meta['snapshotSha256'],'priorDossierSha256':prior_meta['dossierPublishedSha256'],
-               'materialPeerCompletionId':private_review['completionId'], 'priorStageCompletionIds':section_reviews['completionIds']}
+               'materialPeerCompletionId':private_review['completionId'], 'priorStageCompletionIds':all_completions}
     need(all(file_hash(run,k)==v for k,v in inputs.items()),'SOURCE_CHANGED_DURING_PREPARATION')
     save_new(output/'challenge.json',challenge)
     return {'status':'AWAITING_INDEPENDENT_REVIEWS','images':len(challenge['images']),'gates':len(gates),'arithmeticChecks':audit['arithmeticChecks']}
