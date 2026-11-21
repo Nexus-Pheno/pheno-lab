@@ -665,7 +665,7 @@ def attach(root, snapshot, dossier, doc):
             )
 
         body, n = re.subn(
-            r"(<tbody><tr><td>[^<>]*</td><td>|</tr><tr><td>[^<>]*</td><td>)(.*?)</td>",
+            r'((?:<tbody>|</tr>)<tr(?: id="prior-project-(?:en|zh)-[0-9]+")?><td>[^<>]*</td><td>)(.*?)</td>',
             reference,
             project,
             flags=re.S,

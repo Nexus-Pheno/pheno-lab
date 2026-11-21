@@ -1,4 +1,6 @@
 from unittest import TestCase
+from unittest.mock import patch
+import result_source_register as sources
 from result_source_register import (
     collect,
     statistics,
@@ -170,6 +172,22 @@ class ResultSources(TestCase):
             self.assertIn(
                 "missing comparison" if lang == "en" else "缺少可比数据", html
             )
+
+    def test_project_decision_link_preserves_the_historical_row_target(self):
+        register = self.result()
+
+        def section(id, en, zh):
+            return dict(id=id, bodyEn=en, bodyZh=zh)
+
+        en = '<table><tbody><tr id="prior-project-en-1"><td>Display</td><td>Decision</td></tr></tbody></table>'
+        zh = en.replace("prior-project-en", "prior-project-zh")
+        doc = dict(sections=[section("sources", "", ""), section("projects", en, zh)])
+        with patch.object(sources, "register_for", return_value=register):
+            sources.attach(None, None, None, doc)
+        self.assertIn('id="prior-project-en-1"', doc["sections"][1]["bodyEn"])
+        self.assertIn(
+            'href="#' + anchor("en", "P1") + '"', doc["sections"][1]["bodyEn"]
+        )
 
     def test_missing_direction_stays_unknown_across_dossier_and_author_packet(self):
         self.snapshot["sampleMeasurements"][0]["direction"] = None
