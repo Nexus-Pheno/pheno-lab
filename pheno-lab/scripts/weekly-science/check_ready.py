@@ -376,10 +376,11 @@ def response_bind(receipt, challenge, challenge_hash):
     need(baseline.timestamp(challenge['createdAt'])<=when<=now()+dt.timedelta(minutes=1),'REVIEW_TIME_OUTSIDE_CHALLENGE')
 
 
-def visual_receipt(receipt, challenge):
+def visual_receipt(receipt, challenge, gate=None, reviews=None, boundary_artifacts=None):
     need(receipt.get('role')=='visual' and receipt.get('model')=='deepseek-flash','WRONG_VISUAL_REVIEWER')
     expected={i['file']:i['sha256'] for i in challenge['images']}
     ids, requests, responses, canaries, seen=set(),set(),set(),set(),set()
+    blocked={}
     for batch in receipt['batches']:
         req, res, ticket, canary=(batch.get(k) for k in ('requestHash','responseHash','responseId','canaryExpected'))
         need(valid_hash(req) and valid_hash(res) and isinstance(ticket,str) and ticket.strip() and
@@ -390,10 +391,26 @@ def visual_receipt(receipt, challenge):
         for row in batch['images']:
             name=row['file']
             need(name not in seen and name in expected and row.get('sha256')==expected[name] and
-                 row.get('decision')=='PASS' and row.get('defects')==[] and
                  len(str(row.get('observation','')).strip())>=12,'VISUAL_FINDING_OR_IMAGE_MISMATCH')
+            if row.get('decision')=='BLOCK':
+                blocked[name]=row
+            else:
+                need(row.get('decision')=='PASS' and row.get('defects')==[],'VISUAL_FINDING_OR_IMAGE_MISMATCH')
             seen.add(name)
     need(seen==set(expected) and seen,'INCOMPLETE_VISUAL_REVIEW')
+    if blocked:
+        need(gate is not None and reviews is not None and isinstance(boundary_artifacts,dict) and
+             isinstance(receipt.get('boundaryAdjudications'),dict) and
+             set(receipt['boundaryAdjudications'])==set(blocked),'UNRESOLVED_VISUAL_FINDING')
+        from verify_visual_boundary import verify_boundaries
+        new_ids, files=verify_boundaries(gate,reviews,challenge,receipt,blocked,ids,requests,responses,canaries)
+        need(len(new_ids)==len(blocked) and not ids.intersection(new_ids) and files,
+             'INVALID_VISUAL_BOUNDARY_REVIEW')
+        ids.update(new_ids)
+        boundary_artifacts.update(files)
+    else:
+        need('boundaryAdjudications' not in receipt and
+             (reviews is None or not (reviews/'visual-findings.json').exists()),'ORIGINAL_VISUAL_BLOCK_OMITTED')
     return ids
 
 
@@ -431,7 +448,8 @@ def verify(run,prior,output,reviews):
     for receipt in (science,visual):
         response_bind(receipt,ch,digest)
     scientific_receipt(science,ch,record(output,'final-science-input.json',baseline.MAX_METADATA_BYTES*2))
-    responses=visual_receipt(visual,ch)
+    boundary_artifacts={}
+    responses=visual_receipt(visual,ch,output,reviews,boundary_artifacts)
     need(science['completionId'] not in responses,'REVIEWER_CONTEXT_REUSED')
     doc=record(run,'report-document-publish.json',baseline.MAX_ARTIFACT_BYTES)
     approved=bind_final_review.attach(doc,science)
@@ -455,6 +473,8 @@ def verify(run,prior,output,reviews):
             'signedDocumentSha256':file_hash(output,signed.name), 'finalGatesSha256':file_hash(final_output,'gates.json'),
             'verifiedArtifactHashes':ch['inputs'],'reviewHashes':{n:file_hash(reviews,n) for n in ('scientific-review.json','visual-review.json')},
             'verifiedAt':now().isoformat()}
+    if boundary_artifacts:
+        result['visualBoundaryArtifactHashes']=boundary_artifacts
     if (output/'ready.json').exists():
         previous=record(output,'ready.json')
         result['verifiedAt']=previous.get('verifiedAt')

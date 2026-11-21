@@ -48,6 +48,16 @@ class GateTests(unittest.TestCase):
                'canaryReceived':'290713','images':[reply]}
         review={'role':'visual','model':'deepseek-flash','batches':[batch]}
         self.assertEqual(gate.visual_receipt(review,challenge),{'fixture-reply'})
+        held=copy.deepcopy(review)
+        held['batches'][0]['images'][0].update(decision='BLOCK',defects=['A genuinely clipped axis.'])
+        with self.assertRaisesRegex(gate.Hold,'UNRESOLVED_VISUAL_FINDING'):
+            gate.visual_receipt(held,challenge)
+        with tempfile.TemporaryDirectory() as temp:
+            reviews=Path(temp)
+            (reviews/'visual-findings.json').write_text('{}')
+            with self.assertRaisesRegex(gate.Hold,'ORIGINAL_VISUAL_BLOCK_OMITTED'):
+                gate.visual_receipt(review,challenge,reviews=reviews)
+
         for field, value in (('canaryReceived','000000'),('images',[]),('images',[reply,reply])):
             bad=copy.deepcopy(review);bad['batches'][0][field]=value
             with self.assertRaises(gate.Hold):
