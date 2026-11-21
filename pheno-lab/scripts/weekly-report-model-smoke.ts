@@ -107,7 +107,8 @@ const evidence = projectionSchema.parse({
 
 async function main() {
   const orgId = await getWeeklyReportOrganizationId();
-  if (process.argv[2] === "--final-review-only") {
+  const unresolved = process.argv[2] === "--final-unresolved";
+  if (process.argv[2] === "--final-review-only" || unresolved) {
     const challenge = randomBytes(32).toString("hex");
     const title = { en: "Synthetic material screening", zh: "模拟材料筛选" };
     const sections = [
@@ -117,8 +118,23 @@ async function main() {
         zh: "处理组四片器件的平均效率为99.99%，建议将该工艺推广到生产。",
       },
     ];
+    if (unresolved) {
+      const source = hashWeeklyReportValue(evidence.cases[0]);
+      sections[0] = {
+        id: "case-1",
+        en: `Synthetic screening E1. In four devices per arm, the reference and candidate means were 20.30% and 20.50%, their highest efficiencies were 20.60% and 21.10%, and the sample SDs were 0.2582 and 0.4690 percentage points. The candidate warrants a consistency check. The best device improved by 0.50 points but the typical benefit was smaller and the spread increased. No independent batch or treatment identity was recorded. Stability and a material-specific cause remain open. Repeat both arms side by side in new preparation batches, confirm material identity and keep the carrier and test settings fixed. Compare mean, best and SD separately by batch. If the mean and best gains repeat without wider spread, advance the screen. If only the best gain repeats, keep the candidate and improve consistency. If neither repeats, pause it in this context. If identity or settings differ, repeat matched arms. Source E1 ${source}.`,
+        zh: `模拟筛选 E1。对照组和候选组各有4片器件，平均效率分别为20.30%和20.50%，最高效率为20.60%和21.10%，样本标准差分别为0.2582和0.4690个百分点。建议验证候选组的一致性。最高效率提高0.50个百分点，平均提升较小，片间差异变大。记录中缺少独立批次和实际材料身份，稳定性和材料本身的作用仍需验证。建议用新配制的批次并排重做两组，确认材料身份，固定载液和测试条件，分批比较均值、最高值和标准差。若平均和最高增益都能重复且差异未扩大，继续筛选。若只有最高增益重复，保留候选并改善一致性。若两项增益均未重复，暂停该条件。若身份或设置不一致，补做匹配对照。数据来源 E1 ${source}。`,
+      };
+    }
     const packet = {
-      reviewChecks: ["correctMean"],
+      reviewChecks: unresolved
+        ? [
+            "objectiveAttainment",
+            "populationComparability",
+            "materialIdentityAndConfounds",
+            "controlsAndDiscriminatingSignatures",
+          ]
+        : ["correctMean"],
       challenge,
       challengeSha256: createHash("sha256").update(challenge).digest("hex"),
       contentSha256: hashWeeklyReportValue({ title, sections }),
@@ -149,6 +165,30 @@ async function main() {
         "No external literature is used for this synthetic comparison.",
     };
     const receipt = await callWeeklyFinalReview({ orgId, payload: packet });
+    if (unresolved) {
+      if (
+        receipt.value.decision !== "PASS" ||
+        receipt.value.findings.some((f) => f.severity === "blocking")
+      ) {
+        console.error(
+          "Unresolved screening fixture assessment",
+          receipt.value.findings.map((f) => f.issue),
+        );
+        throw Error(
+          "Referee found a defect in the bounded unresolved screening fixture",
+        );
+      }
+      console.log(
+        JSON.stringify({
+          test: "synthetic-unresolved-screen",
+          model: receipt.model,
+          completionId: receipt.completionId,
+          credibleUnresolvedResult: true,
+          published: false,
+        }),
+      );
+      return;
+    }
     if (
       receipt.value.decision === "PASS" ||
       !receipt.value.findings.some((f) =>
