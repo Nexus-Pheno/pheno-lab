@@ -91,6 +91,18 @@ def display_project_text(value, names):
     return result
 
 
+def spell_out_uv_test(value):
+    # In these explicitly optical test phrases UV names ultraviolet exposure.
+    # Other tokens, identifiers, chemical names and candidate formulas are retained.
+    return re.sub(
+        r"\bUV(?=\s+(?:(?:and|or)\s+(?:light[ -]heat|thermal|heat)\s+)?"
+        r"(?:ag(?:ing|eing)|exposure|illumination|irradiation|soak|stability|photodegradation)\b)",
+        "ultraviolet",
+        value,
+        flags=re.IGNORECASE,
+    )
+
+
 def digest(path):
     with path.open("rb") as stream:
         return (
@@ -299,7 +311,7 @@ def assemble_science(root):
         annexcase = {
             "id": key.lower(),
             "materialName": chem["displayName"],
-            "priority": chem["priority"],
+            "priority": spell_out_uv_test(chem["priority"]),
             "materialEvidence": material_evidence,
             "experimentEvidenceIds": [code],
             "fullStructureAndDescriptorVectorOmitted": True,
