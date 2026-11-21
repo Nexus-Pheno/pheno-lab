@@ -10,6 +10,7 @@ const steps = [
   "deploy:check",
   "typecheck",
   "test",
+  "test:weekly-report",
   "build",
 ];
 
