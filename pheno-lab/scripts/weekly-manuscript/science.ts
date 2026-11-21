@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, readdir } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -111,10 +111,46 @@ async function main() {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     publicDraft = null;
   }
-  const evidence = privateScienceInputSchema.shape.evidence.parse({
+  const facts = {
     ...(await load("private-scientific-facts.json")),
     publicEvidence: await load("provider-packet.json"),
-    publicDraft,
+  };
+  const selection = "science-source-selection.json";
+  let existingHash: string | null | undefined;
+  try {
+    existingHash = (await load(selection)).evidenceHash;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  // For interrupted older runs, the saved official response also binds whether
+  // its author received the provisional public draft.
+  if (existingHash === undefined) {
+    const prior = (await readdir(dir)).find(
+      (f) =>
+        f.startsWith("nonpublishable-scientist-") ||
+        f === "scientist-attempt-1.json",
+    );
+    if (prior) existingHash = (await load(prior)).evidenceHash;
+  }
+  const parse = (draft: unknown) =>
+    privateScienceInputSchema.shape.evidence.parse({
+      ...facts,
+      publicDraft: draft,
+    });
+  let evidence = parse(publicDraft);
+  if (
+    existingHash !== undefined &&
+    existingHash !== hashWeeklyReportValue(evidence)
+  ) {
+    evidence = parse(null);
+    if (existingHash !== hashWeeklyReportValue(evidence))
+      throw Error("Frozen scientist source changed; preserve the existing run");
+    publicDraft = null;
+  }
+  await immutableWrite(join(dir, selection), {
+    evidenceHash: hashWeeklyReportValue(evidence),
+    publicDraftHash:
+      publicDraft === null ? null : hashWeeklyReportValue(publicDraft),
   });
   const preserveRejected =
     (role: string, attempt: number) =>
@@ -137,21 +173,96 @@ async function main() {
     | { previous: Science; review: z.output<typeof scienceReviewSchema> }
     | undefined;
   for (let a = 1; a <= 3; a++) {
-    const writerInput = { evidence, ...(revision ? { revision } : {}) };
-    const author = await checkpoint(
-      join(dir, `scientist-checkpoint-${a}.json`),
-      "scientist",
-      scienceSystem,
-      writerInput,
-      scienceInterpretationSchema,
-      () =>
-        callWeeklyScienceModel({
-          orgId,
-          role: "scientist",
-          onInvalidOutput: preserveRejected("scientist", a),
-          payload: writerInput,
-        }),
-    );
+    const basicInput = { evidence, ...(revision ? { revision } : {}) };
+    const prefix = `nonpublishable-scientist-${a}-`;
+    const rejected = async () => {
+      const files = (await readdir(dir))
+        .filter((n) => n.startsWith(prefix) && n.endsWith(".json"))
+        .sort();
+      if (!files.length) return undefined;
+      if (files.length > 1)
+        throw Error(
+          "Scientific response still fails the corrected contract; retained both drafts",
+        );
+      const prior = await load(files[0]);
+      if (
+        prior.role !== "scientist" ||
+        prior.evidenceHash !== hashWeeklyReportValue(evidence) ||
+        prior.classification !==
+          "PRIVATE_REJECTED_MODEL_DRAFT_DO_NOT_PUBLISH" ||
+        files[0] !==
+          prefix + hashWeeklyReportValue(prior.completionId) + ".json"
+      )
+        throw Error("Rejected scientific draft is not bound to this period");
+      const old = z
+        .object({
+          cases: z.array(z.unknown()).optional(),
+          priorities: z.array(z.unknown()).optional(),
+        })
+        .safeParse(prior.draft);
+      const validEarlierCases = (
+        old.success ? (old.data.cases ?? []) : []
+      ).flatMap((c) => {
+        const result =
+          scienceInterpretationSchema.shape.cases.element.safeParse(c);
+        return result.success &&
+          evidence.cases.some(
+            (e) =>
+              e.experiment === result.data.experiment &&
+              e.sourceHash === result.data.sourceHash,
+          )
+          ? [result.data]
+          : [];
+      });
+      const validPriorities = (
+        old.success ? (old.data.priorities ?? []) : []
+      ).flatMap((c) => {
+        const result =
+          scienceInterpretationSchema.shape.priorities.element.safeParse(c);
+        return result.success ? [result.data] : [];
+      });
+      return privateScienceInputSchema.shape.formatRepair.unwrap().parse({
+        rejectedCompletionHash: hashWeeklyReportValue(prior.completionId),
+        paths: prior.paths,
+        validEarlierCases,
+        validPriorities,
+      });
+    };
+    const getAuthor = async (
+      formatRepair: Awaited<ReturnType<typeof rejected>>,
+    ) => {
+      const writerInput = {
+        ...basicInput,
+        ...(formatRepair ? { formatRepair } : {}),
+      };
+      return checkpoint(
+        join(
+          dir,
+          `scientist-checkpoint-${a}${formatRepair ? "-corrected" : ""}.json`,
+        ),
+        "scientist",
+        scienceSystem,
+        writerInput,
+        scienceInterpretationSchema,
+        () =>
+          callWeeklyScienceModel({
+            orgId,
+            role: "scientist",
+            onInvalidOutput: preserveRejected("scientist", a),
+            payload: writerInput,
+          }),
+      );
+    };
+    let formatRepair = await rejected();
+    let author;
+    try {
+      author = await getAuthor(formatRepair);
+    } catch (error) {
+      if (formatRepair) throw error;
+      formatRepair = await rejected();
+      if (!formatRepair) throw error;
+      author = await getAuthor(formatRepair);
+    }
     await immutableWrite(join(dir, `scientist-attempt-${a}.json`), author);
     // Even a binding error is presented to the independent reviewer. A positive
     // assessment cannot override the local deterministic evidence check.

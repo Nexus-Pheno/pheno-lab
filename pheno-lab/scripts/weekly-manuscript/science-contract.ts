@@ -250,6 +250,17 @@ export const scienceReviewSchema = z.strictObject({
 });
 export const privateScienceInputSchema = z.strictObject({
   evidence,
+  formatRepair: z
+    .strictObject({
+      rejectedCompletionHash: sha,
+      paths: z
+        .array(z.string().regex(/^[A-Za-z0-9_.:\[\]-]{1,220}$/))
+        .min(1)
+        .max(12),
+      validEarlierCases: z.array(interpretation).max(3),
+      validPriorities: z.array(bi).max(3),
+    })
+    .optional(),
   revision: z
     .strictObject({
       previous: scienceInterpretationSchema,
