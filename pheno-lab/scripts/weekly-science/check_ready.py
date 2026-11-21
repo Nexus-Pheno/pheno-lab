@@ -22,6 +22,7 @@ from project_names import names_from_source, verify_project_names
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "weekly-manuscript"))
 from assemble_science import aging_record_evidence, display_case_groups, display_project_text
 from proposal_revision import revised_proposal, source_revisions
+import result_source_register
 import bind_final_review
 from import_verified_baseline import existing_directory
 from replay_frozen_report import checked_file, check_published_run, record, save_new, run_science_gates
@@ -259,6 +260,7 @@ def prepare(run, prior, output):
     project_labels = names_from_source(snap, record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["projects"],
                                        record(run, "project-decisions.json", baseline.MAX_ARTIFACT_BYTES))
     verify_project_names(doc, project_labels)
+    result_source_register.verify(run,snap,record(run,"rd-dossier-reviewed.json",baseline.MAX_ARTIFACT_BYTES),doc)
     ids = record(run, "bindings.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]
     science = record(run, "science-interpretation.json", baseline.MAX_ARTIFACT_BYTES)
     public_cases = record(run, "science-public-index.private.json", baseline.MAX_ARTIFACT_BYTES)["cases"]

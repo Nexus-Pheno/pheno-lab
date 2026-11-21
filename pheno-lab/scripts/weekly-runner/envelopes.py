@@ -14,6 +14,7 @@ import sys
 SCI = Path(__file__).resolve().parents[1] / "weekly-science"
 sys.path.insert(0, str(SCI))
 from literature_appendix import source_appendix
+import result_source_register
 from project_names import names_from_source, translate_project_names
 from ledger_audience import LedgerAudience
 from manager_material_names import ManagerMaterialNames
@@ -68,20 +69,31 @@ def fmt(v):
     return "—" if v is None else f"{v:.4f}".rstrip("0").rstrip(".")
 
 
-def table(head, rows):
+def table(head, rows, links=None):
     return (
         '<div class="table-wrap"><table><thead><tr>'
         + "".join("<th>" + escape(str(v)) + "</th>" for v in head)
         + "</tr></thead><tbody>"
         + "".join(
-            "<tr>" + "".join("<td>" + escape(str(v)) + "</td>" for v in r) + "</tr>"
-            for r in rows
+            "<tr>"
+            + "".join(
+                "<td>"
+                + (
+                    result_source_register.link(links[i], v)
+                    if links and j == 0
+                    else escape(str(v))
+                )
+                + "</td>"
+                for j, v in enumerate(r)
+            )
+            + "</tr>"
+            for i, r in enumerate(rows)
         )
         + "</tbody></table></div>"
     )
 
 
-def route_tables(header, rows, language):
+def route_tables(header, rows, language, cohort_ids=None):
     # Repeat the route identity in each compact table so every statistic stays
     # identifiable when a project section spans multiple printed pages.
     tables = [
@@ -94,7 +106,15 @@ def route_tables(header, rows, language):
         indices = (0, 1, 2, *metrics)
         heading = zh if language == "zh" else en
         output.append("<h5>" + heading + "</h5>")
-        output.append(table([header[i] for i in indices], [[row[i] for i in indices] for row in rows]))
+        output.append(
+            table(
+                [header[i] for i in indices],
+                [[row[i] for i in indices] for row in rows],
+                [result_source_register.anchor(language, k) for k in cohort_ids]
+                if cohort_ids
+                else None,
+            )
+        )
     return "".join(output)
 
 
@@ -302,7 +322,7 @@ def route_panels(project, part, project_decision, experiments):
             ),
         ]:
             if rows:
-                part["body" + l.title()] += route_tables(header, rows, l)
+                part["body" + l.title()] += route_tables(header, rows, l, list(chosen))
         periods.append(
             dict(
                 period=tag,
@@ -1253,4 +1273,5 @@ def assemble(work, prior):
     doc["sections"] = [sections[k] for k in main + appendix]
     translate_project_names(doc, names_from_source(snapshot, bmap, proj))
     ManagerMaterialNames(snapshot, proj).project(doc)
+    result_source_register.attach(work, snapshot, ds, doc)
     return doc
