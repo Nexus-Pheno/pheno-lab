@@ -1,5 +1,6 @@
 /** Nonpublishing operator check. The sole experiment here is a synthetic fixture. */
 import "server-only";
+import { randomBytes, createHash } from "node:crypto";
 import { db } from "@/infrastructure/db/client";
 import {
   authorSystem,
@@ -10,6 +11,7 @@ import {
 } from "./weekly-manuscript/contract";
 import {
   callWeeklyReportModel,
+  callWeeklyFinalReview,
   getWeeklyReportOrganizationId,
   hashWeeklyReportValue,
 } from "./weekly-report-model";
@@ -105,6 +107,69 @@ const evidence = projectionSchema.parse({
 
 async function main() {
   const orgId = await getWeeklyReportOrganizationId();
+  if (process.argv[2] === "--final-review-only") {
+    const challenge = randomBytes(32).toString("hex");
+    const title = { en: "Synthetic material screening", zh: "模拟材料筛选" };
+    const sections = [
+      {
+        id: "case-1",
+        en: "The four treated devices averaged 99.99% PCE. Use this process in production.",
+        zh: "处理组四片器件的平均效率为99.99%，建议将该工艺推广到生产。",
+      },
+    ];
+    const packet = {
+      challenge,
+      challengeSha256: createHash("sha256").update(challenge).digest("hex"),
+      contentSha256: hashWeeklyReportValue({ title, sections }),
+      period: {
+        start: evidence.period.start,
+        end: evidence.period.end,
+        asOf: evidence.period.acceptedAsOf,
+      },
+      title,
+      abstract: {
+        en: "Review a synthetic contrast.",
+        zh: "评估一组模拟对照。",
+      },
+      sections,
+      sourceCases: [
+        {
+          code: "E1",
+          sourceHash: hashWeeklyReportValue(evidence.cases[0]),
+          comparisonFacts:
+            "Four reference devices at 20.30% mean, 20.60% highest, SD 0.2582 percentage points. Four candidates at 20.50% mean, 21.10% highest and SD 0.4690 percentage points. No independent fabrication batches recorded.",
+        },
+      ],
+      numericAudit:
+        "Mean gain 0.20 percentage points. Highest gain 0.50 percentage points. Between-device SD increased. All values from synthetic accepted-device results.",
+      materialReview:
+        "Generic screening only. No single molecular identity, solvent factor, previously tested preparation or stability data supplied.",
+      literature:
+        "No external literature is used for this synthetic comparison.",
+    };
+    const receipt = await callWeeklyFinalReview({ orgId, payload: packet });
+    if (
+      receipt.value.decision === "PASS" ||
+      !receipt.value.findings.some((f) =>
+        /99[.．]99/.test(f.issue + f.correction),
+      )
+    )
+      throw new Error("Final referee missed the synthetic measurement error");
+    console.log(
+      JSON.stringify({
+        test: "synthetic-final-manuscript",
+        model: receipt.model,
+        completionId: receipt.completionId,
+        requestHash: receipt.requestHash,
+        challengeBound: true,
+        caughtNumericalError: true,
+        published: false,
+      }),
+    );
+    return;
+  }
+  if (process.argv.length > 2)
+    throw new Error("Unknown weekly model test option");
   const author = await callWeeklyReportModel({
     orgId,
     role: "author",

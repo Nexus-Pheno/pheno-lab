@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
   callWeeklyReportModel,
+  callWeeklyScienceModel,
+  callWeeklyFinalReview,
   hashWeeklyReportValue,
 } from "../scripts/weekly-report-model";
 import {
@@ -21,6 +24,7 @@ vi.mock("../scripts/weekly-manuscript/contract", async () => {
     authorSystem: "Analyze the evidence",
     reviewerSystem: "Independently challenge the actual draft",
     authorInputSchema: z.strictObject({ evidence }),
+    projectionSchema: evidence,
     reviewerInputSchema: z.strictObject({ evidence, draft: manuscript }),
     manuscriptSchema: manuscript,
     peerReviewSchema: z.strictObject({ verdict: z.enum(["accept", "revise"]) }),
@@ -61,6 +65,7 @@ const active = {
 
 function complete(value: unknown, model = "deepseek-v4-pro", finish = "stop") {
   return Response.json({
+    id: crypto.randomUUID(),
     model,
     choices: [
       {
@@ -104,6 +109,7 @@ describe("weekly scientific author and reviewer transport", () => {
     expect(reviewed.inputHash).toEqual(
       hashWeeklyReportValue({ draft, evidence }),
     );
+    expect(reviewed.completionId).not.toBe(written.completionId);
     expect(reviewed.promptHash).not.toBe(written.promptHash);
     expect(reviewed.requestHash).not.toBe(written.requestHash);
     for (const [endpoint, options] of mocks.fetch.mock.calls) {
@@ -176,4 +182,195 @@ describe("weekly scientific author and reviewer transport", () => {
       expect(mocks.fetch).toHaveBeenCalledTimes(1);
     },
   );
+});
+
+describe("private researcher and whole-paper referee", () => {
+  const scienceEvidence = {
+    publicEvidence: evidence,
+    publicDraft: draft,
+    cases: [
+      {
+        experiment: "E1",
+        sourceHash: "1".repeat(64),
+        title: "Synthetic molecular test",
+        observation: "planned only",
+        question: "which arm?",
+        hypothesis: "synthetic",
+        conclusion: "",
+        testPlan: "synthetic",
+        conditions: [],
+        recipes: [],
+        actualCaptures: false,
+        materials: [
+          {
+            id: "M1",
+            name: "test material",
+            category: "SAM",
+            association: ["selected-in-plan"],
+            graph: {
+              input: "synthetic-private-graph",
+              hash: "2".repeat(64),
+              version: 1,
+              generatedAt: "2000-01-01",
+              descriptor: {},
+              motifs: {},
+            },
+          },
+        ],
+        recordedGroups: [],
+      },
+    ],
+    articles: [],
+  };
+  it("separates approved private science calls and excludes account/credential data", async () => {
+    const interpretation = {
+      cases: [],
+      priorities: [{ en: "Repeat the comparison.", zh: "重复对照实验。" }],
+    };
+    const critique = { decision: "BLOCK", findings: [], scientificAudit: [] };
+    mocks.fetch
+      .mockResolvedValueOnce(complete(interpretation))
+      .mockResolvedValueOnce(complete(critique));
+    const write = await callWeeklyScienceModel({
+      orgId: "test-org",
+      role: "scientist",
+      payload: { evidence: scienceEvidence },
+    });
+    const review = await callWeeklyScienceModel({
+      orgId: "test-org",
+      role: "chemist-reviewer",
+      payload: { evidence: scienceEvidence, interpretation: write.value },
+    });
+    expect(write.evidenceHash).toBe(review.evidenceHash);
+    expect(write.promptHash).not.toBe(review.promptHash);
+    expect(write.completionId).not.toBe(review.completionId);
+    expect(mocks.fetch.mock.calls[0][1].body).toContain(
+      "synthetic-private-graph",
+    );
+    expect(JSON.stringify(write)).not.toContain("synthetic-private-graph");
+    const withAccount = {
+      ...scienceEvidence,
+      cases: [
+        { ...scienceEvidence.cases[0], authorEmail: "private@example.test" },
+      ],
+    };
+    await expect(
+      callWeeklyScienceModel({
+        orgId: "test-org",
+        role: "scientist",
+        payload: { evidence: withAccount },
+      }),
+    ).rejects.toThrow("evidence rejected");
+    for (const text of [
+      "staff private@example.test",
+      "Bearer mock-secret-longer-than-sixteen-characters",
+    ]) {
+      const withContact = {
+        ...scienceEvidence,
+        cases: [{ ...scienceEvidence.cases[0], observation: text }],
+      };
+      await expect(
+        callWeeklyScienceModel({
+          orgId: "test-org",
+          role: "scientist",
+          payload: { evidence: withContact },
+        }),
+      ).rejects.toThrow("credential or a personal address");
+    }
+    expect(mocks.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  const challenge = "a".repeat(64),
+    contentSha256 = "b".repeat(64);
+  const text = { en: "Numerical comparison", zh: "实验数值对比" };
+  const packet = {
+    challenge,
+    challengeSha256: createHash("sha256").update(challenge).digest("hex"),
+    contentSha256,
+    period: { start: "2000-01-01", end: "2000-01-08", asOf: "2000-01-08" },
+    title: text,
+    abstract: text,
+    sections: [{ id: "case-1", ...text }],
+    sourceCases: [
+      {
+        code: "E1",
+        sourceHash: "c".repeat(64),
+        comparisonFacts: "four devices",
+      },
+    ],
+    numericAudit: "observed synthetic numerical audit",
+    materialReview: "source-bound synthetic chemistry",
+    literature: "No literature claim in this synthetic fixture.",
+  };
+  const decision = {
+    decision: "PASS",
+    challenge,
+    contentSha256,
+    sections: [
+      {
+        id: "case-1",
+        observation: "Both versions describe the same sample count.",
+        decision: "PASS",
+      },
+    ],
+    assessments: [
+      "numerical",
+      "science",
+      "chemistry",
+      "source",
+      "bilingual",
+      "privacy",
+    ].map((scope) => ({
+      scope,
+      evidence: "The sample statement matches its source.",
+      decision: "PASS",
+    })),
+    findings: [],
+  };
+  it("checks a fresh whole-paper challenge, section coverage and six separate domains", async () => {
+    mocks.fetch.mockResolvedValueOnce(complete(decision));
+    const output = await callWeeklyFinalReview({
+      orgId: "test-org",
+      payload: packet,
+    });
+    expect(output.role).toBe("final-reviewer");
+    expect(output.inputHash).toBe(hashWeeklyReportValue(packet));
+    expect(output.outputHash).toBe(hashWeeklyReportValue(decision));
+    expect(output.completionId).toMatch(/^[a-z\d-]+$/);
+    expect(
+      JSON.parse(mocks.fetch.mock.calls[0][1].body).messages[1].content,
+    ).toContain("four devices");
+  });
+  it("rejects fabricated approval, wrong paper, missing scopes or omitted sections", async () => {
+    for (const rejected of [
+      { ...decision, challenge: "d".repeat(64) },
+      { ...decision, contentSha256: "d".repeat(64) },
+      {
+        ...decision,
+        assessments: [
+          ...decision.assessments.slice(1),
+          decision.assessments[1],
+        ],
+      },
+      {
+        ...decision,
+        sections: [{ ...decision.sections[0], id: "wrong-case" }],
+      },
+      {
+        ...decision,
+        findings: [
+          {
+            severity: "blocking",
+            issue: "Incorrect sample denominator.",
+            correction: "Check the four physical devices.",
+          },
+        ],
+      },
+    ]) {
+      mocks.fetch.mockResolvedValueOnce(complete(rejected));
+      await expect(
+        callWeeklyFinalReview({ orgId: "test-org", payload: packet }),
+      ).rejects.toThrow("Final reviewer");
+    }
+  });
 });
