@@ -107,25 +107,66 @@ def display_lab_terms(text, lang):
 CASE_REFERENCE = re.compile(r"(?<![A-Za-z0-9_-])(?:G|E)[1-9][0-9]*(?![A-Za-z0-9_])")
 
 
-def display_case_groups(value, groups, experiments):
-    """Resolve temporary writing labels only in bilingual prose, keeping structural IDs."""
+CASE_GROUP_RANGE = re.compile(r"(?<![A-Za-z0-9_-])(G[1-9][0-9]*)\s*[-–—]\s*(G[1-9][0-9]*)(?![A-Za-z0-9_-])")
+AGING_RECORD = re.compile(r"ag[ei]?ing|stabilit(?:y|ies)|light[ -]?soak|t[- ]?(?:80|95|50)\b|\bISOS(?:[-_ ]|\b)|retention|老化|稳定性|光照衰减|保持率|耐久", re.I)
+AGING_NONEXECUTION = {
+    "en": re.compile(r"\b(?:ag[ei]?ing(?: tests?)? (?:(?:was|were) )?not (?:executed|performed|conducted|run|done)|no ag[ei]?ing tests? (?:was|were) (?:executed|performed|conducted|run|done))\b", re.I),
+    "zh": re.compile(r"(?:老化(?:测试|试验|实验)?(?:并)?未(?:执行|进行|开展)|未(?:执行|进行|开展)老化(?:测试|试验|实验)?)"),
+}
+
+
+def aging_record_evidence(snapshot, bound):
+    """Look for aging evidence only in the frozen test, run and measurement records."""
+    code = bound["code"]
+    exports = [v["evidence"] for v in (snapshot.get("sharedAppEvidence") or {}).get("experiments", [])
+               if v["experimentCode"] == code]
+    experiments = [v for v in snapshot.get("experimentSummaries", []) if v["code"] == code]
+    if (len(exports) != 1 or exports[0].get("sourceHash") != bound["sourceHash"] or len(experiments) != 1):
+        return "SOURCE_UNAVAILABLE"
+    export, experiment = exports[0], experiments[0]
+    if not all(isinstance(experiment.get(k),list) for k in ("runs","samples","characterizations")):
+        return "SOURCE_UNAVAILABLE"
+    chars = experiment["characterizations"]
+    if not chars or not isinstance(export.get("characterizations"),list):
+        return "SOURCE_UNAVAILABLE"
+    evidence = [*experiment["runs"], *chars, *export["characterizations"]]
+    for sample in experiment["samples"]:
+        evidence.extend(sample.get("results") or [])
+    for bucket in ("sampleMeasurements","historicalSampleMeasurements"):
+        if not isinstance(snapshot.get(bucket),list):
+            return "SOURCE_UNAVAILABLE"
+        for scan in snapshot[bucket]:
+            if scan.get("experimentCode") == code:
+                evidence.append({key:scan.get(key) for key in ("condition","settings","metrics")})
+    if any(AGING_RECORD.search(json.dumps(v,ensure_ascii=False)) for v in evidence):
+        return "AGING_RECORD_OR_AMBIGUOUS"
+    return "NO_AGING_RESULT_IN_FROZEN_TEST_RECORDS"
+
+
+def display_case_groups(value, groups, experiments, aging_status=None, field=None):
+    """Map source labels and qualify factual execution wording against the test records."""
     if isinstance(value, list):
-        return [display_case_groups(v, groups, experiments) for v in value]
+        return [display_case_groups(v, groups, experiments, aging_status, field) for v in value]
     if not isinstance(value, dict):
         return value
     result = {}
     for key, item in value.items():
         if key in ("en", "zh") and isinstance(item, str):
-            def resolve_label(match):
-                alias = match.group()
+            def resolve_label(alias):
                 if alias in groups:
                     return groups[alias]
                 if alias in experiments:
                     return experiments[alias]["code"]
                 raise ValueError("Scientific text references an unbound experiment or group")
-            result[key] = display_lab_terms(CASE_REFERENCE.sub(resolve_label, item), key)
+            annotated = CASE_GROUP_RANGE.sub(lambda m: resolve_label(m[1]) + "–" + resolve_label(m[2]), item)
+            rendered = display_lab_terms(CASE_REFERENCE.sub(lambda m:resolve_label(m.group()), annotated), key)
+            if field in ("name","condition","execution","result","attainment","judgment","comparison","keyIssue") and AGING_NONEXECUTION[key].search(rendered):
+                if aging_status != "NO_AGING_RESULT_IN_FROZEN_TEST_RECORDS":
+                    raise ValueError("Categorical aging nonexecution conflicts with or lacks a bound test record; scientific review required")
+                rendered = AGING_NONEXECUTION[key].sub("no aging test result is recorded" if key=="en" else "未见老化测试结果记录", rendered)
+            result[key] = rendered
         else:
-            result[key] = display_case_groups(item, groups, experiments)
+            result[key] = display_case_groups(item, groups, experiments, aging_status, key)
     return result
 
 
@@ -284,7 +325,7 @@ def assemble_science(root):
             or src["experiment"] != key
         ):
             raise ValueError("Independent case/source audit unresolved")
-        pub = display_case_groups(case["public"], case_binding["groups"], names["cases"])
+        pub = display_case_groups(case["public"], case_binding["groups"], names["cases"], aging_record_evidence(snap, case_binding))
         chem = case["chemical"]
         mapping = maps[key]
         graph = chem["status"] == "CURRENT_VERIFIED_GRAPH"
