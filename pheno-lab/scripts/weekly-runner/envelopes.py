@@ -407,7 +407,7 @@ def pce_figure(characterization, selected_groups, language):
 
 
 def case_records(c, s, e, chem, refs, articles, sections, priority):
-    p = c["public"]
+    p = c.get("displayPublic", c["public"])
     key = c["case"].lower()
     code = c["binding"]["experimentCode"]
     case = sections[c["sectionId"]]
@@ -1012,7 +1012,7 @@ def assemble(work, prior):
     ]
     first = q[0]
     sid = first["sectionId"]
-    first_case = first["public"]
+    first_case = first.get("displayPublic", first["public"])
     theory = dict(
         id="loaded-power",
         sectionId=sid,
@@ -1080,7 +1080,7 @@ def assemble(work, prior):
             dict(
                 id="question-" + c["case"].lower(),
                 sectionId=c["sectionId"],
-                **bi("question", c["public"]["keyIssue"]),
+                **bi("question", c.get("displayPublic", c["public"])["keyIssue"]),
             )
             for c in q
         ],

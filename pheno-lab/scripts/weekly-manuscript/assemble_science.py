@@ -91,6 +91,31 @@ def display_project_text(value, names):
     return result
 
 
+CASE_REFERENCE = re.compile(r"(?<![A-Za-z0-9_-])(?:G|E)[1-9][0-9]*(?![A-Za-z0-9_])")
+
+
+def display_case_groups(value, groups, experiments):
+    """Resolve temporary writing labels only in bilingual prose, keeping structural IDs."""
+    if isinstance(value, list):
+        return [display_case_groups(v, groups, experiments) for v in value]
+    if not isinstance(value, dict):
+        return value
+    result = {}
+    for key, item in value.items():
+        if key in ("en", "zh") and isinstance(item, str):
+            def resolve_label(match):
+                alias = match.group()
+                if alias in groups:
+                    return groups[alias]
+                if alias in experiments:
+                    return experiments[alias]["code"]
+                raise ValueError("Scientific text references an unbound experiment or group")
+            result[key] = CASE_REFERENCE.sub(resolve_label, item)
+        else:
+            result[key] = display_case_groups(item, groups, experiments)
+    return result
+
+
 def spell_out_uv_test(value):
     # In these explicitly optical test phrases UV names ultraviolet exposure.
     # Other tokens, identifiers, chemical names and candidate formulas are retained.
@@ -245,7 +270,7 @@ def assemble_science(root):
             or src["experiment"] != key
         ):
             raise ValueError("Independent case/source audit unresolved")
-        pub = case["public"]
+        pub = display_case_groups(case["public"], case_binding["groups"], names["cases"])
         chem = case["chemical"]
         mapping = maps[key]
         graph = chem["status"] == "CURRENT_VERIFIED_GRAPH"
@@ -503,7 +528,8 @@ def assemble_science(root):
                 "sectionId": "case-" + key.lower(),
                 "testSectionId": "test-" + key.lower(),
                 "binding": local,
-                "public": pub,
+                "public": case["public"],
+                "displayPublic": pub,
                 "priority": chem["priority"],
             }
         )
@@ -519,7 +545,7 @@ def assemble_science(root):
                 {
                     l: "<ul>"
                     + "".join(
-                        "<li>" + escape(h["rationale"][l]) + "</li>"
+                        "<li>" + escape(display_case_groups(h["rationale"], names["cases"][h["experiment"]]["groups"], names["cases"])[l]) + "</li>"
                         for h in scientific["followupAssessments"]
                     )
                     + "</ul>"
