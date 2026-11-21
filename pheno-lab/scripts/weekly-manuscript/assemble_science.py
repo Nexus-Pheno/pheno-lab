@@ -4,6 +4,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import re
 from html import escape
 from pathlib import Path
 
@@ -52,6 +53,42 @@ def section(key, en, zh, body):
         "bodyEn": body["en"],
         "bodyZh": body["zh"],
     }
+
+
+PROJECT_TOKEN = re.compile(r"(?<![A-Za-z0-9_-])P[1-9][0-9]*(?![A-Za-z0-9_-])")
+SOURCE_TOKEN = re.compile(
+    r"(?<![A-Za-z0-9])(?:[0-9a-fA-F]{20,}|(?:period-route|route-cohort|stratum|cohort)-[A-Za-z0-9-]{9,})(?![A-Za-z0-9])"
+)
+
+
+def display_project_text(value, names):
+    """Substitute local project names only in bilingual prose. Keep linked IDs intact."""
+    if isinstance(value, list):
+        return [display_project_text(row, names) for row in value]
+    if not isinstance(value, dict):
+        return value
+    result = {}
+    for key, text in value.items():
+        if key in ("en", "zh") and isinstance(text, str):
+            if SOURCE_TOKEN.search(text):
+                raise ValueError(
+                    "Scientific project prose exposes an internal source identifier"
+                )
+
+            def project_name(match, language=key):
+                p = match.group()
+                if p not in names:
+                    raise ValueError(
+                        "Scientific project prose uses an unresolved project identifier"
+                    )
+                return names[p]["name"] or (
+                    "未分配项目" if language == "zh" else "Unassigned experiments"
+                )
+
+            result[key] = PROJECT_TOKEN.sub(project_name, text)
+        else:
+            result[key] = display_project_text(text, names)
+    return result
 
 
 def digest(path):
@@ -127,6 +164,8 @@ def assemble_science(root):
             or receipt["reviewDecision"] != "PASS"
         ):
             raise ValueError("Project decision lacks independent acceptance")
+    decisions = display_project_text(decisions, names["projects"])
+    save(root / "project-decisions-display.private.json", decisions)
     project_body = {}
     for lang in ("en", "zh"):
         zh = lang == "zh"

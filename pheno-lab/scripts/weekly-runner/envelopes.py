@@ -779,7 +779,7 @@ def assemble(work, prior):
         )
     science = read(work / "science-interpretation.json")
     articles = read(work / "article-refresh.json")
-    proj = read(work / "project-decisions.json")
+    proj = read(work / "project-decisions-display.private.json")
     sections = {s["id"]: s for s in doc["sections"]}
     for key, en, zh in [
         ("routes", "Route results across three periods", "三个时段的路线结果"),
