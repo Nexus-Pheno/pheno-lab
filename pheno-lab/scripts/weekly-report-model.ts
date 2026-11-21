@@ -474,7 +474,13 @@ async function callPinnedModel<T extends z.ZodType>(
     max_tokens:
       options.role === "final-reviewer"
         ? 65_536
-        : ["author", "scientist", "project-author"].includes(options.role)
+        : [
+              "author",
+              "scientist",
+              "project-author",
+              "reviewer",
+              "chemist-reviewer",
+            ].includes(options.role)
           ? 32_768
           : 16_384,
     stream: false,
@@ -515,14 +521,34 @@ async function callPinnedModel<T extends z.ZodType>(
   }
   // A refusal, fallback model, truncated output or malformed response fails
   // the run. Do not log either provider content or its private reasoning.
-  let content: unknown;
-  let completionId: string;
+  let raw: unknown;
   try {
-    const completion = completionSchema.parse(await readCompletion(response));
-    completionId = completion.id;
-    content = JSON.parse(completion.choices[0].message.content);
+    raw = await readCompletion(response);
   } catch {
-    throw new Error("Weekly model identity, completion or JSON invalid");
+    throw new Error("Weekly provider returned an incomplete response");
+  }
+  const parsedCompletion = completionSchema.safeParse(raw);
+  if (!parsedCompletion.success) {
+    const hint = z
+      .object({
+        choices: z.array(z.object({ finish_reason: z.string().nullable() })),
+      })
+      .safeParse(raw);
+    if (
+      hint.success &&
+      hint.data.choices.some((c) => c.finish_reason === "length")
+    )
+      throw new Error(
+        "Weekly model reached its output budget before completing the review",
+      );
+    throw new Error("Weekly model identity or completion contract invalid");
+  }
+  const completionId = parsedCompletion.data.id;
+  let content: unknown;
+  try {
+    content = JSON.parse(parsedCompletion.data.choices[0].message.content);
+  } catch {
+    throw new Error("Weekly model returned incomplete JSON");
   }
   const output = options.schema.safeParse(content);
   if (!output.success) {
