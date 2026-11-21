@@ -1,7 +1,13 @@
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { expect, it, vi } from "vitest";
 import { checkGoalEvidence } from "../scripts/weekly-report-model-attainment";
 import {
   applyProjectPatch,
+  draftCheckpoint,
   checkBindings,
   projectEvidence,
 } from "../scripts/weekly-report-model-projects";
@@ -421,4 +427,61 @@ it("replays every project correction against the original actual rejected indepe
       { hash, seal, completion },
     ),
   ).toThrow("original project review");
+});
+
+it("resumes the exact completed author stage after a referee interruption and rejects a changed cache", async () => {
+  const { hashWeeklyReportValue: hash } =
+    await import("../scripts/weekly-report-model");
+  const dir = await mkdtemp(join(tmpdir(), "pheno-synthetic-draft-"));
+  try {
+    const e = projectEvidence(
+      {
+        projectAlias: "p",
+        projectName: "demo",
+        assigned: true,
+        experiments: [],
+        ledgerEntries: [],
+        periodPerformance: { routeCohorts: [] },
+      },
+      base,
+      new Map(),
+      new Set(),
+    );
+    const data = { evidence: e },
+      val = { summary: "Synthetic fold." },
+      role = "project-author" as const;
+    const response = {
+      role,
+      model: "deepseek-v4-pro",
+      provider: "deepseek",
+      providerHost: "api.deepseek.com",
+      requestId: randomUUID(),
+      completionId: randomUUID(),
+      inputHash: hash(data),
+      evidenceHash: hash(e),
+      outputHash: hash(val),
+      requestHash: hash("test request"),
+      promptHash: hash("test prompt"),
+      value: val,
+    };
+    const fetch = vi.fn(async () => response),
+      schema = z.object({ summary: z.string() });
+    expect(await draftCheckpoint(dir, e, role, schema, data, fetch)).toEqual(
+      response,
+    );
+    expect(await draftCheckpoint(dir, e, role, schema, data, fetch)).toEqual(
+      response,
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const p = join(dir, "pending-project-author-P1-" + hash(data) + ".json");
+    const altered = JSON.parse(await readFile(p, "utf8"));
+    altered.value.summary = "An unpublished changed sentence";
+    await writeFile(p, JSON.stringify(altered));
+    await expect(
+      draftCheckpoint(dir, e, role, schema, data, fetch),
+    ).rejects.toThrow("exact pending draft");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

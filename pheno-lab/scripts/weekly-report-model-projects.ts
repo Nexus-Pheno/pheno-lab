@@ -408,7 +408,7 @@ const modelStamp = z.object({
   requestHash: string,
   promptHash: string,
 });
-async function draftCheckpoint<T extends z.ZodType>(
+export async function draftCheckpoint<T extends z.ZodType>(
   dir: string,
   e: Evidence,
   role: "project-author" | "project-reviser",
