@@ -131,6 +131,16 @@ describe("weekly scientific author and reviewer transport", () => {
     expect(JSON.stringify([written, reviewed])).not.toMatch(/synthetic-/);
   });
 
+  it("retries an explicit temporary provider refusal once without changing the request", async () => {
+    mocks.fetch
+      .mockResolvedValueOnce(
+        new Response(null, { status: 503, headers: { "Retry-After": "0" } }),
+      )
+      .mockResolvedValueOnce(complete(draft));
+    const r = await callWeeklyReportModel(author);
+    expect(r.value).toEqual(draft);
+    expect(mocks.fetch.mock.calls[1]).toEqual(mocks.fetch.mock.calls[0]);
+  });
   it("rejects source fields, arbitrary prompts and weaker result contracts before disclosure", async () => {
     await expect(
       callWeeklyReportModel({
@@ -170,7 +180,7 @@ describe("weekly scientific author and reviewer transport", () => {
     ["bad JSON", () => new Response("synthetic-untrusted-text")],
     [
       "HTTP failure",
-      () => new Response("synthetic-untrusted-text", { status: 429 }),
+      () => new Response("synthetic-untrusted-text", { status: 400 }),
     ],
   ] as const)(
     "fails closed on %s without echoing vendor content",

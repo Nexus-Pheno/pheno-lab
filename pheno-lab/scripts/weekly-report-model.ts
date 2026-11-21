@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { db } from "@/infrastructure/db/client";
 import { decryptCredential } from "@/infrastructure/crypto/credential-server";
@@ -369,9 +370,12 @@ async function callPinnedModel<T extends z.ZodType>(
     thinking: { type: "enabled" },
     reasoning_effort: "high",
     response_format: { type: "json_object" },
-    max_tokens: ["author", "scientist"].includes(options.role)
-      ? 32_768
-      : 16_384,
+    max_tokens:
+      options.role === "final-reviewer"
+        ? 65_536
+        : ["author", "scientist", "project-author"].includes(options.role)
+          ? 32_768
+          : 16_384,
     stream: false,
   });
   const timeout = AbortSignal.timeout(15 * 60_000);
@@ -380,7 +384,7 @@ async function callPinnedModel<T extends z.ZodType>(
     : timeout;
   const url = provider.baseUrl.replace(/\/+$/, "") + "/chat/completions";
   const requestId = randomUUID();
-  const response = await fetch(url, {
+  const request: RequestInit = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -390,7 +394,20 @@ async function callPinnedModel<T extends z.ZodType>(
     body,
     redirect: "error",
     signal,
-  });
+  };
+  // The report itself is never written in a model call. Retry an explicit temporary
+  // vendor refusal once with identical payload, credential and client-request ID.
+  let response = await fetch(url, request);
+  if ([429, 502, 503, 504].includes(response.status)) {
+    const retryAfter = response.headers.get("retry-after");
+    const seconds =
+      retryAfter !== null && /^\d+$/.test(retryAfter) ? Number(retryAfter) : 3;
+    if (seconds <= 60) {
+      await response.body?.cancel();
+      await delay(seconds * 1000, undefined, { signal });
+      response = await fetch(url, request);
+    }
+  }
   if (!response.ok) {
     await response.body?.cancel();
     throw new Error(`Weekly ${options.role} model HTTP ${response.status}`);
