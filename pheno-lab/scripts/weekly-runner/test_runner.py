@@ -213,6 +213,46 @@ class WeeklyScheduleTests(TestCase):
                     runner.verify_delivery_files(work)
                 path.write_bytes(original)
 
+            original_hold = reviews / "visual-findings.json"
+            original_hash = artifact(original_hold)
+            with self.assertRaisesRegex(ValueError, "original visual findings"):
+                runner.verify_delivery_files(work)
+            adjacent = gate / "qa" / "adjacent-viewport.png"
+            adjacent.parent.mkdir()
+            expected = {"reviews/visual-findings.json": original_hash,
+                        "gate/qa/adjacent-viewport.png": artifact(adjacent)}
+            ready = runner.read(gate / "ready.json")
+            ready["visualBoundaryArtifactHashes"] = expected
+            (gate / "ready.json").write_text(json.dumps(ready))
+            self.assertTrue(runner.verify_delivery_files(work)["passed"])
+            adjacent.write_bytes(b"substituted")
+            with self.assertRaisesRegex(ValueError, "changed"):
+                runner.verify_delivery_files(work)
+            with self.assertRaisesRegex(ValueError, "evidence path"):
+                runner.visual_boundary_files(work, {"visualBoundaryArtifactHashes":
+                                             {**expected, "reviews/../../unexpected": original_hash}})
+
+    def test_visual_followup_requires_completed_finding(self):
+        import review_work
+        import subprocess
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            reviews, gate = root / "reviews", root / "gate"
+            reviews.mkdir()
+            gate.mkdir()
+            with mock.patch.object(review_work, "ts", side_effect=subprocess.CalledProcessError(1, "vision")), \
+                    mock.patch.object(review_work, "run") as resolve:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    review_work.review_visuals(root, gate, reviews)
+                resolve.assert_not_called()
+                (reviews / "visual-findings.json").write_text("retained")
+                resolve.side_effect = lambda *args, **opts: (reviews / "visual-review.json").write_text("approved")
+                review_work.review_visuals(root, gate, reviews)
+                self.assertEqual(resolve.call_args.args[2].name, "adjudicate_visual.py")
+                self.assertEqual((reviews / "visual-findings.json").read_text(), "retained")
+                review_work.review_visuals(root, gate, reviews)
+                self.assertEqual(resolve.call_count, 1)
+
     def test_trace_matches_only_shared_route_and_keeps_unmeasured_dispersion(self):
         from envelopes import route_panels, section
 

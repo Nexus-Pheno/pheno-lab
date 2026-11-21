@@ -181,6 +181,25 @@ def finish(state, work, receipt):
     )
 
 
+def visual_boundary_files(work, ready):
+    name = "reviews/visual-findings.json"
+    findings = work / name
+    evidence = ready.get("visualBoundaryArtifactHashes")
+    if evidence is None and not findings.exists():
+        return []
+    if not isinstance(evidence, dict) or name not in evidence or not findings.is_file():
+        raise ValueError("The original visual findings and their accepted evidence are required.")
+    files = []
+    for relative, digest in evidence.items():
+        path = Path(relative)
+        if path.is_absolute() or ".." in path.parts or not (
+            path.parts[:1] == ("reviews",) or path.parts[:2] == ("gate", "qa")
+        ):
+            raise ValueError("Invalid visual review evidence path.")
+        files.append((work / path, digest))
+    return files
+
+
 def verify_delivery_files(work):
     gate = work / "gate"
     ready = read(gate / "ready.json")
@@ -197,6 +216,7 @@ def verify_delivery_files(work):
         raise ValueError("Final review does not match the frozen report.")
     files = [(work / k, v) for k, v in ready["verifiedArtifactHashes"].items()]
     files += [(work / "reviews" / k, v) for k, v in ready["reviewHashes"].items()]
+    files += visual_boundary_files(work, ready)
     files += [
         (gate / "challenge.json", ready["challengeSha256"]),
         (gate / "report-document-reviewed.json", ready["signedDocumentSha256"]),

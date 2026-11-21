@@ -178,6 +178,27 @@ def assemble_reviewed(work, prior):
     render_reviewed(work)
 
 
+def review_visuals(work, gate, reviews):
+    approved = reviews / "visual-review.json"
+    findings = reviews / "visual-findings.json"
+    if approved.exists():
+        return
+    if not findings.exists():
+        try:
+            ts(RUNNER / "vision.ts", gate, reviews, timeout=10800)
+        except subprocess.CalledProcessError:
+            if not findings.is_file():
+                raise
+        else:
+            if not approved.is_file():
+                raise ValueError("Completed visual inspection supplied no approval receipt.")
+            return
+    if not approved.exists() and findings.is_file():
+        run(sys.executable, "-B", SCI / "adjudicate_visual.py", work, gate, reviews, timeout=10800)
+    if not approved.is_file():
+        raise ValueError("Visual review requires a corrected manuscript.")
+
+
 def workflow(work, prior):
     # Both teams use the frozen source packet. They write distinct receipts.
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -210,8 +231,7 @@ def workflow(work, prior):
         raise ValueError(
             "Independent scientific referee requires a corrected manuscript."
         )
-    if not (reviews / "visual-review.json").exists():
-        ts(RUNNER / "vision.ts", gate, reviews, timeout=10800)
+    review_visuals(work, gate, reviews)
     if not (gate / "ready.json").exists():
         run(
             sys.executable,
