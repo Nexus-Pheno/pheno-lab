@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -11,8 +11,10 @@ import {
   privateScienceInputSchema,
   scienceInterpretationSchema,
   scienceReviewSchema,
+  scienceSystem,
+  scienceReviewerSystem,
 } from "./science-contract";
-import { immutableWrite } from "./write";
+import { immutableWrite, checkpoint } from "./checkpoint";
 
 type Evidence = z.output<typeof privateScienceInputSchema>["evidence"];
 type Science = z.output<typeof scienceInterpretationSchema>;
@@ -119,11 +121,20 @@ async function main() {
     | { previous: Science; review: z.output<typeof scienceReviewSchema> }
     | undefined;
   for (let a = 1; a <= 3; a++) {
-    const author = await callWeeklyScienceModel({
-      orgId,
-      role: "scientist",
-      payload: { evidence, ...(revision ? { revision } : {}) },
-    });
+    const writerInput = { evidence, ...(revision ? { revision } : {}) };
+    const author = await checkpoint(
+      join(dir, `scientist-checkpoint-${a}.json`),
+      "scientist",
+      scienceSystem,
+      writerInput,
+      scienceInterpretationSchema,
+      () =>
+        callWeeklyScienceModel({
+          orgId,
+          role: "scientist",
+          payload: writerInput,
+        }),
+    );
     await immutableWrite(join(dir, `scientist-attempt-${a}.json`), author);
     // Even a binding error is presented to the independent reviewer. A positive
     // assessment cannot override the local deterministic evidence check.
@@ -135,11 +146,19 @@ async function main() {
         e instanceof Error ? e.message : "Invalid source binding";
     }
     const payload = { evidence, interpretation: author.value };
-    const peer = await callWeeklyScienceModel({
-      orgId,
-      role: "chemist-reviewer",
+    const peer = await checkpoint(
+      join(dir, `chemist-review-checkpoint-${a}.json`),
+      "chemist-reviewer",
+      scienceReviewerSystem,
       payload,
-    });
+      scienceReviewSchema,
+      () =>
+        callWeeklyScienceModel({
+          orgId,
+          role: "chemist-reviewer",
+          payload,
+        }),
+    );
     if (
       peer.completionId === author.completionId ||
       peer.inputHash !== hashWeeklyReportValue(payload) ||
@@ -155,7 +174,9 @@ async function main() {
       publicDraftAtScienceSha256:
         publicDraft === null ? null : hashWeeklyReportValue(publicDraft),
       bindingFailure,
-      reviewedAt: new Date().toISOString(),
+      reviewedAt: (
+        await stat(join(dir, `chemist-review-checkpoint-${a}.json`))
+      ).mtime.toISOString(),
     };
     await immutableWrite(
       join(dir, `scientific-peer-attempt-${a}.json`),

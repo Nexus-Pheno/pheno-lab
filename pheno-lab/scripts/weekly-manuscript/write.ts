@@ -1,5 +1,5 @@
-import { readFile, link, unlink, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { checkpoint, immutableWrite } from "./checkpoint";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -55,20 +55,6 @@ export function checkBindings(
   }
 }
 
-export async function immutableWrite(file: string, value: unknown) {
-  const temp = file + "." + randomUUID();
-  await writeFile(temp, JSON.stringify(value, null, 2) + "\n", {
-    mode: 0o600,
-    flag: "wx",
-  });
-  try {
-    // link never replaces an existing run artifact, even under a racing run.
-    await link(temp, file);
-  } finally {
-    await unlink(temp);
-  }
-}
-
 async function main() {
   if (process.argv.length !== 3)
     throw new Error("Usage: write.ts <private run directory>");
@@ -80,27 +66,51 @@ async function main() {
   const evidenceHash = hashWeeklyReportValue(evidence);
   let revision: z.output<typeof peerReviewSchema> | undefined;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const author = await callWeeklyReportModel({
-      orgId,
-      role: "author",
-      system: authorSystem,
-      payload: { evidence, ...(revision ? { revision } : {}) },
-      schema: manuscriptSchema,
-    });
+    const writerInput = { evidence, ...(revision ? { revision } : {}) };
+    const author = await checkpoint(
+      join(dir, `writer-checkpoint-${attempt}.json`),
+      "author",
+      authorSystem,
+      writerInput,
+      manuscriptSchema,
+      () =>
+        callWeeklyReportModel({
+          orgId,
+          role: "author",
+          system: authorSystem,
+          payload: writerInput,
+          schema: manuscriptSchema,
+        }),
+    );
     if (
       author.evidenceHash !== evidenceHash ||
       author.outputHash !== hashWeeklyReportValue(author.value)
     )
       throw new Error("Writer evidence binding differs");
     await immutableWrite(join(dir, `author-attempt-${attempt}.json`), author);
-    checkBindings(evidence, author.value);
-    const reviewer = await callWeeklyReportModel({
-      orgId,
-      role: "reviewer",
-      system: reviewerSystem,
-      payload: { evidence, draft: author.value },
-      schema: peerReviewSchema,
-    });
+    let bindingFailure: string | null = null;
+    try {
+      checkBindings(evidence, author.value);
+    } catch (err) {
+      bindingFailure =
+        err instanceof Error ? err.message : "Missing source binding";
+    }
+    const peerInput = { evidence, draft: author.value };
+    const reviewer = await checkpoint(
+      join(dir, `public-peer-checkpoint-${attempt}.json`),
+      "reviewer",
+      reviewerSystem,
+      peerInput,
+      peerReviewSchema,
+      () =>
+        callWeeklyReportModel({
+          orgId,
+          role: "reviewer",
+          system: reviewerSystem,
+          payload: peerInput,
+          schema: peerReviewSchema,
+        }),
+    );
     if (
       reviewer.evidenceHash !== evidenceHash ||
       reviewer.inputHash !==
@@ -118,6 +128,7 @@ async function main() {
       attestation,
     );
     if (
+      !bindingFailure &&
       reviewer.value.decision === "PASS" &&
       reviewer.value.findings.every((f) => f.severity !== "blocking")
     ) {
@@ -129,9 +140,20 @@ async function main() {
       console.log("Public candidate and bound independent model review saved.");
       return;
     }
-    if (reviewer.value.decision !== "REVISE" || !reviewer.value.findings.length)
+    if (
+      reviewer.value.decision === "BLOCK" ||
+      (!bindingFailure && !reviewer.value.findings.length)
+    )
       break;
-    revision = reviewer.value;
+    revision = { ...reviewer.value, findings: [...reviewer.value.findings] };
+    if (bindingFailure && revision.findings.length < 20)
+      revision.findings.push({
+        severity: "blocking",
+        location: "comparison evidence binding",
+        issue: bindingFailure,
+        correction:
+          "Use the selected reference and nonempty measurement groups from the supplied characterization.",
+      });
   }
   throw new Error(
     "Independent public manuscript review requires further work; saved all available drafts",
