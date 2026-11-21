@@ -1,7 +1,15 @@
 import "server-only";
+import { db } from "@/infrastructure/db/client";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { link, readFile, unlink, writeFile } from "node:fs/promises";
+import {
+  link,
+  readdir,
+  readFile,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -353,6 +361,48 @@ const receiptSchema = z.object({
 async function reviewOne(dir: string, orgId: string, e: Evidence) {
   const eh = hashWeeklyReportValue(e);
   const path = join(dir, "project-" + e.project + "-" + eh + ".json");
+  const attemptFiles = await Promise.all(
+    (await readdir(dir))
+      .filter((n) => /^project-attempt-[a-f\d-]+\.json$/.test(n))
+      .map(async (n) => ({
+        p: join(dir, n),
+        time: (await stat(join(dir, n))).mtimeMs,
+      })),
+  );
+  attemptFiles.sort((a, b) => b.time - a.time);
+  const history = [];
+  for (const item of attemptFiles) {
+    const envelope = z
+      .object({
+        author: z.object({
+          evidenceHash: z.string(),
+          outputHash: z.string(),
+          completionId: z.string(),
+          requestHash: z.string(),
+          value: z.unknown(),
+        }),
+        reviewer: z.object({
+          evidenceHash: z.string(),
+          inputHash: z.string(),
+          completionId: z.string(),
+          requestHash: z.string(),
+          value: z.unknown(),
+        }),
+      })
+      .parse(await existing(item.p));
+    if (envelope.author.evidenceHash !== eh) continue;
+    const previous = projectJudgmentSchema.parse(envelope.author.value),
+      review = projectCritiqueSchema.parse(envelope.reviewer.value);
+    if (
+      envelope.reviewer.evidenceHash !== eh ||
+      envelope.author.outputHash !== hashWeeklyReportValue(previous) ||
+      envelope.reviewer.inputHash !==
+        hashWeeklyReportValue({ evidence: e, candidate: previous }) ||
+      envelope.author.completionId === envelope.reviewer.completionId
+    )
+      throw new Error("Invalid saved project review");
+    history.push({ envelope, previous, review });
+  }
   const saved = await existing(path);
   if (saved !== undefined) {
     const o = z
@@ -366,11 +416,28 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
       o.receipt.authorCompletionId === o.receipt.reviewerCompletionId
     )
       throw new Error("Project checkpoint differs from evidence");
+    if (
+      !history.some(
+        (h) =>
+          h.review.decision === "PASS" &&
+          !h.review.findings.some((f) => f.severity === "blocking") &&
+          h.envelope.author.requestHash === o.receipt.authorRequestHash &&
+          h.envelope.reviewer.requestHash === o.receipt.reviewerRequestHash &&
+          h.envelope.author.completionId === o.receipt.authorCompletionId &&
+          h.envelope.reviewer.completionId === o.receipt.reviewerCompletionId &&
+          h.envelope.author.outputHash === o.receipt.outputHash,
+      )
+    )
+      throw new Error(
+        "Verified project decision requires its actual completed peer review",
+      );
     return o;
   }
   let revision:
     | { previous: Approval; review: z.output<typeof projectCritiqueSchema> }
     | undefined;
+  if (history[0]?.review.decision === "REVISE")
+    revision = { previous: history[0].previous, review: history[0].review };
   for (let attempt = 0; attempt < 3; attempt++) {
     const w = await callWeeklyProjectReview({
       orgId,
@@ -392,7 +459,7 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
     let corrected = r.value;
     try {
       checkBindings(e, w.value);
-    } catch {
+    } catch (error) {
       corrected = {
         ...r.value,
         decision: "REVISE",
@@ -400,9 +467,12 @@ async function reviewOne(dir: string, orgId: string, e: Evidence) {
           ...r.value.findings.slice(0, 15),
           {
             severity: "blocking",
-            issue: "Source bindings or inventory differ.",
+            issue:
+              error instanceof Error
+                ? error.message
+                : "Source bindings or inventory differ.",
             correction:
-              "Return one routeIntents entry for each route case in supplied order. Copy all five binding fields exactly.",
+              "Return one entry per supplied case and prior issue in identical order. Copy binding fields exactly. Only cite genuinely matching current-period measured experiment codes for direct/partial prior-issue tests.",
           },
         ],
       };
@@ -563,18 +633,20 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
-  main().catch((e) => {
-    console.error(
-      e instanceof z.ZodError
-        ? "Project evidence contract mismatch at " +
-            e.issues
-              .slice(0, 5)
-              .map((i) => i.path.join(".") + ":" + i.code)
-              .join(", ")
-        : e instanceof Error
-          ? e.message
-          : "Project evidence contract mismatch",
-    );
-    process.exitCode = 1;
-  });
+  main()
+    .catch((e) => {
+      console.error(
+        e instanceof z.ZodError
+          ? "Project evidence contract mismatch at " +
+              e.issues
+                .slice(0, 5)
+                .map((i) => i.path.join(".") + ":" + i.code)
+                .join(", ")
+          : e instanceof Error
+            ? e.message
+            : "Project evidence contract mismatch",
+      );
+      process.exitCode = 1;
+    })
+    .finally(() => db.$disconnect());
 }

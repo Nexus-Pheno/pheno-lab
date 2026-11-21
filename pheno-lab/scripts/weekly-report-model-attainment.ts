@@ -1,4 +1,5 @@
 import "server-only";
+import { db } from "@/infrastructure/db/client";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -327,12 +328,14 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
-  main().catch((e) => {
-    console.error(
-      e instanceof Error && !("issues" in e)
-        ? e.message
-        : "Project purpose contract mismatch",
-    );
-    process.exitCode = 1;
-  });
+  main()
+    .catch((e) => {
+      console.error(
+        e instanceof Error && !("issues" in e)
+          ? e.message
+          : "Project purpose contract mismatch",
+      );
+      process.exitCode = 1;
+    })
+    .finally(() => db.$disconnect());
 }
