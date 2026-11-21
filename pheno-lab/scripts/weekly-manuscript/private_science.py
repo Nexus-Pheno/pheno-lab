@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
-from prepare import read, save, date
+from prepare import read, save, date, snapshot_sources
 
 
 def scientific_text(value):
@@ -38,6 +38,9 @@ def build(root):
     definitions={m['materialAlias']:m for m in snapshot['privateChemistryDefinitions']}
     summaries={e['code']:e for e in snapshot['experimentSummaries']}
     app={e['experimentCode']:e['evidence'] for e in snapshot['sharedAppEvidence']['experiments']}
+    scan_context=defaultdict(list)
+    for record in snapshot_sources(snapshot).values():
+        scan_context[record['experimentCode']].append(record)
     cases=[]
     case_bindings={}
     for row in packet['cases']:
@@ -114,7 +117,27 @@ def build(root):
                 'association':sorted(assoc),'graph':graph})
         test=(s.get('metadata') or {}).get('testPlan') or {}
         prospective=[{'group':labels[g['label']],'declaredControl':g.get('isControl')} for g in test.get('groups',[]) if g.get('label') in labels] if isinstance(test,dict) else []
-        cases.append({'experiment':row['id'],'sourceHash':e['sourceHash'],'title':scientific_text(s['title']),
+        stack=[]
+        for st in s['steps']:
+            rec=st.get('recipe') or {}
+            planned_materials=[(v.get('material') or {}).get('name') for v in st.get('materials',[]) if isinstance(v.get('material'),dict)]
+            stack.append({'position':st['position'],'name':scientific_text(st.get('name')),'layer':scientific_text(st.get('layer')),
+                'process':scientific_text((st.get('process') or {}).get('name')),'recipe':recipes.get(rec.get('recipeAlias'),{}).get('id'),
+                'materials':[scientific_text(n) for n in planned_materials if n], 'actualEntries':len(st.get('executions',[])),
+                'flaggedEntries':sum(bool(x.get('flagged')) for x in st.get('executions',[]))})
+        protocols=Counter()
+        for scan in scan_context[bind['code']]:
+            if scan.get('group') not in labels:continue
+            area=(scan.get('metrics') or {}).get('area')
+            direction=scan.get('direction')
+            points=(scan.get('settings') or {}).get('points')
+            signature=(labels[scan['group']],direction if direction in ('FORWARD','REVERSE') else 'UNKNOWN',
+                area if type(area) in (int,float) else None, scientific_text(scan.get('areaDefinition')),
+                points if type(points) is int and points>=0 else None)
+            protocols[signature]+=1
+        context=[{'group':g,'direction':direction,'area':area,'areaBasis':basis,'points':points,'scans':n}
+                 for (g,direction,area,basis,points),n in protocols.items()]
+        cases.append({'stack':stack,'secondaryScanContext':context,'experiment':row['id'],'sourceHash':e['sourceHash'],'title':scientific_text(s['title']),
             'observation':scientific_text(s.get('observation')),'question':scientific_text(s.get('problem')),'hypothesis':scientific_text(s.get('hypothesis')),
             'conclusion':scientific_text(s.get('conclusion')),'testPlan':scientific_text(prospective),
             'conditions':conditions,'recipes':list(recipes.values()),'actualCaptures':any(st.get('executions') for st in s['steps']),
