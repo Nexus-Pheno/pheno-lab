@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { checkpoint, immutableWrite } from "./checkpoint";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -67,8 +67,63 @@ async function main() {
   const orgId = await getWeeklyReportOrganizationId();
   const evidenceHash = hashWeeklyReportValue(evidence);
   let revision: z.output<typeof peerReviewSchema> | undefined;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const writerInput = { evidence, ...(revision ? { revision } : {}) };
+  let previousDraft: z.output<typeof manuscriptSchema> | undefined;
+  const files = await readdir(dir);
+  let after = 0;
+  for (let i = 3; i >= 1; i--) {
+    if (!files.includes(`peer-attempt-${i}.json`)) continue;
+    const author = JSON.parse(
+      await readFile(join(dir, `author-attempt-${i}.json`), "utf8"),
+    );
+    const peer = JSON.parse(
+      await readFile(join(dir, `peer-attempt-${i}.json`), "utf8"),
+    );
+    const draft = manuscriptSchema.parse(author.value),
+      verdict = peerReviewSchema.parse(peer.value);
+    if (
+      author.role !== "author" ||
+      peer.role !== "reviewer" ||
+      author.model !== "deepseek-v4-pro" ||
+      peer.model !== author.model ||
+      author.providerHost !== "api.deepseek.com" ||
+      peer.providerHost !== author.providerHost ||
+      !author.completionId ||
+      !peer.completionId ||
+      author.completionId === peer.completionId ||
+      author.requestHash === peer.requestHash ||
+      author.evidenceHash !== evidenceHash ||
+      peer.evidenceHash !== evidenceHash ||
+      author.outputHash !== hashWeeklyReportValue(draft) ||
+      peer.reviewedManuscriptHash !== author.outputHash ||
+      peer.outputHash !== hashWeeklyReportValue(verdict) ||
+      peer.inputHash !== hashWeeklyReportValue({ evidence, draft })
+    )
+      throw Error(
+        "Previous manuscript and critique do not bind to this evidence.",
+      );
+    if (
+      verdict.decision === "PASS" &&
+      verdict.findings.every((f) => f.severity !== "blocking")
+    ) {
+      checkBindings(evidence, draft);
+      await immutableWrite(join(dir, "manuscript-candidate.json"), draft);
+      await immutableWrite(join(dir, "public-model-review.json"), peer);
+      return;
+    }
+    if (verdict.decision !== "REVISE" || !verdict.findings.length)
+      throw Error(
+        "The scientific review needs new evidence or a substantive correction.",
+      );
+    after = i;
+    previousDraft = draft;
+    revision = verdict;
+    break;
+  }
+  for (let attempt = after + 1; attempt <= 3; attempt++) {
+    const writerInput = {
+      evidence,
+      ...(revision ? { revision, previousDraft } : {}),
+    };
     const author = await checkpoint(
       join(dir, `writer-checkpoint-${attempt}.json`),
       "author",
@@ -147,6 +202,7 @@ async function main() {
       (!bindingFailure && !reviewer.value.findings.length)
     )
       break;
+    previousDraft = author.value;
     revision = { ...reviewer.value, findings: [...reviewer.value.findings] };
     if (bindingFailure && revision.findings.length < 20)
       revision.findings.push({
