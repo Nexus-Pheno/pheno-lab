@@ -696,7 +696,7 @@ def case_records(c, s, e, chem, refs, articles, sections, priority):
     )
 
 
-def historical_context(code, decision_row, source, refs, ctx):
+def historical_context(code, decision_row, source, assessment, ctx):
     fields = {}
     for field in ("observation", "problem", "hypothesis"):
         raw = source.get(field) or ""
@@ -713,12 +713,10 @@ def historical_context(code, decision_row, source, refs, ctx):
         fields[f]["status"] == "SOURCE_RECORDED" for f in ("problem", "hypothesis")
     )
     objective = dict(
-        status="UNRESOLVED" if goal else "NO_PRESPECIFIED_GOAL",
-        goalBasis="REVIEWER_INTERPRETATION_OF_CURRENT_FIELDS"
-        if goal
-        else "NO_DOCUMENTED_GOAL",
-        evidenceIds=refs,
-        **bi("analysis", decision_row["attainment"]),
+        status=assessment["status"],
+        goalBasis=assessment["goalBasis"],
+        evidenceIds=assessment["evidenceIds"],
+        **bi("analysis", assessment["reason"]),
     )
     design = dict(
         experimentCode=code,
@@ -740,7 +738,7 @@ def historical_context(code, decision_row, source, refs, ctx):
         **bi("questionForLab", decision_row["next"]),
     )
     for v in (
-        decision_row["attainment"],
+        assessment["reason"],
         decision_row["purpose"],
         decision_row["comparison"],
         TEMPORAL,
@@ -850,6 +848,10 @@ def assemble(work, prior):
     previous = read(prior / "rd-dossier-published.json")
     ledger = {e["entryId"]: e for e in previous["ledgerEntries"]}
     project_candidates = proj["projects"]
+    attainment = {
+        (r["project"], r["experimentCode"], r["sourceHash"]): r
+        for r in read(work / "project-attainment.json")["rows"]
+    }
     bmap = read(work / "bindings.private.json")["projects"]
     project_receipts = {
         r["project"]: r
@@ -874,7 +876,11 @@ def assemble(work, prior):
                 codes.append(code)
             if code not in {b["experimentCode"] for b in rows["selected"]}:
                 detail, context = historical_context(
-                    code, intent, obs[code], [code], sections["context"]
+                    code,
+                    intent,
+                    obs[code],
+                    attainment[(row["project"], code, intent["sourceHash"])],
+                    sections["context"],
                 )
                 rows["selected"].append(detail)
                 rows["context"].append(context)
@@ -1028,8 +1034,10 @@ def assemble(work, prior):
         publicSourceUrls=["https://doi.org/" + a["doi"] for a in articles],
     )
     append(sections[sid], dict(en=theory["relationEn"], zh=theory["relationZh"]))
-    appendix = ["routes", "context", "sources"] + (
-        ["prior-action-review"] if "prior-action-review" in sections else []
+    appendix = (
+        (["project-purposes"] if "project-purposes" in sections else [])
+        + ["routes", "context", "sources"]
+        + (["prior-action-review"] if "prior-action-review" in sections else [])
     )
     doc["academicReview"] = dict(
         schemaVersion=1,

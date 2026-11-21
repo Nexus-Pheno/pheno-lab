@@ -116,6 +116,8 @@ def reviewed_ledger(work, prior):
 def workflow(work, prior):
     if not (work / "project-decisions-review.json").exists():
         ts(APP / "scripts/weekly-report-model-projects.ts", work, timeout=14400)
+    if not (work / "project-attainment.json").exists():
+        ts(APP / "scripts/weekly-report-model-attainment.ts", work, timeout=7200)
     if not (work / "private-chemistry-descriptors.json").exists():
         run(
             "node",
@@ -160,6 +162,10 @@ def workflow(work, prior):
         )
     if not (reviews / "scientific-review.json").exists():
         ts(SCI / "science-review.ts", gate, reviews)
+    if read(reviews / "scientific-review.json")["value"]["decision"] != "PASS":
+        raise ValueError(
+            "Independent scientific referee requires a corrected manuscript."
+        )
     if not (reviews / "visual-review.json").exists():
         ts(RUNNER / "vision.ts", gate, reviews, timeout=10800)
     if not (gate / "ready.json").exists():
