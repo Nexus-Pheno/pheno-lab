@@ -275,8 +275,8 @@ def collect(snapshot, snapshot_hash, dossier, source, bindings, reviews):
                     c = panels[route["routeId"] + ":" + per]
                     check(
                         c["experimentCode"] == code
-                        and c["group"] == route["group"]
-                        and c["direction"] == route["direction"],
+                        and (c["group"] or "") == route["group"]
+                        and (c["direction"] or "") == route["direction"],
                         "Strict route experiment, group or direction differs",
                     )
                     m = row(c, STRICT, per)

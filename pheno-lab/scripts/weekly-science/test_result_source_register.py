@@ -171,6 +171,15 @@ class ResultSources(TestCase):
                 "missing comparison" if lang == "en" else "缺少可比数据", html
             )
 
+    def test_missing_direction_stays_unknown_across_dossier_and_author_packet(self):
+        self.snapshot["sampleMeasurements"][0]["direction"] = None
+        for row in self.co:
+            row["direction"] = None
+        self.src["projects"][0]["routeCases"][0]["routes"][0]["direction"] = ""
+        result = self.result()
+        self.assertIn("unknown", render(result, "en"))
+        self.assertIn("未知", render(result, "zh"))
+
     def test_changed_frozen_source_fails(self):
         self.src["files"]["snapshot.json"] = "0" * 64
         with self.assertRaisesRegex(ValueError, "another measured snapshot"):
