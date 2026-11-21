@@ -12,6 +12,18 @@ export async function captureFullPage(page, directory, stem) {
       const { cssContentSize: size } = await cdp.send("Page.getLayoutMetrics");
       return { width: Math.ceil(size.width), height: Math.ceil(size.height) };
     };
+    const captureRegion = (width, top, height) =>
+      cdp.send("Page.captureScreenshot", {
+        format: "png",
+        fromSurface: true,
+        captureBeyondViewport: true,
+        clip: { x: 0, y: top, width, height, scale: 1 },
+      });
+    // The first offscreen paint can resolve lazy font metrics in a long bilingual table.
+    // Paint once before taking dimensions, then use only the final, stable layout as evidence.
+    const first = await measure();
+    await captureRegion(first.width, 0, Math.min(4096, first.height));
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const { width, height } = await measure();
     if (
       width !== page.viewportSize().width ||
@@ -27,12 +39,7 @@ export async function captureFullPage(page, directory, stem) {
       const name = tiled
         ? `${stem}-strip-${strips.length + 1}.png`
         : `${stem}.png`;
-      const capture = await cdp.send("Page.captureScreenshot", {
-        format: "png",
-        fromSurface: true,
-        captureBeyondViewport: true,
-        clip: { x: 0, y: top, width, height: h, scale: 1 },
-      });
+      const capture = await captureRegion(width, top, h);
       const bytes = Buffer.from(capture.data, "base64");
       if (bytes.readUInt32BE(16) !== width || bytes.readUInt32BE(20) !== h) {
         throw Error(
