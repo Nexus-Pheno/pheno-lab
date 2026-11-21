@@ -90,10 +90,10 @@ const primary = z.object({
         z.object({
           label: string,
           metrics: z.object({
-            pce: primaryMetric.optional(),
-            voc: primaryMetric.optional(),
-            jsc: primaryMetric.optional(),
-            ff: primaryMetric.optional(),
+            pce: primaryMetric.nullish().transform((m) => m ?? undefined),
+            voc: primaryMetric.nullish().transform((m) => m ?? undefined),
+            jsc: primaryMetric.nullish().transform((m) => m ?? undefined),
+            ff: primaryMetric.nullish().transform((m) => m ?? undefined),
           }),
         }),
       ),
@@ -267,6 +267,29 @@ function checkBindings(e: Evidence, x: Approval) {
     e.priorIssues.some((v, i) => v.key !== x.issueAssessments[i].key)
   )
     throw new Error("Prior issue coverage differs from the frozen ledger");
+  const codes = new Set(e.routeCases.map((c) => c.experimentCode));
+  const fresh = new Set(
+    e.routeCases
+      .filter((c) =>
+        c.routes.some((r) =>
+          r.cohorts.some(
+            (v) => v.sourcePeriod === "CURRENT_PERIOD" && v.nSamples > 0,
+          ),
+        ),
+      )
+      .map((c) => c.experimentCode),
+  );
+  for (const issue of x.issueAssessments) {
+    if (
+      issue.testedExperimentCodes.some((code) => !codes.has(code)) ||
+      (issue.assessment !== "no-new-direct-test" &&
+        (!issue.testedExperimentCodes.length ||
+          issue.testedExperimentCodes.some((code) => !fresh.has(code)))) ||
+      (issue.assessment === "no-new-direct-test" &&
+        issue.testedExperimentCodes.length)
+    )
+      throw new Error("Prior issue has no bound current direct test");
+  }
   for (let i = 0; i < e.routeCases.length; i++) {
     const a = e.routeCases[i],
       b = x.routeIntents[i];
@@ -520,9 +543,15 @@ if (
 ) {
   main().catch((e) => {
     console.error(
-      e instanceof Error && !("issues" in e)
-        ? e.message
-        : "Project evidence contract mismatch",
+      e instanceof z.ZodError
+        ? "Project evidence contract mismatch at " +
+            e.issues
+              .slice(0, 5)
+              .map((i) => i.path.join(".") + ":" + i.code)
+              .join(", ")
+        : e instanceof Error
+          ? e.message
+          : "Project evidence contract mismatch",
     );
     process.exitCode = 1;
   });
