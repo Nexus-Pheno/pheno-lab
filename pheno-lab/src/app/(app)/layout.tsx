@@ -9,6 +9,7 @@ import { ErrorCollector } from "@/components/ErrorCollector";
 import { IdleGuard } from "@/components/kiosk/IdleGuard";
 import { NotificationBell } from "@/components/NotificationBell";
 import { getOrganizationName } from "@/modules/organizations/query";
+import { canOpenStudies } from "@/modules/film-studies/access";
 import { unreadNotificationCount } from "@/modules/notifications/service";
 
 function ClipboardPenIcon() {
@@ -36,6 +37,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const session = await requireSession("setup");
+  const studyAccess = await canOpenStudies(session);
   const lang = await getLang();
   const t = await getT();
   if (session.mustChangePassword)
@@ -90,7 +92,7 @@ export default async function AppLayout({
             />
           </Link>
           <div className="w-px h-5 bg-line" />
-          <nav className="hidden md:flex items-center gap-1 text-[13px] font-medium text-charcoal">
+          <nav className={`hidden md:flex items-center gap-1 text-[13px] font-medium text-charcoal ${studyAccess ? "min-w-0 overflow-x-auto whitespace-nowrap [&>a]:shrink-0" : ""}`}>
             <Link
               href="/testing"
               className="px-2 py-1 rounded-[4px] hover:bg-subtle"
@@ -129,6 +131,7 @@ export default async function AppLayout({
                 >
                   {t("reports.title")}
                 </Link>
+                {studyAccess && <Link href="/characterizations" className="px-2 py-1 rounded-[4px] hover:bg-subtle">{lang==="zh"?"独立表征":"Characterizations"}</Link>}
                 {/* Triage board is the admin's; teammates submit from /profile. */}
                 {session.role === "ADMIN" && !session.device && (
                   <Link

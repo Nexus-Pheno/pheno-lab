@@ -6,12 +6,14 @@ type Props = {
   settings: {
     reportAccess: boolean;
     chemicalAccess: boolean;
+    filmStudyAgentAccess:boolean;
     keys: {
       id: string;
       label: string;
       expiresAt: Date;
       reports: boolean;
       chemistry: boolean;
+      filmStudies:boolean;
     }[];
   };
 };
@@ -49,6 +51,7 @@ export function ReaderKeys({ zh, settings }: Props) {
                   days: Number(v.get("days")),
                   reports: v.has("reports"),
                   chemistry: v.has("chemistry"),
+                  filmStudies:v.has("filmStudies"),
                 }),
               );
             } catch {
@@ -99,6 +102,7 @@ export function ReaderKeys({ zh, settings }: Props) {
             "包含受限分子结构数据（SMILES）",
           )}
         </label>
+        {settings.filmStudyAgentAccess && <label className="block"><input type="checkbox" name="filmStudies"/> {t("Include one-off characterization records and original files","包含独立表征记录与原始文件")}</label>}
         <button
           disabled={busy}
           className="rounded bg-brand-deep px-3 py-2 text-white"
@@ -153,6 +157,7 @@ export function ReaderKeys({ zh, settings }: Props) {
                   .replace("T", " ")
                   .slice(0, 16)}{" "}
                 UTC {k.reports ? t(" · Reports", " · 报告") : ""}
+                {k.filmStudies ? t(" · Characterizations", " · 独立表征") : ""}
                 {k.chemistry
                   ? t(" · Private chemistry", " · 私有化学数据")
                   : ""}

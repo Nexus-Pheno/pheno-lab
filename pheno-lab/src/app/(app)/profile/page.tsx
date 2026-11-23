@@ -10,12 +10,15 @@ import { BadgeBind } from "@/components/profile/BadgeBind";
 import { getProfileData, listMyFeedback } from "@/modules/accounts/query";
 import { getSystemStatus } from "@/modules/system/query";
 import { fmtBeijing } from "@/lib/datetime";
+import { canOpenStudies } from "@/modules/film-studies/access";
 import { canOpenChemicals } from "@/modules/chemicals/query";
 
 export default async function ProfilePage() {
   const session = await requireSession();
   const deviceSteward = await hasStewardship(session, "deviceAdmin");
   const memberSteward = await hasStewardship(session, "memberAdmin");
+  const lang = await getLang();
+  const studyAccess = await canOpenStudies(session);
   const chemicalAccess = await canOpenChemicals(session);
   const t = await getT();
   const [{ user, organization: org, aiProviders, statistics }, myFeedback] =
@@ -87,7 +90,7 @@ export default async function ProfilePage() {
 
         {session.role === "ADMIN" && !session.device && (
           <Link href="/profile/agent-access" className="inline-block font-semibold text-brand-deep underline">
-            {(await getLang()) === "zh" ? "科研智能体访问" : "Research agent access"}
+            {lang === "zh" ? "科研智能体访问" : "Research agent access"}
           </Link>
         )}
 
@@ -127,6 +130,7 @@ export default async function ProfilePage() {
           {t("reports.title")}
         </Link>
 
+        {studyAccess && <Link href="/characterizations" className="flex items-center gap-2 bg-surface border border-line rounded-[6px] p-4 text-sm font-semibold text-brand-deep hover:bg-brand-soft">{lang==="zh"?"独立表征":"Characterizations"}</Link>}
         {chemicalAccess && <Link href="/chemicals" className="flex items-center gap-2 bg-surface border border-line rounded-[6px] p-4 text-sm font-semibold text-brand-deep hover:bg-brand-soft"><Icon name="Atom" size={18}/>{t("chemicals.title")}</Link>}
 
         <ProfileForms

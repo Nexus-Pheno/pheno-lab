@@ -174,6 +174,12 @@ The same interface accepts authenticated `GET /api/research/v1` requests with an
 
 The client reads live pages. Record IDs, request timestamps and evidence source hashes with your analysis. Use `evidence` for the app's accepted-device comparison. Use `results`, `scans` and `curve` to inspect captured records and individual sweeps; multiple sweeps can belong to one physical device. Join `steps` (planned settings), `executions` (captured actuals), `runs` and `samples` by their IDs. Record run status and distinguish draft interpretations from measured results. The catalog covers real research and excludes recycled/test experiments. The API supplies research data only; it exposes no account-management, messaging, arbitrary-query or write commands.
 
+## One-off characterization records
+
+Authorized members open **Characterizations** from the navigation or their profile. Search a method by its Chinese or English name or acronym. Choose library materials or describe an unregistered material in the notes. An optional measurement date records when the measurement happened. The server records the upload date separately. Save multiple originals, including native instrument formats, spreadsheets, images and ZIP folders. Each file travels in verifiable 2 MiB parts and can be just under 2 GiB. Interrupted uploads remain private drafts and can resume from the portal with the original files. Saved records retain the original notes. AI extraction is labelled separately and can be retried.
+
+The research reader has a separate opt-in key scope for these records. With a scoped key, use `python3 pheno_lab.py list filmStudies --q KPFM` or `python3 pheno_lab.py get filmStudyFile FILE_ID --out original.spm`. For a local MCP client configure a stdio server with command `python3` and arguments `["/absolute/path/to/pheno_lab.py", "mcp"]`. The same private reader key is used. Tools search by method, material, notes or file name and download verified originals to a private local folder. File formats are retained as supplied; an instrument-specific decoder may be needed. See the [MCP lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle).
+
 ## Security & backups
 
 - Sessions are signed JWTs in httpOnly cookies; passwords are bcrypt-hashed;

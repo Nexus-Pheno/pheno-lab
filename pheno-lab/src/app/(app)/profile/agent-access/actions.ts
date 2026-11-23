@@ -10,6 +10,7 @@ export async function issue(input: {
   days: number;
   reports: boolean;
   chemistry: boolean;
+  filmStudies?:boolean;
 }) {
   const actor = await requireAdmin();
   assertPersonalDevice(actor);

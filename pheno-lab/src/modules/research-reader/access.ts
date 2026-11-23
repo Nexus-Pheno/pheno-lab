@@ -25,6 +25,7 @@ const keyInfo = {
   revokedAt: true,
   reports: true,
   chemistry: true,
+  filmStudies: true,
 } as const;
 const keyInput = z
   .object({
@@ -32,6 +33,7 @@ const keyInput = z
     days: z.union([z.literal(1), z.literal(7), z.literal(30)]),
     reports: z.boolean(),
     chemistry: z.boolean(),
+    filmStudies: z.boolean().default(false),
   })
   .strict();
 const digest = (value: string) =>
@@ -44,7 +46,12 @@ export async function readerSettings(actor: Actor) {
   personalAdmin(actor);
   const user = await db.user.findFirst({
     where: { ...eligible, id: actor.uid, organizationId: actor.org },
-    select: { sessionVersion: true, reportAccess: true, chemicalAccess: true },
+    select: {
+      sessionVersion: true,
+      reportAccess: true,
+      chemicalAccess: true,
+      filmStudyAgentAccess: true,
+    },
   });
   if (!user) throw new AuthorizationError();
   const keys = await db.researchReaderKey.findMany({
@@ -61,6 +68,7 @@ export async function readerSettings(actor: Actor) {
   return {
     reportAccess: user.reportAccess,
     chemicalAccess: user.chemicalAccess,
+    filmStudyAgentAccess: user.filmStudyAgentAccess,
     keys,
   };
 }
@@ -71,9 +79,17 @@ export async function issueReaderKey(actor: Actor, raw: unknown) {
   return db.$transaction(async (tx) => {
     const owner = await tx.user.findFirst({
       where: { ...eligible, id: actor.uid, organizationId: actor.org },
-      select: { sessionVersion: true, reportAccess: true },
+      select: {
+        sessionVersion: true,
+        reportAccess: true,
+        filmStudyAgentAccess: true,
+      },
     });
-    if (!owner || (input.reports && !owner.reportAccess))
+    if (
+      !owner ||
+      (input.reports && !owner.reportAccess) ||
+      (input.filmStudies && !owner.filmStudyAgentAccess)
+    )
       throw new AuthorizationError();
     if (input.chemistry) await requireChemicalAccess(actor, tx);
     const key = await tx.researchReaderKey.create({
@@ -84,6 +100,7 @@ export async function issueReaderKey(actor: Actor, raw: unknown) {
         label: input.label,
         reports: input.reports,
         chemistry: input.chemistry,
+        filmStudies: input.filmStudies,
         digest: digest(secret),
         expiresAt: new Date(Date.now() + input.days * 86400000),
       },
@@ -97,6 +114,7 @@ export async function issueReaderKey(actor: Actor, raw: unknown) {
       metadata: {
         reports: input.reports,
         chemistry: input.chemistry,
+        filmStudies: input.filmStudies,
         days: input.days,
       },
     });
@@ -140,6 +158,7 @@ export async function authenticateReader(header: string | null) {
       sessionVersion: true,
       reports: true,
       chemistry: true,
+      filmStudies: true,
       user: {
         select: {
           id: true,
@@ -148,6 +167,7 @@ export async function authenticateReader(header: string | null) {
           role: true,
           reportAccess: true,
           chemicalAccess: true,
+          filmStudyAgentAccess: true,
         },
       },
     },
@@ -163,6 +183,7 @@ export async function authenticateReader(header: string | null) {
     actor: { uid: key.user.id, org: key.organizationId, role: key.user.role },
     reports: key.reports && key.user.reportAccess,
     chemistry: key.chemistry && key.user.chemicalAccess,
+    filmStudies: key.filmStudies && key.user.filmStudyAgentAccess,
   };
 }
 export type Reader = NonNullable<
