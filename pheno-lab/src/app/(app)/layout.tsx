@@ -92,7 +92,7 @@ export default async function AppLayout({
             />
           </Link>
           <div className="w-px h-5 bg-line" />
-          <nav className="hidden md:flex items-center gap-1 text-[13px] font-medium text-charcoal">
+          <nav className={`hidden md:flex items-center gap-1 text-[13px] font-medium text-charcoal ${studyAccess ? "min-w-0 overflow-x-auto whitespace-nowrap [&>a]:shrink-0" : ""}`}>
             <Link
               href="/testing"
               className="px-2 py-1 rounded-[4px] hover:bg-subtle"

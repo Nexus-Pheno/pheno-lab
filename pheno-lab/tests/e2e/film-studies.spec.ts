@@ -116,12 +116,12 @@ test("bilingual method picker and original-file upload reach the downloaded MCP 
     await expect(page.getByText("Saved characterizations (1)")).toBeVisible();
     await page.locator("summary").filter({ hasText: "KPFM" }).click();
     expect(uploaded.filter((url) => url === firstPart)).toHaveLength(1);
-    await page.setViewportSize({ width: 390, height: 844 });
-    expect(
-      await page
-        .locator("main")
-        .evaluate((e) => e.scrollWidth <= e.clientWidth + 1),
-    ).toBe(true);
+    for (const width of [1024, 768, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(
+        await page.evaluate(() => document.body.scrollWidth <= innerWidth + 1),
+      ).toBe(true);
+    }
     const href = await page
       .getByRole("link", { name: "薄膜.spm" })
       .getAttribute("href");
