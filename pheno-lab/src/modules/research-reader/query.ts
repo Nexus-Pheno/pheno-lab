@@ -28,7 +28,11 @@ import { buildExperimentEvidence } from "@/modules/experiments/result-evidence";
 import { readObject } from "@/modules/files/service";
 import { recordUserAudit } from "@/modules/audit/writer";
 
+import { listPublishedStudies } from "@/modules/film-studies/query";
+import { findStudyFile, readStudyPart } from "@/modules/film-studies/service";
+import { partCount } from "@/modules/film-studies/schema";
 const resources = [
+  "filmStudies",
   "projects",
   "experiments",
   "samples",
@@ -56,6 +60,7 @@ const resources = [
   "chemistry",
 ] as const;
 const detailOnly = [
+  "filmStudyFile",
   "evidence",
   "report",
   "curve",
@@ -77,6 +82,7 @@ const filtersByExperiment = new Set([
   "attachments",
 ]);
 const searchable = new Set([
+  "filmStudies",
   "projects",
   "experiments",
   "materials",
@@ -90,6 +96,7 @@ const requestSchema = z
       .enum(["catalog", ...resources, ...detailOnly])
       .default("catalog"),
     id: recordId.optional(),
+    part: z.coerce.number().int().min(0).max(1023).optional(),
     after: recordId.optional(),
     q: z.string().trim().min(1).max(120).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -99,6 +106,7 @@ const requestSchema = z
   .superRefine((v, ctx) => {
     const single = detailOnly.some((item) => item === v.resource);
     if (
+      (v.part !== undefined && v.resource !== "filmStudyFile") ||
       single !== Boolean(v.id) ||
       (v.q && !searchable.has(v.resource)) ||
       (single && (v.after || v.experiment)) ||
@@ -189,6 +197,13 @@ async function listRows(
     ],
   };
   switch (input.resource) {
+    case "filmStudies":
+      return listPublishedStudies(
+        actor.org,
+        input.limit + 1,
+        input.after,
+        input.q,
+      );
     case "experiments": {
       const rows = await db.experiment.findMany({
         ...page,
@@ -593,7 +608,8 @@ export async function readResearch(reader: Reader, input: Input) {
   const { resource, id } = input;
   if (
     ((resource === "reports" || resource === "report") && !reader.reports) ||
-    (resource === "chemistry" && !reader.chemistry)
+    (resource === "chemistry" && !reader.chemistry) ||
+    (["filmStudies", "filmStudyFile"].includes(resource) && !reader.filmStudies)
   )
     throw new AuthorizationError();
   const { actor } = reader;
@@ -605,15 +621,36 @@ export async function readResearch(reader: Reader, input: Input) {
       asOf,
       collections: resources.filter(
         (r) =>
+          (r !== "filmStudies" || reader.filmStudies) &&
           (r !== "reports" || reader.reports) &&
           (r !== "chemistry" || reader.chemistry),
       ),
-      details: detailOnly.filter((r) => r !== "report" || reader.reports),
+      details: detailOnly.filter(
+        (r) =>
+          (r !== "report" || reader.reports) &&
+          (r !== "filmStudyFile" || reader.filmStudies),
+      ),
       maxPageSize: 100,
     };
   let data: unknown;
   let nextCursor: string | null = null;
-  if (resource === "report") {
+  if (resource === "filmStudyFile") {
+    const file = await findStudyFile(actor.org, id!);
+    if (!file) return null;
+    const number = input.part ?? 0;
+    if (number >= partCount(file.size)) return null;
+    const part = await readStudyPart(actor.org, file, number);
+    data = {
+      id: file.id,
+      fileName: file.name,
+      size: file.size,
+      part: number,
+      parts: partCount(file.size),
+      sha256: part.sha256,
+      encoding: "base64",
+      body: Buffer.from(part.bytes).toString("base64"),
+    };
+  } else if (resource === "report") {
     const result = await readLabReportContent(actor, id);
     if (!result) return null;
     data = { id, html: Buffer.from(result.body).toString("utf8") };

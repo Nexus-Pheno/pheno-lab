@@ -45,6 +45,7 @@ enum TestingStatus {
 // Every organization owns its own data: users, experiments, processes,
 // equipment, materials, environments, locations, presets, labels.
 model Organization {
+  filmStudies            FilmStudy[]
   id                     String                   @id @default(cuid())
   name                   String
   slug                   String                   @unique
@@ -106,6 +107,7 @@ model Project {
 }
 
 model ResearchReaderKey {
+  filmStudies    Boolean   @default(false)
   id             String    @id @default(cuid())
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -123,6 +125,9 @@ model ResearchReaderKey {
 }
 
 model User {
+  filmStudyAgentAccess       Boolean                  @default(false)
+  filmStudyAccess            Boolean                  @default(false)
+  filmStudies                FilmStudy[]
   researchReaderKeys         ResearchReaderKey[]
   id                         String                   @id @default(cuid())
   organizationId             String
@@ -722,6 +727,7 @@ model LabEnvironment {
 // Materials are categorized under a process: under PVD you only see PVD
 // materials, not inks that belong to spin coating.
 model Material {
+  filmStudies     FilmStudy[]
   id              String                   @id @default(cuid())
   organizationId  String
   organization    Organization             @relation(fields: [organizationId], references: [id])
@@ -1230,4 +1236,46 @@ model Translation {
   updatedAt      DateTime @updatedAt
 
   @@unique([organizationId, sourceHash, targetLang])
+}
+
+model FilmStudy {
+  measuredOn     DateTime?       @db.Date
+  id             String          @id
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  authorId       String
+  author         User            @relation(fields: [authorId], references: [id])
+  method         String
+  customMethod   String          @default("")
+  notes          String
+  materials      Material[]
+  manifestHash   String
+  createdAt      DateTime        @default(now())
+  publishedAt    DateTime?
+  interpretation Json?
+  files          FilmStudyFile[]
+
+  @@index([organizationId, publishedAt, id])
+}
+
+model FilmStudyFile {
+  id      String          @id @default(cuid())
+  studyId String
+  study   FilmStudy       @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  ordinal Int
+  name    String
+  size    Int
+  parts   FilmStudyPart[]
+
+  @@unique([studyId, ordinal])
+}
+
+model FilmStudyPart {
+  fileId String
+  file   FilmStudyFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  number Int
+  sha256 String
+  ready  Boolean       @default(false)
+
+  @@id([fileId, number])
 }
