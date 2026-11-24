@@ -333,8 +333,9 @@ export function StepInspector({
   };
 
   const applyPreset = (preset: Preset) => {
+    // Older imports omit unset equipment/environment references.
     const p = preset.payload as unknown as {
-      equipmentId: string | null; environmentId: string | null;
+      equipmentId?: string | null; environmentId?: string | null;
       environmentConditions: Record<string, string>;
       materials?: MaterialInput[];
       parameters: { name: string; unit: string; value: string; source?: string }[];
@@ -342,8 +343,8 @@ export function StepInspector({
     setDraft((d) => ({
       ...d,
       name: preset.name,
-      equipmentId: p.equipmentId,
-      environmentId: p.environmentId,
+      equipmentId: p.equipmentId ?? null,
+      environmentId: p.environmentId ?? null,
       environmentConditions: p.environmentConditions ?? {},
       materials: p.materials ?? [],
       parameters: (p.parameters ?? []).map((x) => ({ source: x.source ?? "process", ...x, variations: [] })),
@@ -700,14 +701,14 @@ export function CharInspector({
 
   const applyPreset = (preset: Preset) => {
     const p = preset.payload as unknown as {
-      equipmentId: string | null; environmentId: string | null;
+      equipmentId?: string | null; environmentId?: string | null;
       environmentConditions: Record<string, string>; settings: Record<string, string>; sampleScope: string;
     };
     setDraft((d) => ({
       ...d,
       name: preset.name,
-      equipmentId: p.equipmentId,
-      environmentId: p.environmentId,
+      equipmentId: p.equipmentId ?? null,
+      environmentId: p.environmentId ?? null,
       environmentConditions: p.environmentConditions ?? {},
       settings: p.settings ?? {},
       sampleScope: p.sampleScope ?? "all",
