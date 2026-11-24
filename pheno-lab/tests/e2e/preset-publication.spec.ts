@@ -104,6 +104,113 @@ async function login(page: Page, email: string) {
 
 test.afterAll(() => db.$disconnect());
 test.use({ actionTimeout: 15_000 });
+for (const kind of ["STEP", "CHARACTERIZATION"] as const) {
+  test(`a technician can save a personal copy of a legacy ${kind} preset with omitted references`, async ({
+    page,
+  }) => {
+    const f = await fixture("en");
+    try {
+      let processId = f.experiment.steps[0].processId;
+      if (kind === "CHARACTERIZATION") {
+        const process = await db.process.create({
+          data: {
+            organizationId: f.org.id,
+            name: "Legacy characterization process",
+            kind,
+          },
+        });
+        processId = process.id;
+        await db.characterization.create({
+          data: {
+            experimentId: f.experiment.id,
+            processId,
+            position: 0,
+            name: "Legacy characterization fixture",
+          },
+        });
+      }
+      const payload =
+        kind === "STEP"
+          ? {
+              materials: [],
+              parameters: [
+                {
+                  name: "Fixture speed",
+                  unit: "rpm",
+                  value: "500",
+                  source: "process",
+                },
+              ],
+            }
+          : { settings: { Mode: "Synthetic scan" }, sampleScope: "per-group" };
+      const legacy = await db.preset.create({
+        data: {
+          organizationId: f.org.id,
+          createdById: f.reviewer.id,
+          processId,
+          kind,
+          name: "Imported fixture preset",
+          payload,
+        },
+      });
+      await login(page, f.author.email);
+      await page.goto(`/experiments/${f.experiment.id}`);
+      if (kind === "STEP")
+        await page
+          .locator(`[data-drop-step="${f.experiment.steps[0].id}"]`)
+          .click();
+      else
+        await page
+          .getByRole("heading", {
+            name: "Legacy characterization fixture",
+            exact: true,
+          })
+          .click();
+      await page
+        .locator("select")
+        .filter({ has: page.locator(`option[value="${legacy.id}"]`) })
+        .selectOption(legacy.id);
+      page.once("dialog", (dialog) =>
+        dialog.accept("Personal imported fixture"),
+      );
+      await page
+        .getByRole("button", { name: "Save as preset", exact: true })
+        .click();
+      await expect
+        .poll(() =>
+          db.personalPreset.count({ where: { organizationId: f.org.id } }),
+        )
+        .toBe(1);
+      const saved = await db.personalPreset.findFirstOrThrow({
+        where: { organizationId: f.org.id },
+      });
+      expect(saved.ownerId).toBe(f.author.id);
+      expect(saved.payload).toMatchObject({
+        equipmentId: null,
+        environmentId: null,
+        environmentConditions: {},
+        ...payload,
+      });
+      await expect(
+        page.locator(`option[value="personal:${saved.id}"]`),
+      ).toContainText("Personal imported fixture");
+      expect(
+        (await db.preset.findUniqueOrThrow({ where: { id: legacy.id } }))
+          .payload,
+      ).toEqual(legacy.payload);
+      await page.goto("/library#presets");
+      await page
+        .locator("#presets")
+        .getByRole("tab", { name: /My presets/ })
+        .click();
+      await expect(
+        page.locator(`[data-preset-id="personal:${saved.id}"]`),
+      ).toContainText("Personal imported fixture");
+    } finally {
+      await f.cleanup();
+    }
+  });
+}
 test("characterization preset editing validates setting names and preserves private changes until approval", async ({
   page,
   browser,
