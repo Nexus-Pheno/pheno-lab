@@ -2148,3 +2148,16 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - 新增独立表征上传，可检索 105 种中英文表征方法并填写其他方法，关联材料库材料或记录自由文本，保留测试日期、原始备注及多个仪器原始文件。文件按块校验并支持断点续传，上传完成才对科研智能体可见。AI 从原备注提取材料、样品、条件及观察，模型结果单独保存。
 - 指定的四个现有成员已逐一核对并开通门户。已有科研智能体密钥单独开通表征读取权限，未变更人员角色。正式 API、下载的 MCP 客户端及云端 AI 整理路径完成验收。验收使用测试库检查真实上传与下载链路，未向生产科研记录写入模拟表征。
 - 验证通过：本机完整 verify、192 个独立 PostgreSQL 集成测试、63 个浏览器测试。浏览器测试覆盖中英文方法搜索、上传中断后恢复、原始字节核对、MCP 检索及原文件下载；PR 和主分支 Linux CI 均通过。此实录为上线后的单独文档提交。
+
+### 17.34 2026-11-24：个人预设、公共预设维护与公开审核（001）
+
+- Louis 明确批准本次提交 GitHub 并部署上线。应用 [PR #139](https://github.com/Nexus-Pheno/pheno-lab/pull/139) 合并为 [`a812a2cb3a4cb2f2de06e66afff31f47a2fc3353`](https://github.com/Nexus-Pheno/pheno-lab/commit/a812a2cb3a4cb2f2de06e66afff31f47a2fc3353)，对应 release **`20261124-001`**。合并后的代码树与本地验收提交一致；受限部署账号从 GitHub 快进拉取该提交。
+- 经理、管理员可编辑和删除公共预设；技术员保存、调用、编辑和删除自己的个人预设，提交后由经理或管理员审核公开。审核使用不可变快照；已公开预设的个人修改在重新通过前不替换旧公共版本，删除个人副本保留公共版本。工艺步骤和表征预设采用相同规则，服务端重新核对账号、角色、组织和归属，审核、通知及审计同事务提交。
+- 本机通过 205 个受保护 PostgreSQL 集成测试、7 项相关 Microsoft Edge 流程，以及 TypeScript、格式、架构边界、受影响 ESLint 和 production build。Windows 的既有 Bash/POSIX 验证限制由 Linux CI 补齐：[PR CI 45357182346](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/45357182346)、[main CI 45358390505](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/45358390505) 均全绿，包含完整 verify、数据库、66 项浏览器测试、Go Bridge、正式制品及 checksum 校验。
+- 沿用既有 build-release.sh 和 deploy-release.sh。首轮构建期间本机 Python 日志转发因未指定 UTF-8 而中断；随后只读确认旧 current 和旧 APP_VERSION 已保留、构建已生成制品及 checksum。修正本机日志编码后核对既有制品 checksum，并确认 631 个受跟踪运行文件逐一匹配目标提交，再继续现有 deploy-release.sh；未修改服务器源码、重打包或跳过构建门禁。发布脚本最终退出 0，输出 `deployed 20261124-001`。制品 SHA-256：`f97110f1893c0252b6bda7c287e0fa63b621ed9c006511c9cec097b38fa9542a`。
+- 新 release 于北京时间 `2026-11-24 16:56:55` 启动，`16:57:00` 数据库和私有 COS readiness 通过。仅应用增量 migration `20261124000000_preset_publication`，已应用 migration 从 50 项增至 51 项；不重分类历史公共预设，不回填实验配置，0 个旧 AI 凭据需加密。只增量更新现有 APP_VERSION，其他 env 字节、owner/group/mode/inode/ACL 保持，临时受保护备份已移除。
+- 发布后 current 指向本次 release，631 个受跟踪运行文件与应用提交匹配，source 干净；非 root pheno 服务 active、loopback 3457、自动重启数 0，Nginx 和原周报 timer 保持 active。公网 liveness 200，HTTP 301 到 HTTPS。标准 retention 保留五版并裁剪 20261030-001；上一版 **20261123-001** 仍可作为经批准的代码回滚目标。
+- 发布前后八项聚合计数相同，29 个用户的访问字段摘要相同。生产只读预设查询分别检查现有有效管理员、经理和技术员的权限投影；30 个原公共预设可读，公共编辑/删除标志符合角色；新个人预设和审核申请均为 0。以上是有界聚合与只读检查，不是完整科研内容逐字段校验，也不代表已在生产创建或审核预设。
+- 线上 Microsoft Edge 在 1440px 英文和 390px 中文下，对工艺库、测试、报告和首页的 8 项匿名入口检查通过，均正确进入登录页，无页面脚本错误或外层溢出；公网 readiness 按既有 Nginx 规则返回 403。未制造生产 session、写入模拟科研记录或发出真实业务通知，不作生产登录后及人类验收声明。最近 200 行日志含 20 条历史 Server Action 版本不匹配；按本次重启标记划分后，本次启动以来版本不匹配和所查关键错误均为 0。
+
+聚合证据：[release-evidence/20261124-preset-publication.json](release-evidence/20261124-preset-publication.json)。本节和证据是上线后的独立文档提交，其 commit 与上述已部署应用 commit 分别记录，不为文档重新部署。代码回滚不回滚 PostgreSQL/COS 数据；个人预设和审核历史保留在新表中，旧代码仍只读取公共预设表。
