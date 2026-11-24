@@ -2161,3 +2161,14 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - 线上 Microsoft Edge 在 1440px 英文和 390px 中文下，对工艺库、测试、报告和首页的 8 项匿名入口检查通过，均正确进入登录页，无页面脚本错误或外层溢出；公网 readiness 按既有 Nginx 规则返回 403。未制造生产 session、写入模拟科研记录或发出真实业务通知，不作生产登录后及人类验收声明。最近 200 行日志含 20 条历史 Server Action 版本不匹配；按本次重启标记划分后，本次启动以来版本不匹配和所查关键错误均为 0。
 
 聚合证据：[release-evidence/20261124-preset-publication.json](release-evidence/20261124-preset-publication.json)。本节和证据是上线后的独立文档提交，其 commit 与上述已部署应用 commit 分别记录，不为文档重新部署。代码回滚不回滚 PostgreSQL/COS 数据；个人预设和审核历史保留在新表中，旧代码仍只读取公共预设表。
+
+### 17.35 2026-11-24：历史预设再次保存的兼容修复（002）
+
+- 沿用 Louis 已批准的本次预设功能提交和部署范围，应用 [PR #140](https://github.com/Nexus-Pheno/pheno-lab/pull/140) 合并为完整应用 commit [`1b47f916f0f7bc2f271dd1304c0fc27eeafa61d4`](https://github.com/Nexus-Pheno/pheno-lab/commit/1b47f916f0f7bc2f271dd1304c0fc27eeafa61d4)，对应 release **`20261124-002`**，上一版为 **`20261124-001`**。本次应用变更仅涉及设计器 inspector 和预设浏览器回归测试。
+- 使用合成历史预设在隔离测试库复现：旧预设缺少设备、环境字段，应用到编辑器后产生 undefined，再保存时被现有运行时 schema 拒绝。工艺步骤和表征现在把缺失引用规范为 null；保留严格校验、现有授权及历史公共预设原值，没有生产数据回填。新增两项回归验证保存后的个人行、下拉选项和“我的预设”入口，以及旧公共内容不变。本地 5 项 Microsoft Edge 预设流程通过，权限和审核流程仍由真实受保护 PostgreSQL 测试覆盖。
+- [PR CI 45369658824](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/45369658824) 和 [main CI 45371236298](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/45371236298) 全绿，包含完整 Linux verify、370 单元、205 数据库集成、68 浏览器测试、Go Bridge 与制品/checksum。TypeScript、格式、架构边界和 production build 通过；10 条既有 ESLint warning，无错误。Windows 本机完整 verify 的既有 `/bin/bash` 缺失由 Linux CI 和服务器完整 verify 补齐。
+- 受限部署账号先从 GitHub fast-forward 拉取目标 main，再沿用 build-release.sh 和 deploy-release.sh。服务器完整 verify 通过，制品 checksum 通过，部署脚本退出 0 并输出 `deployed 20261124-002`。制品 SHA-256 为 `8e97f79472db9c6a3f44bb5ecfa710bfbc26903382bc55ae6becbcdf0b6e1eee`。current 指向 002，source 干净，631 个受跟踪运行文件逐一匹配应用 commit。51 个 migration 无待应用项，0 个旧 AI 凭据需要加密；本次没有新增 migration。
+- 服务于北京时间 `2026-11-24 18:15:45` 启动，`18:15:50` 数据库和私有 COS readiness 通过。既有 APP_VERSION 从 001 增至 002，其他 env 字节和 owner/group/mode/inode/ACL 不变，临时受保护备份已移除。非 root pheno、loopback 3457、自动重启数 0、Nginx 和原周报 timer active、HTTP 301 和公网 liveness 200 均通过。标准 retention 裁剪 20261102-001，上一版 20261124-001 保留为经批准的代码回滚目标。
+- 发布前后八项有界聚合计数相同，29 名用户的访问字段摘要相同；不是完整科研内容 checksum。上线后 Microsoft Edge 在 1440px 英文和 390px 中文下完成工艺库、测试、报告、首页的 8 项匿名入口检查，正确进入登录页，无脚本错误或外层溢出，公网匿名 readiness 按既有规则返回 403。没有制造生产 session、写入验收预设或发送业务通知。最近 200 行 journal 含 16 条历史 Server Action 版本不匹配；按当前启动标记划分后，本次启动以来版本不匹配和所查关键错误均为 0。此修复不等于已确认用户此前单次失败的完整原因，生产登录后及人类保存验收仍未作完成声明。
+
+聚合证据：[release-evidence/20261124-preset-legacy-save.json](release-evidence/20261124-preset-legacy-save.json)。本节和证据为发布后的独立文档提交，与上述实际部署应用 commit 分开，不为文档重新部署。代码回滚不回滚 PostgreSQL/COS 数据。
