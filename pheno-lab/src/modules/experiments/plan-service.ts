@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 
+import { assertUsablePreset } from "./preset-access";
 import { publicMaterialSelect } from "@/modules/library/material-visibility";
 import { substrateCounts } from "@/lib/test-plan";
 
@@ -290,10 +291,13 @@ export async function saveStep(
       });
     }
     if (appliedPresetId) {
-      await tx.preset.updateMany({
-        where: { id: appliedPresetId, organizationId: actor.org },
-        data: { usageCount: { increment: 1 } },
-      });
+      await assertUsablePreset(
+        tx,
+        actor,
+        appliedPresetId,
+        step.processId,
+        "STEP",
+      );
     }
     await recordUserAudit(tx, {
       actor,
@@ -494,10 +498,13 @@ export async function saveCharacterization(
       include: { process: true, equipment: true, environment: true },
     });
     if (appliedPresetId) {
-      await tx.preset.updateMany({
-        where: { id: appliedPresetId, organizationId: actor.org },
-        data: { usageCount: { increment: 1 } },
-      });
+      await assertUsablePreset(
+        tx,
+        actor,
+        appliedPresetId,
+        current.processId,
+        "CHARACTERIZATION",
+      );
     }
     await recordUserAudit(tx, {
       actor,

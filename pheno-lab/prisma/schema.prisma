@@ -45,6 +45,8 @@ enum TestingStatus {
 // Every organization owns its own data: users, experiments, processes,
 // equipment, materials, environments, locations, presets, labels.
 model Organization {
+  personalPresets PersonalPreset[]
+  presetPublicationRequests PresetPublicationRequest[]
   filmStudies            FilmStudy[]
   id                     String                   @id @default(cuid())
   name                   String
@@ -125,6 +127,9 @@ model ResearchReaderKey {
 }
 
 model User {
+  personalPresets PersonalPreset[]
+  presetSubmissions PresetPublicationRequest[] @relation("PresetSubmitter")
+  presetDecisions PresetPublicationRequest[] @relation("PresetReviewer")
   filmStudyAgentAccess       Boolean                  @default(false)
   filmStudyAccess            Boolean                  @default(false)
   filmStudies                FilmStudy[]
@@ -321,6 +326,7 @@ model Counter {
 // Ellipsometry). Equipment and materials belong to a process; selecting a
 // process in the designer limits equipment/material choices to it.
 model Process {
+  personalPresets PersonalPreset[]
   id                String             @id @default(cuid())
   organizationId    String
   organization      Organization       @relation(fields: [organizationId], references: [id])
@@ -908,6 +914,7 @@ model ExportRequest {
 }
 
 model Preset {
+  personalCopies PersonalPreset[]
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -1278,4 +1285,64 @@ model FilmStudyPart {
   ready  Boolean       @default(false)
 
   @@id([fileId, number])
+}
+
+// Personal configurations never enter the public Preset table before approval.
+// N-1 readers therefore cannot accidentally expose unsubmitted drafts.
+enum PresetPublicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model PersonalPreset {
+  id             String                     @id @default(cuid())
+  organizationId String
+  organization   Organization               @relation(fields: [organizationId], references: [id])
+  ownerId        String
+  owner          User                       @relation(fields: [ownerId], references: [id])
+  kind           PresetKind
+  processId      String
+  process        Process                    @relation(fields: [processId], references: [id])
+  name           String
+  payload        Json
+  version        Int                        @default(1)
+  usageCount     Int                        @default(0)
+  publicPresetId String?
+  publicPreset   Preset?                    @relation(fields: [publicPresetId], references: [id], onDelete: SetNull)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @default(now()) @updatedAt
+  submissions    PresetPublicationRequest[]
+
+  @@unique([ownerId, publicPresetId])
+  @@index([organizationId, ownerId, updatedAt])
+}
+
+model PresetPublicationRequest {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  organization     Organization            @relation(fields: [organizationId], references: [id])
+  personalPresetId String?
+  personalPreset   PersonalPreset?         @relation(fields: [personalPresetId], references: [id], onDelete: SetNull)
+  submittedById    String
+  submittedBy      User                    @relation("PresetSubmitter", fields: [submittedById], references: [id])
+  sourceVersion    Int
+  name             String
+  payload          Json
+  kind             PresetKind
+  processId        String
+  // Immutable target and baseline: deleting a public preset must never turn
+  // an old update request into a request to recreate it.
+  targetPresetId   String?
+  baseSnapshot     Json?
+  status           PresetPublicationStatus @default(PENDING)
+  reviewedById     String?
+  reviewedBy       User?                   @relation("PresetReviewer", fields: [reviewedById], references: [id])
+  reason           String                  @default("")
+  resolvedAt       DateTime?
+  createdAt        DateTime                @default(now())
+
+  @@unique([personalPresetId, sourceVersion])
+  @@index([organizationId, status, createdAt])
 }

@@ -1,3 +1,4 @@
+import { listUsablePresets } from "./preset-query";
 import "server-only";
 import type { Prisma } from "@prisma/client";
 
@@ -119,10 +120,7 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
       where: { organizationId: actor.org, archived: false },
       orderBy: { name: "asc" },
     }),
-    db.preset.findMany({
-      where: { organizationId: actor.org },
-      orderBy: { usageCount: "desc" },
-    }),
+    listUsablePresets(actor),
     db.user.findMany({
       where: { organizationId: actor.org, active: true },
       select: { id: true, name: true, email: true, role: true },
@@ -253,6 +251,14 @@ export async function getCaptureRunData(
             where: { kind: "STEP" },
             select: { payload: true },
           },
+          personalPresets: {
+            where: {
+              organizationId: actor.org,
+              ownerId: actor.uid,
+              kind: "STEP",
+            },
+            select: { payload: true },
+          },
         },
       }),
     ]);
@@ -278,7 +284,12 @@ export async function getCaptureRunData(
     layers,
     materials,
     categoryLayers,
-    captureChoiceCatalog: buildCaptureChoiceCatalog(captureProcesses),
+    captureChoiceCatalog: buildCaptureChoiceCatalog(
+      captureProcesses.map((p) => ({
+        ...p,
+        presets: [...p.presets, ...p.personalPresets],
+      })),
+    ),
   };
 }
 

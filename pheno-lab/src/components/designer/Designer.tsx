@@ -1,14 +1,10 @@
 "use client";
+import type { UsablePreset as Preset } from "@/modules/experiments/preset-policy";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type {
-  Equipment,
-  Preset,
-  LabEnvironment,
-  Process,
-} from "@prisma/client";
+import type { Equipment, LabEnvironment, Process } from "@prisma/client";
 import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
 import type {
   ExperimentFull,
@@ -731,7 +727,13 @@ export default function Designer({
             <StepInspector
               key={
                 selectedStep.id +
-                JSON.stringify(selectedStep.parameters.map((p) => [p.id, p.value, p.variations]))
+                JSON.stringify(
+                  selectedStep.parameters.map((p) => [
+                    p.id,
+                    p.value,
+                    p.variations,
+                  ]),
+                )
               }
               step={selectedStep}
               groups={groups}

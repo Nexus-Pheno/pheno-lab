@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Equipment, Preset, LabEnvironment } from "@prisma/client";
+import type { Equipment, LabEnvironment } from "@prisma/client";
+import type { UsablePreset as Preset } from "@/modules/experiments/preset-policy";
 import type { PublicMaterial as Material } from "@/modules/library/material-visibility";
 import type { StepFull, CharFull, StepDraft, CharDraft, ParamInput, MaterialInput } from "@/lib/types";
 import { equipmentOptionLabel, paramDefs } from "@/lib/types";
@@ -372,6 +373,11 @@ export function StepInspector({
         ) : undefined
       }
     >
+      {canEdit && (
+        <a className="text-xs text-brand-deep underline" href="/library#presets">
+          {t("presets.manage")}
+        </a>
+      )}
       {presets.length > 0 && canEdit && (
         <div>
           <FieldLabel>{t("insp.preset")}</FieldLabel>
@@ -387,7 +393,7 @@ export function StepInspector({
             <option value="">{t("insp.applyPreset")}</option>
             {presets.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} · {t("insp.used")} {p.usageCount}×
+                {p.scope === "PERSONAL" ? `${t("presets.personalShort")} · ${p.name}` : p.name} · {t("insp.used")} {p.usageCount}×
               </option>
             ))}
           </select>
@@ -736,6 +742,11 @@ export function CharInspector({
         ) : undefined
       }
     >
+      {canEdit && (
+        <a className="text-xs text-brand-deep underline" href="/library#presets">
+          {t("presets.manage")}
+        </a>
+      )}
       {presets.length > 0 && canEdit && (
         <div>
           <FieldLabel>{t("insp.preset")}</FieldLabel>
@@ -751,7 +762,7 @@ export function CharInspector({
             <option value="">{t("insp.applyPreset")}</option>
             {presets.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} · {t("insp.used")} {p.usageCount}×
+                {p.scope === "PERSONAL" ? `${t("presets.personalShort")} · ${p.name}` : p.name} · {t("insp.used")} {p.usageCount}×
               </option>
             ))}
           </select>

@@ -86,9 +86,14 @@ export async function getProfileData(actor: Actor) {
         },
       }),
       db.experiment.count({ where: { AND: [where, { status: "COMPLETE" }] } }),
-      db.preset.count({
-        where: { organizationId: actor.org, createdById: actor.uid },
-      }),
+      Promise.all([
+        db.preset.count({
+          where: { organizationId: actor.org, createdById: actor.uid },
+        }),
+        db.personalPreset.count({
+          where: { organizationId: actor.org, ownerId: actor.uid },
+        }),
+      ]).then(([published, personal]) => published + personal),
       actor.role === "ADMIN" ? listAiProviders(actor) : Promise.resolve([]),
     ]);
 

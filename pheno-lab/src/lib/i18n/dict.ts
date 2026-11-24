@@ -2,8 +2,72 @@
 // materials-science lab audience (工艺/表征 terminology), not machine-translated.
 
 export const en = {
+  "presets.hint":
+    "Save presets from the workflow designer. Personal presets are only available to you; publish them through manager/admin review.",
+  "presets.public": "Public presets",
+  "presets.personal": "My presets",
+  "presets.reviews": "Publication reviews",
+  "presets.personalShort": "Personal",
+  "presets.manage": "Manage presets and publication reviews",
+  "presets.edit": "Edit",
+  "presets.delete": "Delete",
+  "presets.submit": "Submit for publication",
+  "presets.draft": "Create / open my revision",
+  "presets.linked":
+    "Linked to a public preset; edits remain personal until approved.",
+  "presets.privateOnly": "Only you can view and use this preset.",
+  "presets.unpublishedChanges": "Personal changes are not published",
+  "presets.deletePublicHint":
+    "Delete this public preset? Existing experiment settings are preserved.",
+  "presets.deletePersonalHint":
+    "Delete this personal preset and cancel pending submissions? Its published copy remains available.",
+  "presets.confirmDelete": "Confirm deletion",
+  "presets.queueHint":
+    "Managers and admins review the earliest pending submissions. Open the settings before approving.",
+  "presets.historyHint":
+    "Your recent publication submissions. Editing a pending preset cancels that submission; submit the new revision again.",
+  "presets.noReviews": "No publication submissions.",
+  "presets.reviewDetails": "Compare settings",
+  "presets.details": "View settings",
+  "presets.currentPublic": "Public version at submission",
+  "presets.newPublic": "This submission creates a new public preset.",
+  "presets.proposed": "Submitted version",
+  "presets.reason": "Review note (required when rejecting)",
+  "presets.approve": "Approve and publish",
+  "presets.reject": "Reject",
+  "presets.environment": "Environment",
+  "presets.conditions": "Environment conditions",
+  "presets.sampleScope": "Sample scope",
+  "presets.key": "Name",
+  "presets.value": "Value",
+  "presets.unit": "Unit",
+  "presets.parameterName": "Parameter name",
+  "presets.materials": "Materials",
+  "presets.amount": "Amount",
+  "presets.removeRow": "Remove row",
+  "presets.addRow": "Add row",
+  "presets.invalidSettingNames": "Each setting needs a non-empty, unique name.",
+  "presets.status.PENDING": "Pending review",
+  "presets.status.APPROVED": "Approved",
+  "presets.status.REJECTED": "Rejected",
+  "presets.status.CANCELLED": "Withdrawn",
+  "presets.error.forbidden":
+    "You do not have permission for this preset operation.",
+  "presets.error.not_found": "Preset not found or unavailable to your account.",
+  "presets.error.stale":
+    "The preset or its public version changed. Refresh, review the latest settings and retry.",
+  "presets.error.not_pending":
+    "This submission was changed, withdrawn or already reviewed. Refresh the list.",
+  "presets.error.no_changes":
+    "This preset already matches its public version. Edit it before submitting a revision.",
+  "presets.error.invalid":
+    "Check the settings and retry. A rejection requires a review note.",
+  "notif.preset_review_requested": "submitted a preset for publication review",
+  "notif.preset_review_approved": "approved your preset for public use",
+  "notif.preset_review_rejected": "rejected your preset publication request",
   "plan.overwrite.title": "Confirm test plan changes",
-  "plan.overwrite.hint": "Review the listed steps and current/proposed values. Cancel to keep your draft, or confirm to apply the full test plan.",
+  "plan.overwrite.hint":
+    "Review the listed steps and current/proposed values. Cancel to keep your draft, or confirm to apply the full test plan.",
   "plan.overwrite.base": "Default / control value",
   "plan.overwrite.before": "Current settings",
   "plan.overwrite.after": "After applying the plan",
@@ -11,7 +75,8 @@ export const en = {
   "plan.overwrite.unassigned": "Unassigned",
   "plan.overwrite.cancel": "Keep settings and return",
   "plan.overwrite.confirm": "Confirm changes and apply",
-  "plan.overwrite.refreshed": "The flow or plan has changed. Review the refreshed differences and confirm again.",
+  "plan.overwrite.refreshed":
+    "The flow or plan has changed. Review the refreshed differences and confirm again.",
   "res.evidence.invalid":
     "{n} invalid metric vectors remain in the raw table but are excluded from performance statistics.",
   "res.evidence.PARTIAL":
@@ -1811,8 +1876,65 @@ export const en = {
 export type TKey = keyof typeof en;
 
 export const zh: Record<TKey, string> = {
+  "presets.hint":
+    "在流程设计器中保存预设。个人预设仅本人可用，提交后由经理或管理员审核公开。",
+  "presets.public": "公共预设",
+  "presets.personal": "我的预设",
+  "presets.reviews": "公开审核",
+  "presets.personalShort": "个人",
+  "presets.manage": "管理预设及公开审核",
+  "presets.edit": "编辑",
+  "presets.delete": "删除",
+  "presets.submit": "提交公开审核",
+  "presets.draft": "创建／打开我的修改稿",
+  "presets.linked": "已关联公共预设；修改在审核通过前仅本人可用。",
+  "presets.privateOnly": "此预设仅本人可见和调用。",
+  "presets.unpublishedChanges": "个人修改尚未公开",
+  "presets.deletePublicHint": "确认删除此公共预设？已保存的实验配置仍保留。",
+  "presets.deletePersonalHint":
+    "确认删除个人预设并撤回待审申请？已公开的副本仍然可用。",
+  "presets.confirmDelete": "确认删除",
+  "presets.queueHint": "经理和管理员可审核最早提交的待审项，请先展开查看配置。",
+  "presets.historyHint":
+    "最近提交的公开申请。修改待审预设会撤回该次申请，修改后可重新提交。",
+  "presets.noReviews": "暂无公开申请。",
+  "presets.reviewDetails": "对比配置",
+  "presets.details": "查看配置",
+  "presets.currentPublic": "提交时的公共版本",
+  "presets.newPublic": "本次申请将创建新的公共预设。",
+  "presets.proposed": "提交版本",
+  "presets.reason": "审核说明（拒绝时必填）",
+  "presets.approve": "通过并公开",
+  "presets.reject": "拒绝",
+  "presets.environment": "环境",
+  "presets.conditions": "环境条件",
+  "presets.sampleScope": "样品范围",
+  "presets.key": "名称",
+  "presets.value": "数值",
+  "presets.unit": "单位",
+  "presets.parameterName": "参数名称",
+  "presets.materials": "材料",
+  "presets.amount": "用量",
+  "presets.removeRow": "删除行",
+  "presets.addRow": "新增行",
+  "presets.invalidSettingNames": "每项配置都需要填写名称，且名称不能重复。",
+  "presets.status.PENDING": "待审核",
+  "presets.status.APPROVED": "已通过",
+  "presets.status.REJECTED": "已拒绝",
+  "presets.status.CANCELLED": "已撤回",
+  "presets.error.forbidden": "你没有执行此预设操作的权限。",
+  "presets.error.not_found": "预设不存在或当前账号不可访问。",
+  "presets.error.stale":
+    "预设或对应公共版本已变化，请刷新并核对最新设置后重试。",
+  "presets.error.not_pending": "申请已修改、撤回或完成审核，请刷新列表。",
+  "presets.error.no_changes": "当前配置与公共版本一致，修改后再提交公开审核。",
+  "presets.error.invalid": "请检查配置后重试，拒绝时需要填写审核说明。",
+  "notif.preset_review_requested": "提交了预设公开申请",
+  "notif.preset_review_approved": "通过了你的预设公开申请",
+  "notif.preset_review_rejected": "拒绝了你的预设公开申请",
   "plan.overwrite.title": "确认实验方案覆盖",
-  "plan.overwrite.hint": "请核对下列工序及新旧值。取消将保留编辑稿，确认后将应用完整实验方案。",
+  "plan.overwrite.hint":
+    "请核对下列工序及新旧值。取消将保留编辑稿，确认后将应用完整实验方案。",
   "plan.overwrite.base": "默认／对照值",
   "plan.overwrite.before": "当前设置",
   "plan.overwrite.after": "应用方案后",
@@ -1820,7 +1942,8 @@ export const zh: Record<TKey, string> = {
   "plan.overwrite.unassigned": "未指定",
   "plan.overwrite.cancel": "保留设置并返回",
   "plan.overwrite.confirm": "确认覆盖并应用",
-  "plan.overwrite.refreshed": "流程或方案已变化，请核对更新后的差异并重新确认。",
+  "plan.overwrite.refreshed":
+    "流程或方案已变化，请核对更新后的差异并重新确认。",
   "res.evidence.invalid":
     "{n}条指标不一致的记录保留在原始表格中，但不进入性能统计。",
   "res.evidence.PARTIAL": "仅部分器件有实际条件记录。",

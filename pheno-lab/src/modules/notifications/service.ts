@@ -10,6 +10,9 @@ import type { Actor } from "@/modules/authorization/actor";
 // `kind` + the display fields, so each reader sees their own language.
 
 export type NotificationKind =
+  | "preset_review_requested"
+  | "preset_review_approved"
+  | "preset_review_rejected"
   | "access_requested"
   | "access_approved"
   | "access_declined"
