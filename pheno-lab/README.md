@@ -77,6 +77,37 @@ new organizations can be added later without schema changes.
 - `src/app/(app)/` — experiment list, designer, library pages
 - `public/brand/` — official Pheno logo assets (do not modify; see brand rules)
 
+## Preset visibility and publication
+
+The Library's Presets section separates public presets, the current user's personal
+presets, and publication reviews. Managers/admins create, edit and delete public
+presets. Technicians save personal presets from the workflow designer and can edit,
+delete and apply only their own personal copies. Both process-step and characterization
+presets follow these rules. Public deletion never changes settings already copied into
+an experiment.
+
+Technicians submit an immutable personal snapshot for manager/admin review. Approval
+creates a public preset or replaces its linked public version; rejection requires a
+note and keeps the public version unchanged. Editing or deleting a pending personal
+copy withdraws that submission. Editing an approved personal copy leaves the old public
+version available until another approval. Deleting a personal copy preserves the public
+version and its review history. The original author can open a new personal revision
+from the public list. Review requests and decisions create in-app notifications and
+transactional audit events.
+
+Personal presets and review snapshots use separate tables; existing `Preset` rows
+remain public. The additive `20261124000000_preset_publication` migration does not
+reclassify historical presets or rewrite experiment settings. Designer, capture-choice
+and Library reads include personal presets only for their owner; delegated research
+readers continue to read public presets only. Concurrent writes use version checks and
+an organization-scoped transaction lock. If a public configuration changes after a
+revision was submitted, approval fails; reject the obsolete request or edit and resubmit
+the personal copy after checking the new public settings.
+
+Reverting application code does not remove these new tables or their data. Older code
+continues to read the unchanged public table; private drafts remain stored separately.
+Apply this migration in production only as part of an explicitly authorized release.
+
 ## Experiment result interpretation
 
 The Results page and Designer share a bilingual AI interpretation panel, including

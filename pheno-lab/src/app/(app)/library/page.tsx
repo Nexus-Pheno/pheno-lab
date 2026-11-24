@@ -61,8 +61,15 @@ export default async function LibraryPage() {
 
         <PresetsSection
           presets={data.presets}
-          sessionUid={session.uid}
-          sessionRole={session.role}
+          personalPresets={data.personalPresets}
+          rows={data.presetReviews}
+          canReview={data.canReviewPresets}
+          catalog={{
+            processes: data.processes,
+            equipment: data.equipment,
+            environments: data.environments,
+            materials: data.materials,
+          }}
         />
       </div>
     </main>

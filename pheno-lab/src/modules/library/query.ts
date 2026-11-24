@@ -9,6 +9,7 @@ import { isStaff } from "@/modules/authorization/policy";
 import { getStewardships, hasStewardship } from "@/modules/stewardship/service";
 import { canReadRecipeContents } from "./recipe-policy";
 import { listMaterialEdits } from "./review-service";
+import { getPresetLibraryData } from "@/modules/experiments/preset-query";
 import { listProjects } from "@/modules/experiments/project-service";
 
 export async function getLibraryPageData(actor: Actor) {
@@ -56,14 +57,7 @@ export async function getLibraryPageData(actor: Actor) {
         },
       },
     }),
-    db.preset.findMany({
-      where,
-      orderBy: { usageCount: "desc" },
-      include: {
-        createdBy: { select: { name: true } },
-        process: { select: { name: true } },
-      },
-    }),
+    getPresetLibraryData(actor),
     db.materialCategoryDef.findMany({
       where,
       orderBy: { position: "asc" },
@@ -100,7 +94,7 @@ export async function getLibraryPageData(actor: Actor) {
     materials,
     locations,
     environments,
-    presets,
+    ...presets,
     categories,
     materialAdmin,
     recipeAccess,

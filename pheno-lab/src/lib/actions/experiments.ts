@@ -1,8 +1,19 @@
 "use server";
 
+import { PresetOperationError } from "@/modules/experiments/preset-policy";
+import type { Actor } from "@/modules/authorization/actor";
+import { AuthorizationError } from "@/modules/authorization/policy";
+import {
+  submitPresetForReview,
+  reviewPresetPublication,
+  startPresetDraft,
+} from "@/modules/experiments/preset-service";
 import type { ExperimentStatus, Prisma } from "@prisma/client";
 import { queueTranslations } from "@/modules/translations/service";
-import { TestPlanStepError, TestPlanConfirmationError } from "@/modules/experiments/plan-routing";
+import {
+  TestPlanStepError,
+  TestPlanConfirmationError,
+} from "@/modules/experiments/plan-routing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -278,12 +289,14 @@ export async function saveStepPreset(
   processId: string,
   payload: StepPresetPayload,
 ) {
-  return saveStepPresetService(
+  const preset = await saveStepPresetService(
     await requireSession(),
     name,
     processId,
     payload,
   );
+  revalidatePath("/library");
+  return preset;
 }
 
 export async function saveCharPreset(
@@ -291,17 +304,50 @@ export async function saveCharPreset(
   processId: string,
   payload: CharPresetPayload,
 ) {
-  return saveCharPresetService(
+  const preset = await saveCharPresetService(
     await requireSession(),
     name,
     processId,
     payload,
   );
+  revalidatePath("/library");
+  return preset;
 }
 
-export async function deletePreset(id: string) {
-  await deletePresetService(await requireSession(), id);
-  revalidatePath("/library");
+async function presetMutation<T>(op: (actor: Actor) => Promise<T>) {
+  const actor = await requireSession();
+  try {
+    const value = await op(actor);
+    revalidatePath("/library");
+    revalidatePath("/experiments", "layout");
+    return { ok: true, value } as const;
+  } catch (error) {
+    if (error instanceof PresetOperationError)
+      return { ok: false, error: error.code } as const;
+    if (error instanceof AuthorizationError)
+      return { ok: false, error: "forbidden" } as const;
+    if (error instanceof z.ZodError)
+      return { ok: false, error: "invalid" } as const;
+    throw error;
+  }
+}
+export async function deletePreset(id: string, revision: string) {
+  return presetMutation((actor) => deletePresetService(actor, id, revision));
+}
+export async function submitPreset(id: string, revision: string) {
+  return presetMutation((actor) => submitPresetForReview(actor, id, revision));
+}
+export async function reviewPreset(
+  id: string,
+  decision: "APPROVED" | "REJECTED",
+  reason: string,
+) {
+  return presetMutation((actor) =>
+    reviewPresetPublication(actor, { id, decision, reason }),
+  );
+}
+export async function createPresetDraft(id: string) {
+  return presetMutation((actor) => startPresetDraft(actor, id));
 }
 
 export async function quickCreateMaterial(
@@ -350,15 +396,28 @@ export async function reviewAiSummary(
   return summary;
 }
 
-export async function applyTestPlan(experimentId: string, plan: TestPlan, confirmation?: string) {
+export async function applyTestPlan(
+  experimentId: string,
+  plan: TestPlan,
+  confirmation?: string,
+) {
   const actor = await requireSession();
   try {
-    const experiment = await applyTestPlanService(actor, experimentId, plan, confirmation);
+    const experiment = await applyTestPlanService(
+      actor,
+      experimentId,
+      plan,
+      confirmation,
+    );
     revalidatePath(`/experiments/${experimentId}`);
     return { ok: true, experiment } as const;
   } catch (error) {
     if (error instanceof TestPlanConfirmationError)
-      return { ok: false, error: "confirmation", confirmation: error.preview } as const;
+      return {
+        ok: false,
+        error: "confirmation",
+        confirmation: error.preview,
+      } as const;
     if (error instanceof TestPlanStepError)
       return { ok: false, error: error.code } as const;
     throw error;
@@ -368,9 +427,11 @@ export async function applyTestPlan(experimentId: string, plan: TestPlan, confir
 export async function updatePreset(
   id: string,
   data: { name?: string; payload?: StepPresetPayload | CharPresetPayload },
+  revision: string,
 ) {
-  await updatePresetService(await requireSession(), id, data);
-  revalidatePath("/library");
+  return presetMutation((actor) =>
+    updatePresetService(actor, id, data, revision),
+  );
 }
 
 export async function listTestExperiments() {
