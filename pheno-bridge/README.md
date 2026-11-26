@@ -92,6 +92,11 @@ a **Copy all** button.
 The full experiment code (`2026-001-1-23-S5`) also matches, and a sample can be
 given extra serials if a lab keeps its own naming.
 
+Exception: resizing an unstarted copied draft replaces its provisional batch.
+Print new QR labels and use its new simulator codes or short serials. The old
+full experiment code plus S-number is ambiguous between batches and remains
+unmatched for that experiment; old QR and instrument labels are retired.
+
 Anything that matches no sample is still uploaded and kept — it lands in the
 unmatched queue with an explanation rather than being thrown away — but it will
 not appear on the experiment until someone fixes it.

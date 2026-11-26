@@ -1,4 +1,5 @@
 import { listUsablePresets } from "./preset-query";
+import { canResizeCopiedDraft } from "./sample-plan-service";
 import "server-only";
 import type { Prisma } from "@prisma/client";
 
@@ -191,6 +192,8 @@ export async function getExperimentDesignerData(actor: Actor, rawId: unknown) {
     categoryLayers,
     projects,
     canEdit,
+    canResizeCopiedDraft:
+      canEdit && (await canResizeCopiedDraft(db, actor.org, id)),
   };
 }
 

@@ -2,6 +2,55 @@ import "server-only";
 
 import type { Prisma } from "@prisma/client";
 
+/** Provenance is an audit fact, never a title suffix or client-supplied flag. */
+export async function canResizeCopiedDraft(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  experimentId: string,
+): Promise<boolean> {
+  const draft = await tx.experiment.count({
+    where: {
+      id: experimentId,
+      organizationId,
+      deletedAt: null,
+      status: "DRAFT",
+      submittedAt: null,
+      approvedAt: null,
+      runs: { none: {} },
+      testingRequests: { none: {} },
+      jvMeasurements: { none: {} },
+      samples: {
+        none: {
+          OR: [
+            { executions: { some: {} } },
+            { results: { some: {} } },
+            { jvMeasurements: { some: {} } },
+          ],
+        },
+      },
+      characterizations: { none: { results: { some: {} } } },
+    },
+  });
+  if (!draft) return false;
+  const provenance = {
+    organizationId,
+    entityType: "Experiment",
+    entityId: experimentId,
+  };
+  const copied = await tx.auditEvent.count({
+    where: { ...provenance, action: "experiment.duplicate" },
+  });
+  if (!copied) return false;
+  return !(await tx.auditEvent.count({
+    where: {
+      ...provenance,
+      OR: ["IN_LAB", "REVIEW", "COMPLETE", "ARCHIVED"].map((status) => ({
+        changes: { path: ["status"], equals: status },
+      })),
+    },
+  }));
+}
+
 /** Reconcile a plan without rebuilding physical samples or their QR identities. */
 export async function reconcileSamples(
   tx: Prisma.TransactionClient,

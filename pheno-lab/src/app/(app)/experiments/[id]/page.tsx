@@ -51,6 +51,7 @@ export default async function ExperimentPage({
       canManageMaterials={data.canManageMaterials}
       canManageProjects={data.canManageProjects}
       canEdit={data.canEdit}
+      canResizeCopiedDraft={data.canResizeCopiedDraft}
       canManageMembers={data.canEdit}
       sessionUid={session.uid}
     />
