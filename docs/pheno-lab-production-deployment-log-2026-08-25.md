@@ -2172,3 +2172,15 @@ v3 实际输出复核发现混入另一种语言、把隐私省略当成未记�
 - 发布前后八项有界聚合计数相同，29 名用户的访问字段摘要相同；不是完整科研内容 checksum。上线后 Microsoft Edge 在 1440px 英文和 390px 中文下完成工艺库、测试、报告、首页的 8 项匿名入口检查，正确进入登录页，无脚本错误或外层溢出，公网匿名 readiness 按既有规则返回 403。没有制造生产 session、写入验收预设或发送业务通知。最近 200 行 journal 含 16 条历史 Server Action 版本不匹配；按当前启动标记划分后，本次启动以来版本不匹配和所查关键错误均为 0。此修复不等于已确认用户此前单次失败的完整原因，生产登录后及人类保存验收仍未作完成声明。
 
 聚合证据：[release-evidence/20261124-preset-legacy-save.json](release-evidence/20261124-preset-legacy-save.json)。本节和证据为发布后的独立文档提交，与上述实际部署应用 commit 分开，不为文档重新部署。代码回滚不回滚 PostgreSQL/COS 数据。
+
+### 17.36 2026-11-26：复制实验的基片数量调整（001）
+
+- Louis 明确批准本次提交 GitHub 并上线，并确认仅对没有开始实验、没有实验或测试记录的草稿副本开放数量调整，允许重新生成副本标签。应用 [PR #141](https://github.com/Nexus-Pheno/pheno-lab/pull/141) 合并为完整应用 commit [`b54806e758b147d25a61005688f611c7ef3ac113`](https://github.com/Nexus-Pheno/pheno-lab/commit/b54806e758b147d25a61005688f611c7ef3ac113)，对应 release **`20261126-001`**，上一版为 **`20261124-002`**。合并后的文件树与本机验收提交相同；本次 13 个文件只涉及方案编辑、样品保护及匹配、回归测试和说明，Prisma schema 仅更新注释，没有结构变更。
+- 符合条件的副本可增加或减少准备基片数；数量变化后重建副本批次，所有基片回到备用，保留方案变量、分组配置和原实验。复制来源从审计记录核实，不依赖标题；在事务锁内重新检查草稿、历史状态、run、表征结果、JV 测量和测试需求。已经开始后再退回草稿也不能借此重建。相同数量的普通应用保留样品身份；批次重建与审计同事务，审计失败回滚全部修改。
+- 重建后使用新二维码、short handle 和模拟器编号，旧编号保留占用且旧二维码不再解析；缓存中的退役样品也不能继续匹配。完整实验编号加 S 序号无法区分旧、新批次，因此对已重建副本保持 unmatched，仪器使用新模拟器编号或 short serial。其他实验保留原有匹配契约。没有在本次部署中批量重建历史副本或回填科研数据。
+- [PR CI 45782181236](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/45782181236) 与 [main CI 45783208857](https://github.com/Nexus-Pheno/pheno-lab/actions/runs/45783208857) 全绿，包括完整 Linux verify、370 单元、211 个受保护真实 PostgreSQL 集成、70 浏览器测试、Go Bridge 和正式制品/checksum。服务器构建再次通过完整 verify。本机 211 个集成测试通过，70 个 Microsoft Edge 场景完成覆盖（隔离环境路径/编码修正后，5 项失败场景复测通过）；本机 Windows 缺少 `/bin/bash`，且原周报归档单测依赖 POSIX owner/private-directory 检查，限制由上述 Linux CI 与服务器验证补齐。10 条既有 lint warning、0 error，未放宽保护或跳过测试。
+- 受限部署账号从 GitHub fast-forward 拉取已验证的应用 commit，经现有 build-release.sh 和 deploy-release.sh 发布，脚本退出 0 并输出 `deployed 20261126-001`。制品 SHA-256 为 `b92dea607433d8dccbb04c02c9578e256c89857b82113647f5065e13138aac3a`。current 指向 001，source 干净，631 个受跟踪运行文件逐一匹配应用 commit。51 个 migration 无待应用项，0 个旧 AI 凭据需要加密；没有新增 migration、导入或生产验收数据写入。
+- 新服务于北京时间 `2026-11-26 16:38:29` 启动，`16:38:35` 数据库和私有 COS readiness 通过。仅现有 APP_VERSION 从 `20261124-002` 增至 `20261126-001`，其他 env 字节、owner/group/mode/inode/ACL 一致，受保护临时备份已移除。非 root pheno、loopback 3457、自动重启数 0、Nginx 和原周报 timer active、HTTP 301、公网 liveness 200 均通过。标准 retention 裁剪 20261119-001，上一版 20261124-002 保留。
+- 发布前后八项有界聚合计数一致，29 名用户的访问字段摘要一致，不作为完整科研内容 checksum。上线后 Microsoft Edge 在 1440px 英文、390px 中文下，对工艺库、测试、报告和首页共 8 项匿名入口检查通过，正确进入登录页，无脚本错误或外层溢出；公网匿名 readiness 按既有规则返回 403。没有制造生产 session、创建验收实验、试改真实副本数量或发送业务通知，生产登录后及人类使用验收不作完成声明。最近 200 行 journal 含 31 条历史 Server Action 版本不匹配；按当前启动标记划分后，本次启动以来版本不匹配和所查关键错误均为 0。
+
+聚合证据：[release-evidence/20261126-copied-batch-resize.json](release-evidence/20261126-copied-batch-resize.json)。本节和证据是上线后的独立文档提交，与上述实际部署应用 commit 分开，不为文档重新部署。代码回滚不回滚 PostgreSQL/COS 数据，也不恢复用户已重建的副本标签。旧版代码没有退役完整实验编号的防误匹配检查；如需回退，必须先核对重建记录和兼容性，继续使用当前二维码/模拟器编号，不恢复使用旧标签。
