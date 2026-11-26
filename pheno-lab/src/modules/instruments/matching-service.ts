@@ -197,6 +197,16 @@ async function matchByInstrumentCode(
       );
     }
     const hit = hits[0];
+    // A provisional copied batch may have been retired since this cache fill.
+    if (
+      !(await prisma.sample.count({
+        where: { id: hit.id, experiment: { organizationId, deletedAt: null } },
+      }))
+    ) {
+      return unmatched(
+        "This sample label was retired. Use the current sample label.",
+      );
+    }
     const pixel = key.slice(candidate.length).replace(/^-/, "");
     return {
       status: "MATCHED",
@@ -235,6 +245,20 @@ export async function matchSerial(
   const codeMatch = key.match(EXPERIMENT_CODE);
   if (!codeMatch) return matchByInstrumentCode(organizationId, serial, key);
   const code = codeMatch[1];
+
+  // A resized, unstarted copy has replacement QR/simulator labels. Its old
+  // full experiment-code + S-number is ambiguous across the two batches.
+  if (
+    await prisma.sampleCodeReservation.findUnique({
+      where: {
+        organizationId_key: { organizationId, key: `RETIRED-BATCH:${code}` },
+      },
+    })
+  ) {
+    return unmatched(
+      "This draft's sample batch was replaced. Use its current simulator code or attach the measurement by hand.",
+    );
+  }
 
   const experiment = await prisma.experiment.findFirst({
     where: { organizationId, code, deletedAt: null },

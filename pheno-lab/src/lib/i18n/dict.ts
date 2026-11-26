@@ -584,6 +584,8 @@ export const en = {
   "plan.substrateCount": "Substrates to prepare",
   "plan.keepIssuedSamples":
     "Keep the existing batch size to preserve sample labels and recorded work. Move unused samples to Extras or Trash / problem.",
+  "plan.resizeCopiedDraft": "Changing this copied draft's batch size returns all substrates to Extras and replaces its sample labels. Print new labels before use; old QR and instrument labels are retired. Use the new simulator codes for instrument uploads.",
+  "plan.applyCopiedBatch": "Applying replaces this copy's sample batch and moves all substrates to Extras. Print new labels before use.",
   "plan.substrateMaterial": "Substrate material",
   "plan.substrateHint":
     "Groups can be configured while empty. New substrates wait in Extras; assign them when ready. Move problem substrates to Trash / problem without renumbering.",
@@ -2402,6 +2404,8 @@ export const zh: Record<TKey, string> = {
   "plan.substrateCount": "准备基片数量",
   "plan.keepIssuedSamples":
     "请保留现有批次数量，避免影响样品标签和已记录的数据。未使用的样品可移入“备用”或“报废 / 问题”。",
+  "plan.resizeCopiedDraft": "调整此草稿副本的基片数量后，所有基片回到备用，并重新生成样品标签。使用前请重新打印，旧二维码和仪器标签作废；仪器上传请使用新模拟器编号。",
+  "plan.applyCopiedBatch": "应用后将重建此副本的基片批次，所有基片回到备用。使用前请重新打印标签。",
   "plan.substrateMaterial": "基片材料",
   "plan.substrateHint":
     "空组也可设置工艺参数。新增基片先放在“备用”，需要时再归组；有问题的移入“报废 / 问题”，编号不变。",

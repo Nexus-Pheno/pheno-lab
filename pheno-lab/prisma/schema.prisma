@@ -577,7 +577,8 @@ model Sample {
 }
 
 // Append-only reservations outlive experiments/samples, including hard purge.
-// Keys are PREFIX:<canonical prefix> or SAMPLE:<canonical serial>. Legacy
+// Keys are PREFIX:<canonical prefix>, SAMPLE:<canonical serial>, or
+// RETIRED-BATCH:<experiment code> for a replaced unstarted copied batch. Legacy
 // reservations deliberately have no owner: historical conflicts are not repaired
 // or guessed by migration. Organization scope is the instrument matching scope.
 model SampleCodeReservation {

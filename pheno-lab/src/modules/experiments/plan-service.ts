@@ -30,7 +30,7 @@ import {
   previousPlanParameters,
   testPlanOverwriteChanges,
 } from "./plan-overwrite";
-import { reconcileSamples } from "./sample-plan-service";
+import { canResizeCopiedDraft, reconcileSamples } from "./sample-plan-service";
 import {
   characterizationDraftSchema,
   charPresetPayloadSchema,
@@ -552,21 +552,12 @@ export async function applyTestPlan(
   rawConfirmation?: unknown,
 ) {
   const experimentId = experimentIdSchema.parse(rawExperimentId);
-  const plan = testPlanSchema.parse(rawPlan) as TestPlan;
+  let plan = testPlanSchema.parse(rawPlan) as TestPlan;
   const confirmation = testPlanConfirmationSchema.parse(rawConfirmation);
   await assertEdit(actor, experimentId);
-  const counts = plan.substrates
-    ? substrateCounts(plan.groups, plan.substrates.count, plan.assignments)
-    : null;
-  const groups = plan.groups
-    .filter((g) => g.label.trim() && (plan.substrates ? true : g.samples > 0))
-    .map((g) => (counts ? { ...g, samples: counts.byGroup[g.label] } : g));
-  if (groups.length === 0)
-    throw new Error("The test plan needs at least one group.");
   const variables = plan.variables.filter(
     (v) => v.parameter.trim() && v.processId,
   );
-  const control = groups.find((g) => g.isControl) ?? groups[0];
 
   for (const v of variables) {
     const process = await db.process.findUniqueOrThrow({
@@ -591,13 +582,43 @@ export async function applyTestPlan(
 
   await db.$transaction(async (tx) => {
     await lockTestingCompletion(tx, actor.org, experimentId);
+    await tx.organization.update({
+      where: { id: actor.org },
+      data: { nextShortNo: { increment: 0 } },
+    });
     await tx.$queryRaw`SELECT "id" FROM "Experiment" WHERE "id" = ${experimentId} AND "organizationId" = ${actor.org} FOR UPDATE`;
+    await tx.$queryRaw`SELECT "id" FROM "Sample" WHERE "experimentId" = ${experimentId} ORDER BY "id" FOR UPDATE`;
     // Read after serialization: another result-analysis or plan save may have
     // committed while this application waited for the experiment lock.
     const expBefore = await tx.experiment.findFirstOrThrow({
       where: { id: experimentId, organizationId: actor.org, deletedAt: null },
-      select: { metadata: true },
+      select: { metadata: true, code: true, samples: { select: { id: true } } },
     });
+    const rebuildBatch = Boolean(
+      plan.substrates &&
+      plan.substrates.count !== expBefore.samples.length &&
+      (await canResizeCopiedDraft(tx, actor.org, experimentId)),
+    );
+    if (rebuildBatch && plan.substrates) {
+      plan = {
+        ...plan,
+        assignments: Object.fromEntries(
+          Array.from({ length: plan.substrates.count }, (_, i) => [
+            `S${i + 1}`,
+            "EXTRA",
+          ]),
+        ),
+      };
+    }
+    const counts = plan.substrates
+      ? substrateCounts(plan.groups, plan.substrates.count, plan.assignments)
+      : null;
+    const groups = plan.groups
+      .filter((g) => g.label.trim() && (plan.substrates ? true : g.samples > 0))
+      .map((g) => (counts ? { ...g, samples: counts.byGroup[g.label] } : g));
+    if (!groups.length)
+      throw new Error("The test plan needs at least one group.");
+    const control = groups.find((g) => g.isControl) ?? groups[0];
     const oldPlan = (expBefore.metadata as { testPlan?: TestPlan } | null)
       ?.testPlan;
     // Step editors replace parameters after updating their parent step. Lock
@@ -756,6 +777,38 @@ export async function applyTestPlan(
           desired.push({ code: `S${n}`, variationGroup: g.label });
         }
       }
+    }
+    if (rebuildBatch) {
+      // Louis approved discarding this unstarted copy's provisional labels.
+      // Reservations remain append-only; a fresh namespace prevents delayed
+      // scans from being attached to the replacement batch.
+      await tx.sampleCodeReservation.createMany({
+        data: [
+          {
+            organizationId: actor.org,
+            key: `RETIRED-BATCH:${expBefore.code}`,
+            experimentId,
+          },
+        ],
+        skipDuplicates: true,
+      });
+      await tx.sample.deleteMany({ where: { experimentId } });
+      await tx.experiment.update({
+        where: { id: experimentId },
+        data: { shortCode: null, simCodePrefix: null, codeLetter: null },
+      });
+      await recordUserAudit(tx, {
+        actor,
+        action: "experiment.samples.batch-rebuilt",
+        entityType: "Experiment",
+        entityId: experimentId,
+        changes: {
+          previousCount: expBefore.samples.length,
+          count: desired.length,
+          allocation: "EXTRA",
+          labelsRetired: true,
+        },
+      });
     }
     await reconcileSamples(tx, actor.org, experimentId, desired);
     await syncSampleSerials(tx, experimentId);

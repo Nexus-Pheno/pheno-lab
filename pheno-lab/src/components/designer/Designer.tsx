@@ -71,6 +71,7 @@ export default function Designer({
   canManageMaterials,
   canManageProjects,
   canEdit,
+  canResizeCopiedDraft = false,
   canManageMembers,
   sessionUid,
 }: {
@@ -88,6 +89,7 @@ export default function Designer({
   canManageMaterials: boolean;
   canManageProjects: boolean;
   canEdit: boolean;
+  canResizeCopiedDraft?: boolean;
   canManageMembers: boolean;
   sessionUid: string;
 }) {
@@ -591,6 +593,7 @@ export default function Designer({
             categories={categoryLayers}
             samples={exp.samples}
             canEdit={canEdit}
+            canResizeCopiedDraft={canResizeCopiedDraft && exp.status === "DRAFT"}
             canManageMaterials={canManageMaterials}
             onApply={handleApplyTestPlan}
             onMaterialCreated={(m) =>

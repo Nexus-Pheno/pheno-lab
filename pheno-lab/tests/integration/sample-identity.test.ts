@@ -16,7 +16,7 @@ import {
   purgeExperiment,
   restoreExperiment,
 } from "@/modules/experiments/trash-service";
-import { assignExperiment } from "@/modules/workflow/service";
+import { assignExperiment, startLabWork } from "@/modules/workflow/service";
 import {
   syncSampleSerials,
   reserveInstrumentCodes,
@@ -24,6 +24,9 @@ import {
 import { matchSerial } from "@/modules/instruments/matching-service";
 import { setSampleAliases } from "@/modules/instruments/measurement-service";
 import * as completionLocks from "@/modules/testing/completion-service";
+import * as audit from "@/modules/audit/writer";
+import { getExperimentDesignerData } from "@/modules/experiments/query";
+import { canonicalSerialKey } from "@/lib/instruments/normalize";
 
 const organizations: string[] = [];
 afterAll(async () => {
@@ -86,6 +89,238 @@ const plan = (count = 4) => ({
 });
 
 describe("permanent sample identities against PostgreSQL", () => {
+  it("resizes a fresh copied plan repeatedly, resets allocation and preserves the source", async () => {
+    const f = await fixture();
+    const process = await db.process.create({
+      data: {
+        organizationId: f.org.id,
+        name: "Copy plan parameter",
+        kind: "PROCESSING",
+      },
+    });
+    const variables = [
+      {
+        kind: "parameter",
+        processId: process.id,
+        parameter: "Speed",
+        unit: "rpm",
+        values: { A: "1200" },
+      },
+    ];
+    const configuredPlan = (count: number) => ({ ...plan(count), variables });
+    await applyTestPlan(f.actor, f.exp.id, configuredPlan(6));
+    const source = await f.samples();
+    const copy = await duplicateExperiment(f.actor, f.exp.id);
+    const before = await db.sample.findMany({
+      where: { experimentId: copy.id },
+    });
+    expect(
+      (await getExperimentDesignerData(f.actor, copy.id))?.canResizeCopiedDraft,
+    ).toBe(true);
+    // Populate the zero-insensitive matching cache before retiring this batch.
+    const padded = before[0].simCode!.replace(/(\d+)$/, "0$1");
+    expect(await matchSerial(f.org.id, padded)).toMatchObject({
+      sampleId: before[0].id,
+    });
+    await applyTestPlan(f.actor, copy.id, configuredPlan(3));
+    const shrunk = await db.sample.findMany({
+      where: { experimentId: copy.id },
+    });
+    expect(shrunk).toHaveLength(3);
+    expect(shrunk.every((s) => s.variationGroup === null)).toBe(true);
+    expect(shrunk.every((s) => !before.some((old) => old.id === s.id))).toBe(
+      true,
+    );
+    expect(await matchSerial(f.org.id, padded)).toMatchObject({
+      status: "UNMATCHED",
+    });
+    expect(await f.samples()).toEqual(source);
+    await applyTestPlan(f.actor, copy.id, configuredPlan(8));
+    const grown = await db.sample.findMany({
+      where: { experimentId: copy.id },
+    });
+    expect(grown).toHaveLength(8);
+    expect(grown.every((s) => s.variationGroup === null)).toBe(true);
+    expect(
+      new Set([...before, ...shrunk, ...grown].map((s) => s.simCode)).size,
+    ).toBe(17);
+    for (const old of [...before, ...shrunk]) {
+      expect(await matchSerial(f.org.id, old.simCode!)).toMatchObject({
+        status: "UNMATCHED",
+      });
+      expect(
+        await db.sampleCodeReservation.findUnique({
+          where: {
+            organizationId_key: {
+              organizationId: f.org.id,
+              key: `SAMPLE:${canonicalSerialKey(old.simCode!)}`,
+            },
+          },
+        }),
+      ).not.toBeNull();
+    }
+    expect(await matchSerial(f.org.id, `${copy.code}-S1`)).toMatchObject({
+      status: "UNMATCHED",
+    });
+    expect(await matchSerial(f.org.id, `${f.exp.code}-S1`)).toMatchObject({
+      sampleId: source.find((s) => s.code === "S1")!.id,
+    });
+    expect(await matchSerial(f.org.id, grown[0].simCode!)).toMatchObject({
+      sampleId: grown[0].id,
+    });
+    const saved = await db.experiment.findUniqueOrThrow({
+      where: { id: copy.id },
+    });
+    expect(saved.metadata).toMatchObject({
+      testPlan: {
+        variables,
+        groups: [{ label: "A", samples: 0 }],
+        assignments: Object.fromEntries(grown.map((s) => [s.code, "EXTRA"])),
+      },
+    });
+    expect(
+      await db.parameterVariation.findFirst({
+        where: {
+          parameter: { step: { experimentId: copy.id } },
+          variationGroup: "A",
+        },
+      }),
+    ).toMatchObject({ value: "1200" });
+    expect(
+      await db.auditEvent.count({
+        where: {
+          entityId: copy.id,
+          action: "experiment.samples.batch-rebuilt",
+        },
+      }),
+    ).toBe(2);
+  });
+
+  it.each(["run", "result", "status", "workflow"])(
+    "protects a copied batch after %s evidence even if the page was opened earlier",
+    async (reason) => {
+      const f = await fixture();
+      const copy = await duplicateExperiment(f.actor, f.exp.id);
+      expect(
+        (await getExperimentDesignerData(f.actor, copy.id))
+          ?.canResizeCopiedDraft,
+      ).toBe(true);
+      if (reason === "run")
+        await db.run.create({ data: { experimentId: copy.id, runNo: 1 } });
+      if (reason === "status") {
+        await updateExperimentMeta(f.actor, copy.id, { status: "COMPLETE" });
+        await updateExperimentMeta(f.actor, copy.id, { status: "DRAFT" });
+      }
+      if (reason === "workflow") {
+        await db.experiment.update({
+          where: { id: copy.id },
+          data: { assigneeId: f.actor.uid },
+        });
+        await startLabWork(f.actor, copy.id);
+        await updateExperimentMeta(f.actor, copy.id, { status: "DRAFT" });
+      }
+      if (reason === "result") {
+        const process = await db.process.create({
+          data: {
+            organizationId: f.org.id,
+            name: "Copy result fixture",
+            kind: "CHARACTERIZATION",
+          },
+        });
+        const char = await db.characterization.create({
+          data: {
+            experimentId: copy.id,
+            processId: process.id,
+            position: 0,
+            name: "Recorded characterization",
+          },
+        });
+        const sample = await db.sample.findFirstOrThrow({
+          where: { experimentId: copy.id },
+        });
+        await db.characterizationResult.create({
+          data: {
+            characterizationId: char.id,
+            sampleId: sample.id,
+            metrics: { value: "1" },
+          },
+        });
+      }
+      const before = await db.sample.findMany({
+        where: { experimentId: copy.id },
+      });
+      expect(
+        (await getExperimentDesignerData(f.actor, copy.id))
+          ?.canResizeCopiedDraft,
+      ).toBe(false);
+      await expect(applyTestPlan(f.actor, copy.id, plan(2))).rejects.toThrow(
+        /Cannot remove/,
+      );
+      expect(
+        await db.sample.findMany({ where: { experimentId: copy.id } }),
+      ).toEqual(before);
+      expect(
+        await db.auditEvent.count({
+          where: {
+            entityId: copy.id,
+            action: "experiment.samples.batch-rebuilt",
+          },
+        }),
+      ).toBe(0);
+    },
+  );
+
+  it("keeps an unchanged copy's identities and rolls a resize back with its audit", async () => {
+    const f = await fixture();
+    const copy = await duplicateExperiment(f.actor, f.exp.id);
+    await applyTestPlan(f.actor, copy.id, plan(4));
+    const before = await db.sample.findMany({
+      where: { experimentId: copy.id },
+      orderBy: { code: "asc" },
+    });
+    await applyTestPlan(f.actor, copy.id, plan(4));
+    expect(
+      await db.sample.findMany({
+        where: { experimentId: copy.id },
+        orderBy: { code: "asc" },
+      }),
+    ).toEqual(before);
+    const experimentBefore = await db.experiment.findUniqueOrThrow({
+      where: { id: copy.id },
+    });
+    const reservations = await db.sampleCodeReservation.count({
+      where: { organizationId: f.org.id },
+    });
+    const spy = vi
+      .spyOn(audit, "recordUserAudit")
+      .mockRejectedValueOnce(new Error("Synthetic audit failure"));
+    try {
+      await expect(applyTestPlan(f.actor, copy.id, plan(2))).rejects.toThrow(
+        "Synthetic audit failure",
+      );
+    } finally {
+      spy.mockRestore();
+    }
+    expect(
+      await db.sample.findMany({
+        where: { experimentId: copy.id },
+        orderBy: { code: "asc" },
+      }),
+    ).toEqual(before);
+    expect(
+      await db.experiment.findUniqueOrThrow({ where: { id: copy.id } }),
+    ).toEqual(experimentBefore);
+    expect(
+      await db.sampleCodeReservation.count({
+        where: { organizationId: f.org.id },
+      }),
+    ).toBe(reservations);
+    const outsider = await fixture();
+    await expect(
+      applyTestPlan(outsider.actor, copy.id, plan(2)),
+    ).rejects.toThrow();
+  });
+
   it("keeps codes, QR IDs, aliases and late-upload matching through reassignment and completion", async () => {
     const f = await fixture();
     const before = await f.samples();

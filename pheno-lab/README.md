@@ -286,6 +286,22 @@ Experiments use `YYYY-ORG-USER-SEQ`; samples are `S1…Sn` within an experiment.
 The app also assigns short instrument handles such as `E7-S5` and preserves
 normalized aliases for existing lab naming schemes.
 
+A copied experiment can resize its substrate batch while it is still an
+unstarted draft. Copy provenance is checked against the audit trail, not its
+title. Any run, characterization result, JV measurement, testing request or
+recorded transition out of draft disables this exception. Changing the count
+replaces only that copy's provisional sample batch, returns all substrates to
+Extras and issues new QR IDs, short handles and simulator codes. The original
+experiment, plan variables and group settings remain intact. Reapplying the
+same count preserves identities and allows grouping as usual.
+
+Print replacement labels after resizing. Old simulator-code reservations remain
+occupied, and old QR IDs no longer resolve. Since the full experiment code plus
+an S-number cannot distinguish the retired batch from the replacement, automatic
+instrument matching rejects that form for a rebuilt batch; use the new simulator
+codes. Other experiments retain their existing matching behavior. Resizing and
+its audit event commit together; no production data backfill is needed.
+
 每周科研报告使用后台运行脚本。生产排程、归档恢复、五位接收人的复核和切换步骤见 [部署手册](deploy/README.md#每周研发报告独立于-mac-的服务端任务)。
 
 The release checks include `pnpm run test:weekly-report` (Python 3.11+ and the bundled RDKit). These offline tests cover evidence selection, scientific checks, rendering and delivery safeguards.

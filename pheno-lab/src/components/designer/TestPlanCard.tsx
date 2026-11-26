@@ -54,6 +54,7 @@ export function TestPlanCard({
   categories = [],
   samples,
   canEdit,
+  canResizeCopiedDraft = false,
   canManageMaterials = false,
   onApply,
   onMaterialCreated,
@@ -68,6 +69,7 @@ export function TestPlanCard({
   categories?: CategoryRow[];
   samples: { code: string; variationGroup: string | null }[];
   canEdit: boolean;
+  canResizeCopiedDraft?: boolean;
   canManageMaterials?: boolean;
   onApply: (plan: TestPlan, confirmation?: string) => Promise<TestPlanApplyIssue | null>;
   onMaterialCreated?: (m: Material) => void;
@@ -463,12 +465,13 @@ export function TestPlanCard({
                 const count = Math.min(198, Math.max(1, Number(e.target.value) || 1));
                 const assignments: Record<string, string> = {};
                 for (let i = 1; i <= count; i++) {
-                  assignments[`S${i}`] = draft.assignments?.[`S${i}`] ?? EXTRA_GROUP;
+                  assignments[`S${i}`] = canResizeCopiedDraft ? EXTRA_GROUP : draft.assignments?.[`S${i}`] ?? EXTRA_GROUP;
                 }
                 setDraft({ ...draft, substrates: { ...draft.substrates, count }, assignments });
               }}
             />
-            {(draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)) < sampleCount && (
+            {canResizeCopiedDraft && <p className="text-[11px] text-muted mt-1 max-w-lg">{t("plan.resizeCopiedDraft")}</p>}
+            {!canResizeCopiedDraft && (draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)) < sampleCount && (
               <p role="alert" className="text-[11px] text-danger mt-1">{t("plan.keepIssuedSamples")}</p>
             )}
           </div>
@@ -499,6 +502,7 @@ export function TestPlanCard({
             <SubstrateBoard
               groups={draft.groups.map((g) => g.label)}
               assignments={draft.assignments}
+              disabled={canResizeCopiedDraft && draft.substrates.count !== sampleCount}
               onMove={(sample, zone) =>
                 setDraft((d) => d && { ...d, assignments: { ...d.assignments, [sample]: zone } })
               }
@@ -657,7 +661,7 @@ export function TestPlanCard({
       {counts && summary(counts)}
       <div className="flex flex-wrap gap-2 justify-end items-center">
         <span className="text-[10.5px] text-muted mr-auto max-w-lg">
-          {t("plan.applyNote")}
+          {t(canResizeCopiedDraft && draft.substrates && draft.substrates.count !== sampleCount ? "plan.applyCopiedBatch" : "plan.applyNote")}
         </span>
         <button
           onClick={() => setEditing(false)}
@@ -668,7 +672,7 @@ export function TestPlanCard({
         <button
           disabled={
             busy ||
-            (draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)) < sampleCount ||
+            (!canResizeCopiedDraft && (draft.substrates?.count ?? draft.groups.reduce((a, g) => a + g.samples, 0)) < sampleCount) ||
             draft.variables.some((v) => !v.parameter.trim() || !v.processId) ||
             draft.variables.some((v) => draft.groups.some((g) => !(v.values[g.label] ?? "").trim()))
           }
